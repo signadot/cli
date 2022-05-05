@@ -25,23 +25,22 @@ func newList(sandbox *config.Sandbox) *cobra.Command {
 }
 
 type tableRow struct {
-	Name        string `sdtab:"NAME,10,-"`
-	Description string `sdtab:"DESCRIPTION,15,0"`
-	Cluster     string `sdtab:"CLUSTER,10,0"`
-	Created     string `sdtab:"CREATED,10,0"`
-	Status      string `sdtab:"STATUS,5,-"`
+	Name        string `sdtab:"NAME"`
+	Description string `sdtab:"DESCRIPTION,trunc"`
+	Cluster     string `sdtab:"CLUSTER"`
+	Created     string `sdtab:"CREATED"`
+	Status      string `sdtab:"STATUS"`
 }
 
 func list(cfg *config.SandboxList, out io.Writer) error {
-	t := sdtab.New[tableRow](out)
-	if err := t.WriteHeader(); err != nil {
-		return err
-	}
 	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), cfg.AuthInfo)
 	if err != nil {
 		return err
 	}
 	sbs := resp.Payload.Sandboxes
+
+	t := sdtab.New[tableRow](out)
+	t.AddHeader()
 	for _, sbinfo := range sbs {
 		row := tableRow{
 			Name:        sbinfo.Name,
@@ -50,12 +49,8 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 			Created:     sbinfo.CreatedAt,
 			Status:      "Ready",
 		}
-
-		if err := t.WriteRow(row); err != nil {
-			return err
-		}
+		t.AddRow(row)
 	}
-
 	if err := t.Flush(); err != nil {
 		return err
 	}

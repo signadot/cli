@@ -3,70 +3,85 @@ package sdtab
 import (
 	"fmt"
 	"io"
+	"os"
 	"reflect"
-	"strconv"
 	"strings"
-	"text/tabwriter"
+	"unicode/utf8"
 
 	"golang.org/x/term"
+)
+
+const (
+	margin      = "   "
+	truncSuffix = "..."
+	truncMinLen = 5
 )
 
 type column struct {
 	fieldName string
 	title     string
-	weight    int
-	notrunc   bool
+	trunc     bool
+	minWidth  int
 }
 
-func (c *column) grab(v any) string {
-	val := reflect.ValueOf(v)
-	val = val.FieldByName(c.fieldName)
-	return fmt.Sprintf("%s", val)
+func (c *column) format(row any) string {
+	val := reflect.ValueOf(row).FieldByName(c.fieldName).Interface()
+	return fmt.Sprint(val)
 }
 
-func (c *column) format(v string, w int) string {
-	if w < len(v) && !c.notrunc {
-		if w > 5 {
-			return v[:w-3] + "..."
-		}
-		return v[:w]
+func truncate(v string, maxWidth int) string {
+	if utf8.RuneCountInString(v) <= maxWidth {
+		return v
 	}
+
+	// If the maxWidth is long enough, save some space for the suffix.
+	suffix := ""
+	if maxWidth > 5 {
+		maxWidth -= len(truncSuffix)
+		suffix = truncSuffix
+	}
+
+	// Truncate by printed width (rune count) rather than byte length.
+	runes := 0
+	for offset := range v {
+		if runes >= maxWidth {
+			return v[:offset] + suffix
+		}
+		runes++
+	}
+	// We didn't need to truncate.
 	return v
 }
 
 func structFieldColumn(f reflect.StructField) *column {
-	parts := strings.Split(f.Tag.Get("sdtab"), ",")
-	if len(parts) == 0 {
+	tag := f.Tag.Get("sdtab")
+	if tag == "" {
 		return nil
 	}
-	res := &column{title: parts[0], fieldName: f.Name}
-	if len(parts) == 1 {
-		return res
-	}
-	v, e := strconv.Atoi(parts[1])
-	if e != nil {
-		res.weight = 1
-	} else {
-		res.weight = v
-	}
-	if len(parts) == 2 {
-		return res
-	}
-	switch parts[2] {
-	case "-":
-		res.notrunc = true
-	default:
 
+	// Split by commas. The first part is the column title.
+	parts := strings.Split(tag, ",")
+	res := &column{title: parts[0], fieldName: f.Name}
+
+	// The rest of the comma-separated parts are "key" or "key=value" attributes.
+	for _, attr := range parts[1:] {
+		switch attr {
+		case "trunc":
+			res.trunc = true
+		}
 	}
+
 	return res
 }
 
 type T[R any] struct {
-	tw            *tabwriter.Writer
-	columns       []*column
-	width, height int
-	rows          int
-	totalWeight   int
+	out io.Writer
+
+	columns    []*column
+	termWidth  int
+	termHeight int
+
+	rowBuf [][]string
 }
 
 func structColumns(rowType reflect.Type) []*column {
@@ -84,61 +99,155 @@ func New[R any](w io.Writer) *T[R] {
 	var row R
 	cols := structColumns(reflect.TypeOf(row))
 
-	width, height, e := term.GetSize(0)
-	if e != nil {
-		width = 100
-		height = 50
-	}
-	totalWeight := 0
-	for _, c := range cols {
-		totalWeight += c.weight
+	t := &T[R]{
+		out:     w,
+		columns: cols,
 	}
 
-	return &T[R]{
-		tw:          tabwriter.NewWriter(w, 0, 0, 3, ' ', 0),
-		columns:     cols,
-		width:       width,
-		height:      height,
-		totalWeight: totalWeight,
+	// Try to auto-detect the terminal size.
+	t.detectTermSize()
+
+	return t
+}
+
+func (t *T[R]) detectTermSize() {
+	file, ok := t.out.(*os.File)
+	if !ok {
+		return
 	}
+	width, height, err := term.GetSize(int(file.Fd()))
+	if err != nil {
+		return
+	}
+	t.SetTermSize(width, height)
+}
+
+func (t *T[R]) SetTermSize(width, height int) {
+	t.termWidth = width
+	t.termHeight = height
 }
 
 func (t *T[R]) Flush() error {
-	return t.tw.Flush()
-}
+	// Compute the desired width of each column.
+	colWidth := t.columnWidths()
 
-func (t *T[R]) WriteHeader() error {
-	cells := make([]string, 0, len(t.columns))
-	for _, col := range t.columns {
-		cells = append(cells, col.title)
-	}
-	return t.writeRow(cells)
-}
-
-func (t *T[R]) writeRow(cells []string) error {
-	for i, col := range t.columns {
-		trunc := (col.weight * t.width) / t.totalWeight
-		if i != 0 {
-			_, err := t.tw.Write([]byte("\t"))
-			if err != nil {
-				return err
-			}
-		}
-		elt := col.format(cells[i], trunc)
-		_, err := t.tw.Write([]byte(elt))
-		if err != nil {
+	// Write out the rows with the computed column widths.
+	for _, row := range t.rowBuf {
+		if err := t.writeRow(row, colWidth); err != nil {
 			return err
 		}
 	}
-	_, err := t.tw.Write([]byte("\n"))
 
-	return err
+	// Clear out the row buffer.
+	t.rowBuf = t.rowBuf[:0]
+	return nil
 }
 
-func (t *T[R]) WriteRow(r R) error {
-	cells := make([]string, 0, len(t.columns))
-	for _, col := range t.columns {
-		cells = append(cells, col.grab(r))
+func (t *T[R]) writeRow(row []string, colWidth []int) error {
+	for i, v := range row {
+		// Add some margin between columns.
+		if i > 0 {
+			if _, err := fmt.Fprint(t.out, margin); err != nil {
+				return err
+			}
+		}
+
+		// Truncate the value, if necessary, and then print it.
+		cw := colWidth[i]
+		v = truncate(v, cw)
+		if _, err := fmt.Fprint(t.out, v); err != nil {
+			return err
+		}
+
+		// Add trailing spaces to fill up the column, unless it's the last one.
+		if i == len(row)-1 {
+			continue
+		}
+		pad := cw - utf8.RuneCountInString(v)
+		if pad > 0 {
+			if _, err := fmt.Fprint(t.out, strings.Repeat(" ", pad)); err != nil {
+				return err
+			}
+		}
 	}
-	return t.writeRow(cells)
+	// Write newline.
+	if _, err := fmt.Fprintln(t.out); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t *T[R]) columnWidths() []int {
+	// Find the max width of the data in each column.
+	colWidth := make([]int, len(t.columns))
+	for _, row := range t.rowBuf {
+		for i, v := range row {
+			// Use the printed width rather than the number of bytes.
+			w := utf8.RuneCountInString(v)
+			if w > colWidth[i] {
+				colWidth[i] = w
+			}
+		}
+	}
+
+	// Find the total width of the table, including margin.
+	tableWidth := len(margin) * (len(t.columns) - 1)
+	for _, v := range colWidth {
+		tableWidth += v
+	}
+
+	// Use the full widths if the terminal is unlimited, or the table fits.
+	if t.termWidth == 0 || tableWidth <= t.termWidth {
+		return colWidth
+	}
+
+	// Find the total width of all truncatable columns.
+	truncLen := 0
+	for i, col := range t.columns {
+		if col.trunc {
+			truncLen += colWidth[i]
+		}
+	}
+	if truncLen == 0 {
+		// There's nothing we can do.
+		return colWidth
+	}
+
+	// The rest of the table width can't budge.
+	fixed := tableWidth - truncLen
+	// How small would we have to shrink the truncatable columns to fit?
+	goal := t.termWidth - fixed
+	if goal < 0 {
+		goal = 0
+	}
+	// Try to shrink all truncatable columns by the same factor.
+	factor := float64(goal) / float64(truncLen)
+	for i, col := range t.columns {
+		if col.trunc {
+			w := int(float64(colWidth[i]) * factor)
+			// Don't shrink any given column too far.
+			if w < truncMinLen {
+				w = truncMinLen
+			}
+			colWidth[i] = w
+		}
+	}
+
+	return colWidth
+}
+
+func (t *T[R]) AddHeader() {
+	header := make([]string, len(t.columns))
+	for i, col := range t.columns {
+		header[i] = col.title
+	}
+	t.rowBuf = append(t.rowBuf, header)
+}
+
+func (t *T[R]) AddRow(r R) {
+	row := make([]string, len(t.columns))
+	for i, col := range t.columns {
+		row[i] = col.format(r)
+	}
+	t.rowBuf = append(t.rowBuf, row)
 }

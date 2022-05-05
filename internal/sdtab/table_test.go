@@ -2,43 +2,75 @@ package sdtab
 
 import (
 	"os"
+	"strings"
+	"testing"
+	"unicode/utf8"
 )
 
-type Data struct {
-	FieldA string `sdtab:"a,1"`
-	FieldB string `sdtab:"b,2"`
-}
-
-var testData = []Data{
-	{FieldA: "a1", FieldB: "b1"},
-	{
-		FieldA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		FieldB: "b",
-	},
-	{
-		FieldA: "a",
-		FieldB: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-	},
-	{
-		FieldA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		FieldB: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-	},
-}
-
-func ExampleT() {
-	tab := New[Data](os.Stdout)
-	if err := tab.WriteHeader(); err != nil {
-		panic(err)
+func ExampleTruncate() {
+	type Data struct {
+		FieldA string `sdtab:"A,trunc"`
+		FieldB string `sdtab:"B,trunc"`
 	}
+
+	var testData = []Data{
+		{FieldA: "a1", FieldB: "b1"},
+		{
+			FieldA: strings.Repeat("a", 70),
+			FieldB: "b",
+		},
+		{
+			FieldA: "a",
+			FieldB: strings.Repeat("b", 180),
+		},
+		{
+			FieldA: strings.Repeat("a", 70),
+			FieldB: strings.Repeat("b", 180),
+		},
+	}
+
+	tab := New[Data](os.Stdout)
+	tab.SetTermSize(100, 50)
+	tab.AddHeader()
 	for _, d := range testData {
-		tab.WriteRow(d)
+		tab.AddRow(d)
 	}
 	tab.Flush()
 
 	// Output:
-	// a                                   b
-	// a1                                  b1
-	// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...   b
-	// a                                   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
-	// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
+	// A                             B
+	// a1                            b1
+	// aaaaaaaaaaaaaaaaaaaaaaaa...   b
+	// a                             bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
+	// aaaaaaaaaaaaaaaaaaaaaaaa...   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
+}
+
+func FuzzTruncate(f *testing.F) {
+	f.Add("abc", 10)
+	f.Add("abcdef", 6)
+	f.Add(strings.Repeat("abc", 70), 30)
+	f.Add(strings.Repeat("Hello, 世界", 70), 8)
+
+	f.Fuzz(func(t *testing.T, in string, truncLen int) {
+		inLen := utf8.RuneCountInString(in)
+		if truncLen < 0 {
+			truncLen = 0
+		}
+		wantLen := truncLen
+		if inLen < wantLen {
+			wantLen = inLen
+		}
+
+		out := truncate(in, truncLen)
+		outLen := utf8.RuneCountInString(out)
+		if outLen > truncLen {
+			t.Errorf("RuneCountInString() = %v; want %v", outLen, wantLen)
+		}
+		if utf8.ValidString(in) && !utf8.ValidString(out) {
+			t.Errorf("truncation produced invalid UTF-8 string %q", out)
+		}
+		if inLen <= truncLen && out != in {
+			t.Errorf("truncate(%q, %v) = %q; expected no change", in, truncLen, out)
+		}
+	})
 }

@@ -25,12 +25,10 @@ func newGet(sandbox *config.Sandbox) *cobra.Command {
 }
 
 func get(cfg *config.SandboxGet, out io.Writer, name string) error {
-	t := sdtab.New[tableRow](out)
-	if err := t.WriteHeader(); err != nil {
-		return err
-	}
-
 	// TODO: Fetch real data from the API.
+
+	t := sdtab.New[tableRow](out)
+	t.AddHeader()
 	row := tableRow{
 		Name:        name,
 		Description: "Sample sandbox created using Python SDK",
@@ -38,10 +36,7 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 		Created:     time.Now().String(),
 		Status:      "Ready",
 	}
-	if err := t.WriteRow(row); err != nil {
-		return err
-	}
-
+	t.AddRow(row)
 	if err := t.Flush(); err != nil {
 		return err
 	}
