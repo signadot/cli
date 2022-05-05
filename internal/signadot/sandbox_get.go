@@ -3,7 +3,7 @@ package signadot
 import (
 	"time"
 
-	"github.com/signadot/cli/internal/tablewriter"
+	"github.com/signadot/cli/internal/sdtab"
 	"github.com/spf13/cobra"
 )
 
@@ -32,8 +32,8 @@ func addSandboxGetCmd(sandbox *sandboxCmd) {
 func (c *sandboxGetCmd) run(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
-	t, err := tablewriter.New[sandboxListRow](cmd.OutOrStdout())
-	if err != nil {
+	t := sdtab.New[sandboxListRow](cmd.OutOrStdout())
+	if err := t.WriteHeader(); err != nil {
 		return err
 	}
 
@@ -42,7 +42,7 @@ func (c *sandboxGetCmd) run(cmd *cobra.Command, args []string) error {
 		Name:        name,
 		Description: "Sample sandbox created using Python SDK",
 		Cluster:     "signadot-staging",
-		Created:     time.Now(),
+		Created:     time.Now().String(),
 		Status:      "Ready",
 	}
 	if err := t.WriteRow(row); err != nil {
