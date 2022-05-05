@@ -2,43 +2,29 @@ package sdtab
 
 import (
 	"fmt"
-	"golang.org/x/term"
 	"io"
 	"reflect"
 	"strconv"
 	"strings"
 	"text/tabwriter"
+
+	"golang.org/x/term"
 )
 
-type Column[T any] interface {
-	Grab(T) string
-	Name() string
-	Weight() int
-	Format(s string, t int) string
+type column struct {
+	fieldName string
+	title     string
+	weight    int
+	notrunc   bool
 }
 
-type column[T any] struct {
-	fname   string
-	name    string
-	weight  int
-	notrunc bool
-}
-
-func (c *column[T]) Grab(v T) string {
+func (c *column) grab(v any) string {
 	val := reflect.ValueOf(v)
-	val = val.FieldByName(c.fname)
+	val = val.FieldByName(c.fieldName)
 	return fmt.Sprintf("%s", val)
 }
 
-func (c *column[T]) Name() string {
-	return c.name
-}
-
-func (c *column[T]) Weight() int {
-	return c.weight
-}
-
-func (c *column[T]) Format(v string, w int) string {
+func (c *column) format(v string, w int) string {
 	if w < len(v) && !c.notrunc {
 		if w > 5 {
 			return v[:w-3] + "..."
@@ -48,12 +34,12 @@ func (c *column[T]) Format(v string, w int) string {
 	return v
 }
 
-func StructFieldColumn[T any](f reflect.StructField) Column[T] {
+func structFieldColumn(f reflect.StructField) *column {
 	parts := strings.Split(f.Tag.Get("sdtab"), ",")
 	if len(parts) == 0 {
 		return nil
 	}
-	res := &column[T]{name: parts[0], fname: f.Name}
+	res := &column{title: parts[0], fieldName: f.Name}
 	if len(parts) == 1 {
 		return res
 	}
@@ -77,19 +63,16 @@ func StructFieldColumn[T any](f reflect.StructField) Column[T] {
 
 type T[R any] struct {
 	tw            *tabwriter.Writer
-	columns       []Column[R]
+	columns       []*column
 	width, height int
 	rows          int
-	ttlWeight     int
-	buf           []string
+	totalWeight   int
 }
 
-func Columns[T any]() []Column[T] {
-	var v T
-	rowType := reflect.TypeOf(v)
-	var res []Column[T]
+func structColumns(rowType reflect.Type) []*column {
+	var res []*column
 	for _, field := range reflect.VisibleFields(rowType) {
-		c := StructFieldColumn[T](field)
+		c := structFieldColumn(field)
 		if c != nil {
 			res = append(res, c)
 		}
@@ -98,27 +81,26 @@ func Columns[T any]() []Column[T] {
 }
 
 func New[R any](w io.Writer) *T[R] {
-	return FromColumns[R](w, Columns[R]())
-}
+	var row R
+	cols := structColumns(reflect.TypeOf(row))
 
-func FromColumns[R any](w io.Writer, cols []Column[R]) *T[R] {
 	width, height, e := term.GetSize(0)
 	if e != nil {
 		width = 100
 		height = 50
 	}
-	ttlWeight := 0
+	totalWeight := 0
 	for _, c := range cols {
-		ttlWeight += c.Weight()
+		totalWeight += c.weight
 	}
 
 	return &T[R]{
-		tw:        tabwriter.NewWriter(w, 0, 0, 3, ' ', 0),
-		columns:   cols,
-		width:     width,
-		height:    height,
-		ttlWeight: ttlWeight,
-		buf:       make([]string, len(cols))}
+		tw:          tabwriter.NewWriter(w, 0, 0, 3, ' ', 0),
+		columns:     cols,
+		width:       width,
+		height:      height,
+		totalWeight: totalWeight,
+	}
 }
 
 func (t *T[R]) Flush() error {
@@ -126,22 +108,23 @@ func (t *T[R]) Flush() error {
 }
 
 func (t *T[R]) WriteHeader() error {
-	for i, col := range t.columns {
-		t.buf[i] = col.Name()
+	cells := make([]string, 0, len(t.columns))
+	for _, col := range t.columns {
+		cells = append(cells, col.title)
 	}
-	return t.write()
+	return t.writeRow(cells)
 }
 
-func (t *T[R]) write() error {
+func (t *T[R]) writeRow(cells []string) error {
 	for i, col := range t.columns {
-		trunc := (col.Weight() * t.width) / t.ttlWeight
+		trunc := (col.weight * t.width) / t.totalWeight
 		if i != 0 {
 			_, err := t.tw.Write([]byte("\t"))
 			if err != nil {
 				return err
 			}
 		}
-		elt := col.Format(t.buf[i], trunc)
+		elt := col.format(cells[i], trunc)
 		_, err := t.tw.Write([]byte(elt))
 		if err != nil {
 			return err
@@ -153,8 +136,9 @@ func (t *T[R]) write() error {
 }
 
 func (t *T[R]) WriteRow(r R) error {
-	for i, col := range t.columns {
-		t.buf[i] = col.Grab(r)
+	cells := make([]string, 0, len(t.columns))
+	for _, col := range t.columns {
+		cells = append(cells, col.grab(r))
 	}
-	return t.write()
+	return t.writeRow(cells)
 }

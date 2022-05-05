@@ -2,15 +2,14 @@ package sdtab
 
 import (
 	"os"
-	"testing"
 )
 
-type Thing struct {
+type Data struct {
 	FieldA string `sdtab:"a,1"`
 	FieldB string `sdtab:"b,2"`
 }
 
-var d = []Thing{
+var testData = []Data{
 	{FieldA: "a1", FieldB: "b1"},
 	{
 		FieldA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -26,16 +25,20 @@ var d = []Thing{
 	},
 }
 
-func TestTable(t *testing.T) {
-	cols := Columns[Thing]()
-	tab := FromColumns(os.Stdout, cols)
+func ExampleT() {
+	tab := New[Data](os.Stdout)
 	if err := tab.WriteHeader(); err != nil {
-		t.Error(err)
-		return
+		panic(err)
 	}
-	for i := range d {
-		thing := &d[i]
-		tab.WriteRow(*thing)
+	for _, d := range testData {
+		tab.WriteRow(d)
 	}
 	tab.Flush()
+
+	// Output:
+	// a                                   b
+	// a1                                  b1
+	// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...   b
+	// a                                   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
+	// aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
 }
