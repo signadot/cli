@@ -245,8 +245,6 @@ github.com/rogpeppe/go-internal v1.1.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rogpeppe/go-internal v1.2.2/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/signadot/go-sdk v0.0.0-20220429143421-294d529185d8 h1:9KBWneOBFhUcpUF8CDBFGJDwvnSn6UhSndhZUIR3IXs=
-github.com/signadot/go-sdk v0.0.0-20220429143421-294d529185d8/go.mod h1:a2cdcp+vRMt8fDSRPTQk0GO0jNTxMj2d+2tBogzgfI4=
 github.com/signadot/go-sdk v0.0.0-20220505140828-56ed5105b2ee h1:AQzgLLfLmu6XnJluimmflvDTJNqoVzTks6hTkffPhuU=
 github.com/signadot/go-sdk v0.0.0-20220505140828-56ed5105b2ee/go.mod h1:a2cdcp+vRMt8fDSRPTQk0GO0jNTxMj2d+2tBogzgfI4=
 github.com/sirupsen/logrus v1.4.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
@@ -628,3 +626,5 @@ honnef.co/go/tools v0.0.1-2020.1.4/go.mod h1:X/FiERA/W4tHapMX5mGpAtMSVEeEUOyHaw9
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
 rsc.io/quote/v3 v3.1.0/go.mod h1:yEA65RcK8LyAZtP9Kv3t0HmxON59tX3rD+tICJqUlj0=
 rsc.io/sampler v1.3.0/go.mod h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=
+sigs.k8s.io/yaml v1.3.0 h1:a2VclLzOGrwOHDiV8EfBGhvjHvP46CtW5j6POvhYGGo=
+sigs.k8s.io/yaml v1.3.0/go.mod h1:GeOyir5tyXNByN85N/dRIT9es5UQNerPYEKK56eTBm8=

@@ -1,12 +1,15 @@
 package sandbox
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 )
 
 func newList(sandbox *config.Sandbox) *cobra.Command {
@@ -39,20 +42,40 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 	}
 	sbs := resp.Payload.Sandboxes
 
-	t := sdtab.New[tableRow](out)
-	t.AddHeader()
-	for _, sbinfo := range sbs {
-		row := tableRow{
-			Name:        sbinfo.Name,
-			Description: sbinfo.Description,
-			Cluster:     sbinfo.ClusterName,
-			Created:     sbinfo.CreatedAt,
-			Status:      "Ready",
+	switch cfg.OutputFormat {
+	case config.OutputFormatDefault:
+		t := sdtab.New[tableRow](out)
+		t.AddHeader()
+		for _, sbinfo := range sbs {
+			row := tableRow{
+				Name:        sbinfo.Name,
+				Description: sbinfo.Description,
+				Cluster:     sbinfo.ClusterName,
+				Created:     sbinfo.CreatedAt,
+				// TODO: Implement status.
+				Status: "Ready",
+			}
+			t.AddRow(row)
 		}
-		t.AddRow(row)
-	}
-	if err := t.Flush(); err != nil {
-		return err
+		if err := t.Flush(); err != nil {
+			return err
+		}
+	case config.OutputFormatJSON:
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(sbs); err != nil {
+			return err
+		}
+	case config.OutputFormatYAML:
+		data, err := yaml.Marshal(sbs)
+		if err != nil {
+			return err
+		}
+		if _, err := out.Write(data); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
 
 	return nil

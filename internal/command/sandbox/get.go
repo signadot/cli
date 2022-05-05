@@ -1,12 +1,16 @@
 package sandbox
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
-	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
+	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/yaml"
 )
 
 func newGet(sandbox *config.Sandbox) *cobra.Command {
@@ -25,20 +29,54 @@ func newGet(sandbox *config.Sandbox) *cobra.Command {
 }
 
 func get(cfg *config.SandboxGet, out io.Writer, name string) error {
-	// TODO: Fetch real data from the API.
-
-	t := sdtab.New[tableRow](out)
-	t.AddHeader()
-	row := tableRow{
-		Name:        name,
-		Description: "Sample sandbox created using Python SDK",
-		Cluster:     "signadot-staging",
-		Created:     time.Now().String(),
-		Status:      "Ready",
-	}
-	t.AddRow(row)
-	if err := t.Flush(); err != nil {
+	// TODO: Use GetSandboxByName when it's available.
+	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), cfg.AuthInfo)
+	if err != nil {
 		return err
+	}
+	var sb *models.SandboxInfo
+	for _, sbinfo := range resp.Payload.Sandboxes {
+		if sbinfo.Name == name {
+			sb = sbinfo
+			break
+		}
+	}
+	if sb == nil {
+		return fmt.Errorf("Sandbox %q not found", name)
+	}
+
+	switch cfg.OutputFormat {
+	case config.OutputFormatDefault:
+		t := sdtab.New[tableRow](out)
+		t.AddHeader()
+		row := tableRow{
+			Name:        sb.Name,
+			Description: sb.Description,
+			Cluster:     sb.ClusterName,
+			Created:     sb.CreatedAt,
+			// TODO: Implement status.
+			Status: "Ready",
+		}
+		t.AddRow(row)
+		if err := t.Flush(); err != nil {
+			return err
+		}
+	case config.OutputFormatJSON:
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(sb); err != nil {
+			return err
+		}
+	case config.OutputFormatYAML:
+		data, err := yaml.Marshal(sb)
+		if err != nil {
+			return err
+		}
+		if _, err := out.Write(data); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
 
 	return nil
