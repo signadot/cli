@@ -14,7 +14,7 @@ import (
 const (
 	margin      = "   "
 	truncSuffix = "..."
-	truncMinLen = 5
+	truncMinLen = 6
 )
 
 type column struct {
