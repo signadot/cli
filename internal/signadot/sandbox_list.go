@@ -1,9 +1,10 @@
 package signadot
 
 import (
-	"time"
-
-	"github.com/signadot/cli/internal/tablewriter"
+	"github.com/signadot/cli/internal/auth"
+	"github.com/signadot/cli/internal/sdtab"
+	"github.com/signadot/go-sdk/client"
+	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/spf13/cobra"
 )
 
@@ -30,29 +31,38 @@ func addSandboxListCmd(sandbox *sandboxCmd) {
 }
 
 type sandboxListRow struct {
-	Name        string
-	Description string `maxLen:"25"`
-	Cluster     string
-	Created     time.Time
-	Status      string
+	Name        string `sdtab:"NAME,10,-"`
+	Description string `sdtab:"DESCRIPTION,15,0"`
+	Cluster     string `sdtab:"CLUSTER,10,0"`
+	Created     string `sdtab:"CREATED,10,0"`
+	Status      string `sdtab:"STATUS,5,-"`
 }
 
 func (c *sandboxListCmd) run(cmd *cobra.Command, args []string) error {
-	t, err := tablewriter.New[sandboxListRow](cmd.OutOrStdout())
-	if err != nil {
+	t := sdtab.New[sandboxListRow](cmd.OutOrStdout())
+	if err := t.WriteHeader(); err != nil {
 		return err
 	}
 
-	// TODO: Fetch real data from the API.
-	row := sandboxListRow{
-		Name:        "test-foxish-mongo-2",
-		Description: "Sample sandbox created using Python SDK",
-		Cluster:     "signadot-staging",
-		Created:     time.Now(),
-		Status:      "Ready",
-	}
-	if err := t.WriteRow(row); err != nil {
+	d := client.Default
+	// TODO: how to handle org?
+	resp, err := d.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName("signadot"), auth.Authenticator())
+	if err != nil {
 		return err
+	}
+	sbs := resp.Payload.Sandboxes
+	for _, sbinfo := range sbs {
+		row := sandboxListRow{
+			Name:        sbinfo.Name,
+			Description: sbinfo.Description,
+			Cluster:     sbinfo.ClusterName,
+			Created:     sbinfo.CreatedAt,
+			Status:      "Ready",
+		}
+
+		if err := t.WriteRow(row); err != nil {
+			return err
+		}
 	}
 
 	if err := t.Flush(); err != nil {
