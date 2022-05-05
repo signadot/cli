@@ -3,12 +3,12 @@ package main
 import (
 	"os"
 
-	"github.com/signadot/cli/internal/signadot"
+	"github.com/signadot/cli/internal/command"
 )
 
 func main() {
-	rootCmd := signadot.NewRootCmd()
-	if err := rootCmd.Execute(); err != nil {
+	cmd := command.New()
+	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }

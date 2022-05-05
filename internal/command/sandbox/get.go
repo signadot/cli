@@ -1,44 +1,37 @@
-package signadot
+package sandbox
 
 import (
+	"io"
 	"time"
 
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/spf13/cobra"
 )
 
-type sandboxGetCmd struct {
-	*cobra.Command
+func newGet(sandbox *config.Sandbox) *cobra.Command {
+	cfg := &config.SandboxGet{Sandbox: sandbox}
 
-	// Parent commands
-	root    *RootCmd
-	sandbox *sandboxCmd
-}
-
-func addSandboxGetCmd(sandbox *sandboxCmd) {
-	c := &sandboxGetCmd{
-		root:    sandbox.root,
-		sandbox: sandbox,
-	}
-	c.Command = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "get NAME",
 		Short: "Get sandbox",
 		Args:  cobra.ExactArgs(1),
-		RunE:  c.run,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return get(cfg, cmd.OutOrStdout(), args[0])
+		},
 	}
-	sandbox.AddCommand(c.Command)
+
+	return cmd
 }
 
-func (c *sandboxGetCmd) run(cmd *cobra.Command, args []string) error {
-	name := args[0]
-
-	t := sdtab.New[sandboxListRow](cmd.OutOrStdout())
+func get(cfg *config.SandboxGet, out io.Writer, name string) error {
+	t := sdtab.New[tableRow](out)
 	if err := t.WriteHeader(); err != nil {
 		return err
 	}
 
 	// TODO: Fetch real data from the API.
-	row := sandboxListRow{
+	row := tableRow{
 		Name:        name,
 		Description: "Sample sandbox created using Python SDK",
 		Cluster:     "signadot-staging",

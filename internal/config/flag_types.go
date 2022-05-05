@@ -1,4 +1,4 @@
-package signadot
+package config
 
 import "fmt"
 

@@ -1,27 +1,24 @@
 package auth
 
 import (
-	"os"
-
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
 )
 
-type t struct{}
-
-// TODO use config
-func GetApiKey() string {
-	return os.Getenv("SIGNADOT_API_KEY")
+type t struct {
+	apiKey string
 }
 
 func (t t) AuthenticateRequest(req runtime.ClientRequest, _ strfmt.Registry) error {
-	req.SetHeaderParam("signadot-api-key", GetApiKey())
+	req.SetHeaderParam("signadot-api-key", t.apiKey)
 	return nil
 }
 
 // this is useful for using the sdk.
 // returns a thing which adds auth credentials to client
 // request
-func Authenticator() runtime.ClientAuthInfoWriter {
-	return t{}
+func Authenticator(apiKey string) runtime.ClientAuthInfoWriter {
+	return t{
+		apiKey: apiKey,
+	}
 }

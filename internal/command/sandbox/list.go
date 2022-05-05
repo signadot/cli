@@ -1,36 +1,30 @@
-package signadot
+package sandbox
 
 import (
-	"github.com/signadot/cli/internal/auth"
+	"io"
+
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
-	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/spf13/cobra"
 )
 
-type sandboxListCmd struct {
-	*cobra.Command
+func newList(sandbox *config.Sandbox) *cobra.Command {
+	cfg := &config.SandboxList{Sandbox: sandbox}
 
-	// Parent commands
-	root    *RootCmd
-	sandbox *sandboxCmd
-}
-
-func addSandboxListCmd(sandbox *sandboxCmd) {
-	c := &sandboxListCmd{
-		root:    sandbox.root,
-		sandbox: sandbox,
-	}
-	c.Command = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List sandboxes",
 		Args:  cobra.NoArgs,
-		RunE:  c.run,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return list(cfg, cmd.OutOrStdout())
+		},
 	}
-	sandbox.AddCommand(c.Command)
+
+	return cmd
 }
 
-type sandboxListRow struct {
+type tableRow struct {
 	Name        string `sdtab:"NAME,10,-"`
 	Description string `sdtab:"DESCRIPTION,15,0"`
 	Cluster     string `sdtab:"CLUSTER,10,0"`
@@ -38,21 +32,18 @@ type sandboxListRow struct {
 	Status      string `sdtab:"STATUS,5,-"`
 }
 
-func (c *sandboxListCmd) run(cmd *cobra.Command, args []string) error {
-	t := sdtab.New[sandboxListRow](cmd.OutOrStdout())
+func list(cfg *config.SandboxList, out io.Writer) error {
+	t := sdtab.New[tableRow](out)
 	if err := t.WriteHeader(); err != nil {
 		return err
 	}
-
-	d := client.Default
-	// TODO: how to handle org?
-	resp, err := d.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName("signadot"), auth.Authenticator())
+	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), cfg.AuthInfo)
 	if err != nil {
 		return err
 	}
 	sbs := resp.Payload.Sandboxes
 	for _, sbinfo := range sbs {
-		row := sandboxListRow{
+		row := tableRow{
 			Name:        sbinfo.Name,
 			Description: sbinfo.Description,
 			Cluster:     sbinfo.ClusterName,
