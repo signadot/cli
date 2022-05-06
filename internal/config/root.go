@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 
@@ -71,6 +73,19 @@ func (c *Root) init() error {
 
 	c.Client = client.Default
 	c.AuthInfo = auth.Authenticator(apiKey)
+
+	// Allow API URL to be overridden (e.g. for talking to dev/staging).
+	if apiURL := viper.GetString("api_url"); apiURL != "" {
+		u, err := url.Parse(apiURL)
+		if err != nil {
+			return fmt.Errorf("invalid api_url: %w", err)
+		}
+		c.Client = client.NewHTTPClientWithConfig(nil, &client.TransportConfig{
+			Host:     u.Host,
+			BasePath: client.DefaultBasePath,
+			Schemes:  []string{u.Scheme},
+		})
+	}
 
 	return nil
 }
