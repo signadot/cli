@@ -29,7 +29,7 @@ func ExampleTruncate() {
 		},
 	}
 
-	tab := New[Data](os.Stdout)
+	tab := FromStruct[Data](os.Stdout)
 	tab.SetTermSize(100, 50)
 	tab.AddHeader()
 	for _, d := range testData {
@@ -40,9 +40,9 @@ func ExampleTruncate() {
 	// Output:
 	// A                             B
 	// a1                            b1
-	// aaaaaaaaaaaaaaaaaaaaaaaa...   b
-	// a                             bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
-	// aaaaaaaaaaaaaaaaaaaaaaaa...   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb...
+	// aaaaaaaaaaaaaaaaaaaaaaaaa..   b
+	// a                             bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb..
+	// aaaaaaaaaaaaaaaaaaaaaaaaa..   bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb..
 }
 
 func FuzzTruncate(f *testing.F) {

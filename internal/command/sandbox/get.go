@@ -47,16 +47,9 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		t := sdtab.New[tableRow](out)
+		t := sdtab.New[*sbRow](out, &sbRow{})
 		t.AddHeader()
-		row := tableRow{
-			Name:        sb.Name,
-			Description: sb.Description,
-			Cluster:     sb.ClusterName,
-			Created:     sb.CreatedAt,
-			// TODO: Implement status.
-			Status: "Ready",
-		}
+		row := &sbRow{SandboxInfo: *sb, status: "Ready"}
 		t.AddRow(row)
 		if err := t.Flush(); err != nil {
 			return err

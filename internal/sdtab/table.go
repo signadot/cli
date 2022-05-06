@@ -3,8 +3,8 @@ package sdtab
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
-	"reflect"
 	"strings"
 	"unicode/utf8"
 
@@ -13,95 +13,35 @@ import (
 
 const (
 	margin      = "   "
-	truncSuffix = "..."
+	truncSuffix = ".."
 	truncMinLen = 6
 )
-
-type column struct {
-	fieldName string
-	title     string
-	trunc     bool
-	minWidth  int
-}
-
-func (c *column) format(row any) string {
-	val := reflect.ValueOf(row).FieldByName(c.fieldName).Interface()
-	return fmt.Sprint(val)
-}
-
-func truncate(v string, maxWidth int) string {
-	if utf8.RuneCountInString(v) <= maxWidth {
-		return v
-	}
-
-	// If the maxWidth is long enough, save some space for the suffix.
-	suffix := ""
-	if maxWidth > 5 {
-		maxWidth -= len(truncSuffix)
-		suffix = truncSuffix
-	}
-
-	// Truncate by printed width (rune count) rather than byte length.
-	runes := 0
-	for offset := range v {
-		if runes >= maxWidth {
-			return v[:offset] + suffix
-		}
-		runes++
-	}
-	// We didn't need to truncate.
-	return v
-}
-
-func structFieldColumn(f reflect.StructField) *column {
-	tag := f.Tag.Get("sdtab")
-	if tag == "" {
-		return nil
-	}
-
-	// Split by commas. The first part is the column title.
-	parts := strings.Split(tag, ",")
-	res := &column{title: parts[0], fieldName: f.Name}
-
-	// The rest of the comma-separated parts are "key" or "key=value" attributes.
-	for _, attr := range parts[1:] {
-		switch attr {
-		case "trunc":
-			res.trunc = true
-		}
-	}
-
-	return res
-}
 
 type T[R any] struct {
 	out io.Writer
 
-	columns    []*column
+	columns    []Column[R]
 	termWidth  int
 	termHeight int
 
 	rowBuf [][]string
 }
 
-func structColumns(rowType reflect.Type) []*column {
-	var res []*column
-	for _, field := range reflect.VisibleFields(rowType) {
-		c := structFieldColumn(field)
-		if c != nil {
-			res = append(res, c)
-		}
-	}
-	return res
+type Column[Row any] struct {
+	Title    string
+	Truncate bool
+	Get      func(r Row) string
+	MinWidth int
 }
 
-func New[R any](w io.Writer) *T[R] {
-	var row R
-	cols := structColumns(reflect.TypeOf(row))
+type Columns[R any] interface {
+	Columns() []Column[R]
+}
 
+func New[R any](w io.Writer, cs Columns[R]) *T[R] {
 	t := &T[R]{
 		out:     w,
-		columns: cols,
+		columns: cs.Columns(),
 	}
 
 	// Try to auto-detect the terminal size.
@@ -110,21 +50,25 @@ func New[R any](w io.Writer) *T[R] {
 	return t
 }
 
-func (t *T[R]) detectTermSize() {
-	file, ok := t.out.(*os.File)
-	if !ok {
-		return
-	}
-	width, height, err := term.GetSize(int(file.Fd()))
-	if err != nil {
-		return
-	}
-	t.SetTermSize(width, height)
-}
-
 func (t *T[R]) SetTermSize(width, height int) {
 	t.termWidth = width
 	t.termHeight = height
+}
+
+func (t *T[R]) AddHeader() {
+	header := make([]string, len(t.columns))
+	for i, col := range t.columns {
+		header[i] = col.Title
+	}
+	t.rowBuf = append(t.rowBuf, header)
+}
+
+func (t *T[R]) AddRow(r R) {
+	row := make([]string, len(t.columns))
+	for i, col := range t.columns {
+		row[i] = col.Get(r)
+	}
+	t.rowBuf = append(t.rowBuf, row)
 }
 
 func (t *T[R]) Flush() error {
@@ -141,6 +85,18 @@ func (t *T[R]) Flush() error {
 	// Clear out the row buffer.
 	t.rowBuf = t.rowBuf[:0]
 	return nil
+}
+
+func (t *T[R]) detectTermSize() {
+	file, ok := t.out.(*os.File)
+	if !ok {
+		return
+	}
+	width, height, err := term.GetSize(int(file.Fd()))
+	if err != nil {
+		return
+	}
+	t.SetTermSize(width, height)
 }
 
 func (t *T[R]) writeRow(row []string, colWidth []int) error {
@@ -197,57 +153,73 @@ func (t *T[R]) columnWidths() []int {
 	}
 
 	// Use the full widths if the terminal is unlimited, or the table fits.
-	if t.termWidth == 0 || tableWidth <= t.termWidth {
+	if t.termWidth == 0 {
 		return colWidth
 	}
 
 	// Find the total width of all truncatable columns.
 	truncLen := 0
 	for i, col := range t.columns {
-		if col.trunc {
+		if col.Truncate {
 			truncLen += colWidth[i]
 		}
 	}
-	if truncLen == 0 {
-		// There's nothing we can do.
-		return colWidth
-	}
 
 	// The rest of the table width can't budge.
-	fixed := tableWidth - truncLen
-	// How small would we have to shrink the truncatable columns to fit?
-	goal := t.termWidth - fixed
-	if goal < 0 {
-		goal = 0
+	fixedLen := tableWidth - truncLen
+	if tableWidth == t.termWidth {
+		return colWidth
 	}
-	// Try to shrink all truncatable columns by the same factor.
-	factor := float64(goal) / float64(truncLen)
-	for i, col := range t.columns {
-		if col.trunc {
+	if tableWidth > t.termWidth {
+		// How small would we have to shrink the truncatable columns to fit?
+		goal := t.termWidth - fixedLen
+		// Try to shrink all truncatable columns by the same factor.
+		factor := float64(goal) / float64(truncLen)
+		for i, col := range t.columns {
 			w := int(float64(colWidth[i]) * factor)
-			// Don't shrink any given column too far.
-			if w < truncMinLen {
-				w = truncMinLen
+			if col.Truncate {
+				// Don't shrink any given column too far.
+				if w < truncMinLen {
+					w = truncMinLen
+				}
 			}
 			colWidth[i] = w
 		}
+		return colWidth
 	}
-
+	// fill out to the width of the terminal
+	factor := float64(t.termWidth-tableWidth) / float64(len(t.columns))
+	pad := int(math.Round(factor))
+	for i := range t.columns {
+		if tableWidth+pad > t.termWidth {
+			// in case rounding went past the termWidth
+			pad = t.termWidth - tableWidth
+		}
+		colWidth[i] += pad
+	}
 	return colWidth
 }
 
-func (t *T[R]) AddHeader() {
-	header := make([]string, len(t.columns))
-	for i, col := range t.columns {
-		header[i] = col.title
+func truncate(v string, maxWidth int) string {
+	if utf8.RuneCountInString(v) <= maxWidth {
+		return v
 	}
-	t.rowBuf = append(t.rowBuf, header)
-}
 
-func (t *T[R]) AddRow(r R) {
-	row := make([]string, len(t.columns))
-	for i, col := range t.columns {
-		row[i] = col.format(r)
+	// If the maxWidth is long enough, save some space for the suffix.
+	suffix := ""
+	if maxWidth > 5 {
+		maxWidth -= len(truncSuffix)
+		suffix = truncSuffix
 	}
-	t.rowBuf = append(t.rowBuf, row)
+
+	// Truncate by printed width (rune count) rather than byte length.
+	runes := 0
+	for offset := range v {
+		if runes >= maxWidth {
+			return v[:offset] + suffix
+		}
+		runes++
+	}
+	// We didn't need to truncate.
+	return v
 }

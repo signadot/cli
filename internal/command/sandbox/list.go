@@ -44,17 +44,10 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		t := sdtab.New[tableRow](out)
+		t := sdtab.New[*sbRow](out, &sbRow{})
 		t.AddHeader()
 		for _, sbinfo := range sbs {
-			row := tableRow{
-				Name:        sbinfo.Name,
-				Description: sbinfo.Description,
-				Cluster:     sbinfo.ClusterName,
-				Created:     sbinfo.CreatedAt,
-				// TODO: Implement status.
-				Status: "Ready",
-			}
+			row := &sbRow{SandboxInfo: *sbinfo, status: "Ready"}
 			t.AddRow(row)
 		}
 		if err := t.Flush(); err != nil {
