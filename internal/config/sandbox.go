@@ -11,10 +11,12 @@ type SandboxCreate struct {
 
 	// Flags
 	Filename string
+	Wait     bool
 }
 
 func (c *SandboxCreate) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "YAML or JSON file containing the sandbox creation request")
+	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for the sandbox status to be Ready before returning")
 	cmd.MarkFlagRequired("filename")
 }
 
