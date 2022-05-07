@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	margin      = "   "
-	truncSuffix = ".."
-	truncMinLen = 6
+	margin            = "   "
+	truncSuffix       = ".."
+	truncMinLen       = 6
+	stretchMinColumns = 5
 )
 
 type T[R any] struct {
@@ -23,6 +24,7 @@ type T[R any] struct {
 	columns    []Column[R]
 	termWidth  int
 	termHeight int
+	stretch    bool
 
 	rowBuf [][]string
 }
@@ -43,10 +45,18 @@ func New[R any](w io.Writer, cs Columns[R]) *T[R] {
 		out:     w,
 		columns: cs.Columns(),
 	}
+	if len(t.columns) >= stretchMinColumns {
+		t.stretch = true
+	}
 
 	// Try to auto-detect the terminal size.
 	t.detectTermSize()
 
+	return t
+}
+
+func (t *T[R]) SetStretch(v bool) *T[R] {
+	t.stretch = v
 	return t
 }
 
