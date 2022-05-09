@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func New(root *config.Root) *cobra.Command {
-	cfg := &config.Cluster{Root: root}
+func New(api *config.Api) *cobra.Command {
+	cfg := &config.Cluster{Api: api}
 	cmd := &cobra.Command{
 		Use:   "cluster",
 		Short: "Manage connections between your Kubernetes clusters and Signadot",

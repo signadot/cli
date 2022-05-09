@@ -23,6 +23,9 @@ func newConnect(cluster *config.Cluster) *cobra.Command {
 }
 
 func connect(cfg *config.ClusterConnect) error {
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
+	}
 	// TODO: Implement cluster connect.
 
 	return nil

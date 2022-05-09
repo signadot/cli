@@ -30,6 +30,9 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 }
 
 func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
+	}
 	if cfg.Filename == "" && len(args) == 0 {
 		return errors.New("must specify either filename or sandbox name")
 	}

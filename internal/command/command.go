@@ -8,7 +8,7 @@ import (
 )
 
 func New() *cobra.Command {
-	cfg := &config.Root{}
+	cfg := &config.Api{}
 	cobra.OnInitialize(cfg.Init)
 
 	cmd := &cobra.Command{

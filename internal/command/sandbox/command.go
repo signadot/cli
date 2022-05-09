@@ -5,8 +5,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func New(root *config.Root) *cobra.Command {
-	cfg := &config.Sandbox{Root: root}
+func New(api *config.Api) *cobra.Command {
+	cfg := &config.Sandbox{Api: api}
 
 	cmd := &cobra.Command{
 		Use:   "sandbox",

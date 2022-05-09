@@ -30,6 +30,9 @@ func newCreate(sandbox *config.Sandbox) *cobra.Command {
 }
 
 func create(cfg *config.SandboxCreate, out io.Writer) error {
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
+	}
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
