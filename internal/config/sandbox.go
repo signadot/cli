@@ -3,7 +3,7 @@ package config
 import "github.com/spf13/cobra"
 
 type Sandbox struct {
-	*Root
+	*Api
 }
 
 type SandboxCreate struct {

@@ -23,6 +23,9 @@ func newCreate(token *config.ClusterToken) *cobra.Command {
 }
 
 func create(cfg *config.ClusterTokenCreate) error {
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
+	}
 	// TODO: Implement cluster token create.
 
 	return nil

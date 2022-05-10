@@ -29,6 +29,9 @@ func newGet(sandbox *config.Sandbox) *cobra.Command {
 }
 
 func get(cfg *config.SandboxGet, out io.Writer, name string) error {
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
+	}
 	// TODO: Use GetSandboxByName when it's available.
 	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), cfg.AuthInfo)
 	if err != nil {
