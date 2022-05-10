@@ -1,0 +1,22 @@
+project_name: signadot-cli
+builds:
+- main: ./cmd/signadot
+  id: signadot
+  binary: signadot
+  goos:
+  - linux
+  - darwin
+  goarch:
+  - amd64
+  - arm64
+  ldflags:
+  - -X github.com/signadot/cli/internal/buildinfo.Version=v{{ .Version }}
+  - -X github.com/signadot/cli/internal/buildinfo.GitCommit={{ .ShortCommit }}
+  - -X github.com/signadot/cli/internal/buildinfo.BuildDate={{ .Date }}
+archives:
+- id: signadot
+  name_template: "{{ .ProjectName }}-v{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+checksum:
+  name_template: checksums.txt
+snapshot:
+  name_template: "{{ .Version }}-{{ .ShortCommit }}"

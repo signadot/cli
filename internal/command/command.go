@@ -1,6 +1,9 @@
 package command
 
 import (
+	"fmt"
+
+	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/command/cluster"
 	"github.com/signadot/cli/internal/command/sandbox"
 	"github.com/signadot/cli/internal/config"
@@ -12,8 +15,9 @@ func New() *cobra.Command {
 	cobra.OnInitialize(cfg.Init)
 
 	cmd := &cobra.Command{
-		Use:   "signadot",
-		Short: "Command-line interface for Signadot",
+		Use:     "signadot",
+		Short:   "Command-line interface for Signadot",
+		Version: fmt.Sprintf("%v (%v) - %v", buildinfo.Version, buildinfo.GitCommit, buildinfo.BuildDate),
 
 		// Don't print usage info automatically when errors occur.
 		// Most of the time, the errors are not related to usage.
