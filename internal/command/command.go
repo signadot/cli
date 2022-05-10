@@ -14,6 +14,10 @@ func New() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "signadot",
 		Short: "Command-line interface for Signadot",
+
+		// Don't print usage info automatically when errors occur.
+		// Most of the time, the errors are not related to usage.
+		SilenceUsage: true,
 	}
 	cfg.AddFlags(cmd)
 
