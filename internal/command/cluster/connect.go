@@ -51,7 +51,6 @@ func connect(cfg *config.ClusterConnect, out io.Writer) error {
 	params := cluster.NewConnectClusterParams().
 		WithOrgName(cfg.Org).WithData(req)
 	_, err := cfg.Client.Cluster.ConnectCluster(params, nil)
-
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"net/url"
 
 	oaclient "github.com/go-openapi/runtime/client"
+	"github.com/signadot/cli/internal/hack"
 	"github.com/signadot/go-sdk/client"
 	"github.com/spf13/viper"
 )
@@ -49,7 +50,7 @@ func (a *Api) InitAPIConfig() error {
 	transport.DefaultAuthentication = oaclient.APIKeyAuth("signadot-api-key", "header", apiKey)
 	transport.SetDebug(a.Debug)
 
-	a.Client = client.New(transport, nil)
+	a.Client = client.New(hack.FixAPIErrors(transport), nil)
 
 	return nil
 }
