@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/go-openapi/runtime"
-	"github.com/signadot/cli/internal/auth"
+	oaclient "github.com/go-openapi/runtime/client"
 	"github.com/signadot/go-sdk/client"
 	"github.com/spf13/viper"
 )
@@ -18,8 +17,7 @@ type Api struct {
 	Org string
 
 	// Runtime values
-	Client   *client.SignadotAPI
-	AuthInfo runtime.ClientAuthInfoWriter
+	Client *client.SignadotAPI
 }
 
 func (a *Api) InitAPIConfig() error {
@@ -34,8 +32,7 @@ func (a *Api) InitAPIConfig() error {
 		return errors.New("Signadot API key must be specified through either the SIGNADOT_API_KEY env var or the 'api_key' field in ~/.signadot/config.yaml")
 	}
 
-	a.Client = client.Default
-	a.AuthInfo = auth.Authenticator(apiKey)
+	tc := client.DefaultTransportConfig()
 
 	// Allow API URL to be overridden (e.g. for talking to dev/staging).
 	if apiURL := viper.GetString("api_url"); apiURL != "" {
@@ -43,11 +40,15 @@ func (a *Api) InitAPIConfig() error {
 		if err != nil {
 			return fmt.Errorf("invalid api_url: %w", err)
 		}
-		a.Client = client.NewHTTPClientWithConfig(nil, &client.TransportConfig{
-			Host:     u.Host,
-			BasePath: client.DefaultBasePath,
-			Schemes:  []string{u.Scheme},
-		})
+		tc.Host = u.Host
+		tc.Schemes = []string{u.Scheme}
 	}
+
+	// Add auth info to every request.
+	transport := oaclient.New(tc.Host, tc.BasePath, tc.Schemes)
+	transport.DefaultAuthentication = oaclient.APIKeyAuth("signadot-api-key", "header", apiKey)
+
+	a.Client = client.New(transport, nil)
+
 	return nil
 }

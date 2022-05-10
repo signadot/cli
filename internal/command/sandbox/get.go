@@ -33,7 +33,7 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 		return err
 	}
 	// TODO: Use GetSandboxByName when it's available.
-	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), cfg.AuthInfo)
+	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), nil)
 	if err != nil {
 		return err
 	}

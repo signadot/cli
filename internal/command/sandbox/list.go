@@ -39,7 +39,7 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), cfg.AuthInfo)
+	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), nil)
 	if err != nil {
 		return err
 	}

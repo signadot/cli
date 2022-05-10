@@ -50,7 +50,7 @@ func connect(cfg *config.ClusterConnect, out io.Writer) error {
 	}
 	params := cluster.NewConnectClusterParams().
 		WithOrgName(cfg.Org).WithData(req)
-	_, err := cfg.Client.Cluster.ConnectCluster(params, cfg.AuthInfo)
+	_, err := cfg.Client.Cluster.ConnectCluster(params, nil)
 
 	if err != nil {
 		return err
@@ -59,7 +59,7 @@ func connect(cfg *config.ClusterConnect, out io.Writer) error {
 	// Add the first token for this cluster.
 	tokParams := cluster.NewCreateClusterTokenParams().
 		WithOrgName(cfg.Org).WithClusterName(cfg.ClusterName)
-	result, err := cfg.Client.Cluster.CreateClusterToken(tokParams, cfg.AuthInfo, hack.SendEmptyBody)
+	result, err := cfg.Client.Cluster.CreateClusterToken(tokParams, nil, hack.SendEmptyBody)
 	if err != nil {
 		return err
 	}

@@ -57,7 +57,7 @@ func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
 
 	// List sandboxes to find the one with the desired name.
 	// TODO: Use GetSandboxByName when it's available.
-	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), cfg.AuthInfo)
+	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), nil)
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
 
 	// Delete the sandbox.
 	params := sandboxes.NewDeleteSandboxByIDParams().WithOrgName(cfg.Org).WithSandboxID(id)
-	_, err = cfg.Client.Sandboxes.DeleteSandboxByID(params, cfg.AuthInfo)
+	_, err = cfg.Client.Sandboxes.DeleteSandboxByID(params, nil)
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ func create(cfg *config.ClusterTokenCreate, out io.Writer) error {
 
 	params := cluster.NewCreateClusterTokenParams().
 		WithOrgName(cfg.Org).WithClusterName(cfg.ClusterName)
-	result, err := cfg.Client.Cluster.CreateClusterToken(params, cfg.AuthInfo, hack.SendEmptyBody)
+	result, err := cfg.Client.Cluster.CreateClusterToken(params, nil, hack.SendEmptyBody)
 	if err != nil {
 		return err
 	}

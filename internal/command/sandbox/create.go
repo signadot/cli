@@ -43,7 +43,7 @@ func create(cfg *config.SandboxCreate, out io.Writer) error {
 	}
 
 	params := sandboxes.NewCreateNewSandboxParams().WithOrgName(cfg.Org).WithData(req)
-	result, err := cfg.Client.Sandboxes.CreateNewSandbox(params, cfg.AuthInfo)
+	result, err := cfg.Client.Sandboxes.CreateNewSandbox(params, nil)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func create(cfg *config.SandboxCreate, out io.Writer) error {
 
 		// We use a hot loop because the server implements rate-limiting for us.
 		for {
-			result, err := cfg.Client.Sandboxes.GetSandboxReady(params, cfg.AuthInfo)
+			result, err := cfg.Client.Sandboxes.GetSandboxReady(params, nil)
 			if err != nil {
 				return err
 			}
