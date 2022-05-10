@@ -17,3 +17,7 @@ func (c *ClusterConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.ClusterName, "name", "", "assign a name for this cluster as it will appear within Signadot")
 	cmd.MarkFlagRequired("name")
 }
+
+type ClusterList struct {
+	*Cluster
+}
