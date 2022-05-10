@@ -32,7 +32,6 @@ type tableRow struct {
 	Description string `sdtab:"DESCRIPTION,trunc"`
 	Cluster     string `sdtab:"CLUSTER"`
 	Created     string `sdtab:"CREATED"`
-	Status      string `sdtab:"STATUS"`
 }
 
 func list(cfg *config.SandboxList, out io.Writer) error {
@@ -55,8 +54,6 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 				Description: sbinfo.Description,
 				Cluster:     sbinfo.ClusterName,
 				Created:     sbinfo.CreatedAt,
-				// TODO: Implement status.
-				Status: "Ready",
 			}
 			t.AddRow(row)
 		}

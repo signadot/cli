@@ -57,8 +57,6 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 			Description: sb.Description,
 			Cluster:     sb.ClusterName,
 			Created:     sb.CreatedAt,
-			// TODO: Implement status.
-			Status: "Ready",
 		}
 		t.AddRow(row)
 		if err := t.Flush(); err != nil {
