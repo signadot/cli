@@ -15,7 +15,7 @@ builds:
   - -X github.com/signadot/cli/internal/buildinfo.BuildDate={{ .Date }}
 archives:
 - id: signadot
-  name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+  name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
   files:
   # We don't want any extra files besides the actual binary.
   # Set a pattern that matches nothing to override the default file globs.
@@ -24,3 +24,16 @@ checksum:
   name_template: checksums.txt
 snapshot:
   name_template: "{{ .Version }}-{{ .ShortCommit }}"
+brews:
+- name: signadot-cli
+  description: Command-line interface for Signadot
+  homepage: https://signadot.com
+  folder: Formula
+  commit_author:
+    name: foxish
+    email: info@signadot.com
+  tap:
+    owner: signadot
+    name: homebrew-tap
+  install: |-
+    bin.install "signadot"
