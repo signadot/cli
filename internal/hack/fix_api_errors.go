@@ -1,6 +1,7 @@
 package hack
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -32,9 +33,15 @@ func (r apiErrorReader) ReadResponse(response runtime.ClientResponse, consumer r
 	code := response.Code()
 	switch {
 	case code >= 400 && code <= 599:
-		var apiErr apiError
-		if err := consumer.Consume(response.Body(), &apiErr); err != nil && err != io.EOF {
+		body, err := io.ReadAll(response.Body())
+		if err != nil {
 			return nil, fmt.Errorf("can't read response body: %w", err)
+		}
+
+		var apiErr apiError
+		if err := json.Unmarshal(body, &apiErr); err != nil {
+			// If the response is not valid JSON, just return the raw body.
+			return nil, fmt.Errorf("%v: %v", response.Message(), string(body))
 		}
 		return nil, fmt.Errorf("%v: %v", response.Message(), apiErr.Error)
 	default:
