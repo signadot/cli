@@ -7,6 +7,8 @@ import (
 
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/poll"
+	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
@@ -59,24 +61,42 @@ func create(cfg *config.SandboxCreate, out io.Writer) error {
 
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
-		fmt.Fprintln(out, "Waiting for sandbox to be ready...")
-
-		params := sandboxes.NewGetSandboxReadyParams().WithOrgName(cfg.Org).WithSandboxID(resp.SandboxID)
-
-		// We use a hot loop because the server implements rate-limiting for us.
-		for {
-			result, err := cfg.Client.Sandboxes.GetSandboxReady(params, nil)
-			if err != nil {
-				return err
-			}
-			if result.Payload.Ready {
-				break
-			}
-			// TODO: Show status message when it's added to the API response.
+		if err := waitForReady(cfg, out, resp.SandboxID); err != nil {
+			fmt.Fprintf(out, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
+			fmt.Fprintf(out, "  signadot sandbox get-status %v\n\n", req.Name)
+			return err
 		}
-
-		fmt.Fprintln(out, "Sandbox is ready.")
 	}
 
+	return nil
+}
+
+func waitForReady(cfg *config.SandboxCreate, out io.Writer, sandboxID string) error {
+	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
+
+	params := sandboxes.NewGetSandboxReadyParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
+
+	spin := spinner.Start(out, "Sandbox status")
+	defer spin.Stop()
+
+	err := poll.Until(cfg.WaitTimeout, func() bool {
+		result, err := cfg.Client.Sandboxes.GetSandboxReady(params, nil)
+		if err != nil {
+			// Keep retrying in case it's a transient error.
+			spin.Messagef("error: %v", err)
+			return false
+		}
+		if !result.Payload.Ready {
+			// TODO: Show status message when it's added to the API response.
+			spin.Message("Not Ready")
+			return false
+		}
+		spin.StopMessage("Ready")
+		return true
+	})
+	if err != nil {
+		spin.StopFail()
+		return err
+	}
 	return nil
 }
