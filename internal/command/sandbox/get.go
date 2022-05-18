@@ -1,16 +1,14 @@
 package sandbox
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/cli/internal/sdtab"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 )
 
 func newGet(sandbox *config.Sandbox) *cobra.Command {
@@ -50,35 +48,12 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		t := sdtab.New[tableRow](out)
-		t.AddHeader()
-		row := tableRow{
-			Name:        sb.Name,
-			Description: sb.Description,
-			Cluster:     sb.ClusterName,
-			Created:     sb.CreatedAt,
-		}
-		t.AddRow(row)
-		if err := t.Flush(); err != nil {
-			return err
-		}
+		return print.SandboxTable(out, []*models.SandboxInfo{sb})
 	case config.OutputFormatJSON:
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(sb); err != nil {
-			return err
-		}
+		return print.RawJSON(out, sb)
 	case config.OutputFormatYAML:
-		data, err := yaml.Marshal(sb)
-		if err != nil {
-			return err
-		}
-		if _, err := out.Write(data); err != nil {
-			return err
-		}
+		return print.RawYAML(out, sb)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-
-	return nil
 }

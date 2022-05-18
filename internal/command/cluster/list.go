@@ -1,15 +1,13 @@
 package cluster
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/cli/internal/sdtab"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/cluster"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/yaml"
 )
 
 func newList(cluster *config.Cluster) *cobra.Command {
@@ -27,12 +25,6 @@ func newList(cluster *config.Cluster) *cobra.Command {
 	return cmd
 }
 
-type tableRow struct {
-	Name    string `sdtab:"NAME"`
-	Created string `sdtab:"CREATED"`
-	Version string `sdtab:"OPERATOR VERSION"`
-}
-
 func list(cfg *config.ClusterList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
@@ -45,36 +37,12 @@ func list(cfg *config.ClusterList, out io.Writer) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		t := sdtab.New[tableRow](out)
-		t.AddHeader()
-		for _, cluster := range clusters {
-			row := tableRow{
-				Name:    cluster.Name,
-				Created: cluster.CreatedAt,
-				Version: cluster.OperatorVersion,
-			}
-			t.AddRow(row)
-		}
-		if err := t.Flush(); err != nil {
-			return err
-		}
+		return print.ClusterTable(out, clusters)
 	case config.OutputFormatJSON:
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		if err := enc.Encode(clusters); err != nil {
-			return err
-		}
+		return print.RawJSON(out, clusters)
 	case config.OutputFormatYAML:
-		data, err := yaml.Marshal(clusters)
-		if err != nil {
-			return err
-		}
-		if _, err := out.Write(data); err != nil {
-			return err
-		}
+		return print.RawYAML(out, clusters)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-
-	return nil
 }
