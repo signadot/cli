@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/poll"
+	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
@@ -79,7 +82,53 @@ func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(out, "Deleted sandbox %q.\n", name)
+	fmt.Fprintf(out, "Deleted sandbox %q.\n\n", name)
 
+	if cfg.Wait {
+		// Wait for the API server to completely reflect deletion.
+		if err := waitForDeleted(cfg, out, id); err != nil {
+			fmt.Fprintf(out, "\nDeletion was initiated, but the sandbox may still exist in a terminating state. To check status, run:\n\n")
+			fmt.Fprintf(out, "  signadot sandbox get-status %v\n\n", name)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func waitForDeleted(cfg *config.SandboxDelete, out io.Writer, sandboxID string) error {
+	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to finish terminating...\n", cfg.WaitTimeout)
+
+	params := sandboxes.NewGetSandboxReadyParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
+
+	spin := spinner.Start(out, "Sandbox status")
+	defer spin.Stop()
+
+	err := poll.Until(cfg.WaitTimeout, func() bool {
+		result, err := cfg.Client.Sandboxes.GetSandboxReady(params, nil)
+		if err != nil {
+			// If it's a "not found" error, that's what we wanted.
+			// TODO: Pass through an error code so we don't have to rely on the error message.
+			if strings.Contains(err.Error(), "can't get sandbox status: not found") {
+				spin.StopMessage("Terminated")
+				return true
+			}
+
+			// Otherwise, keep retrying in case it's a transient error.
+			spin.Messagef("error: %v", err)
+			return false
+		}
+		if result.Payload.Ready {
+			spin.Message("Ready")
+			return false
+		}
+		// TODO: Show status message when it's added to the API response.
+		spin.Message("Terminating")
+		return false
+	})
+	if err != nil {
+		spin.StopFail()
+		return err
+	}
 	return nil
 }
