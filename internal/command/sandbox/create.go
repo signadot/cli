@@ -8,6 +8,7 @@ import (
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -64,6 +65,16 @@ func create(cfg *config.SandboxCreate, out io.Writer) error {
 		if err := waitForReady(cfg, out, resp.SandboxID); err != nil {
 			fmt.Fprintf(out, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
 			fmt.Fprintf(out, "  signadot sandbox get-status %v\n\n", req.Name)
+			return err
+		}
+	}
+
+	// Print info on how to access the sandbox.
+	sbURL := cfg.SandboxDashboardURL(resp.SandboxID)
+	fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
+
+	if len(resp.PreviewEndpoints) > 0 {
+		if err := print.PreviewEndpointTable(out, resp.PreviewEndpoints); err != nil {
 			return err
 		}
 	}
