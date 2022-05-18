@@ -3,6 +3,7 @@ module github.com/signadot/cli
 go 1.18
 
 require (
+	github.com/docker/go-units v0.4.0
 	github.com/go-openapi/runtime v0.24.1
 	github.com/go-openapi/strfmt v0.21.2
 	github.com/signadot/go-sdk v0.1.2

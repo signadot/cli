@@ -48,7 +48,7 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return print.SandboxTable(out, []*models.SandboxInfo{sb})
+		return print.SandboxDetails(cfg, out, sb)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, sb)
 	case config.OutputFormatYAML:
