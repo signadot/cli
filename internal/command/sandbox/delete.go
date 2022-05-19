@@ -99,13 +99,13 @@ func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
 func waitForDeleted(cfg *config.SandboxDelete, out io.Writer, sandboxID string) error {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to finish terminating...\n", cfg.WaitTimeout)
 
-	params := sandboxes.NewGetSandboxReadyParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
+	params := sandboxes.NewGetSandboxStatusByIDParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
 
 	spin := spinner.Start(out, "Sandbox status")
 	defer spin.Stop()
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
-		result, err := cfg.Client.Sandboxes.GetSandboxReady(params, nil)
+		result, err := cfg.Client.Sandboxes.GetSandboxStatusByID(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.
 			// TODO: Pass through an error code so we don't have to rely on the error message.
@@ -118,12 +118,12 @@ func waitForDeleted(cfg *config.SandboxDelete, out io.Writer, sandboxID string) 
 			spin.Messagef("error: %v", err)
 			return false
 		}
-		if result.Payload.Ready {
-			spin.Message("Ready")
+		status := result.Payload.Status
+		if status.Ready {
+			spin.Message("Waiting for sandbox to begin terminating.")
 			return false
 		}
-		// TODO: Show status message when it's added to the API response.
-		spin.Message("Terminating")
+		spin.Messagef("%s: %s", status.Reason, status.Message)
 		return false
 	})
 	if err != nil {

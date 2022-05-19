@@ -77,6 +77,10 @@ func (t *T) Messagef(format string, args ...interface{}) {
 	t.Message(fmt.Sprintf(format, args...))
 }
 
+func (t *T) StopMessagef(format string, args ...interface{}) {
+	t.StopMessage(fmt.Sprintf(format, args...))
+}
+
 // termWidth returns the terminal width, if known, or 0 if unknown.
 func (t *T) termWidth() int {
 	file, ok := t.config.Writer.(*os.File)
