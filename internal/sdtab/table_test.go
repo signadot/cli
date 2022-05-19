@@ -61,7 +61,7 @@ func FuzzTruncate(f *testing.F) {
 			wantLen = inLen
 		}
 
-		out := truncate(in, truncLen)
+		out := Truncate(in, truncLen)
 		outLen := utf8.RuneCountInString(out)
 		if outLen > truncLen {
 			t.Errorf("RuneCountInString() = %v; want %v", outLen, wantLen)
