@@ -84,24 +84,24 @@ func create(cfg *config.SandboxCreate, out io.Writer) error {
 func waitForReady(cfg *config.SandboxCreate, out io.Writer, sandboxID string) error {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
 
-	params := sandboxes.NewGetSandboxReadyParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
+	params := sandboxes.NewGetSandboxStatusByIDParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
 
 	spin := spinner.Start(out, "Sandbox status")
 	defer spin.Stop()
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
-		result, err := cfg.Client.Sandboxes.GetSandboxReady(params, nil)
+		result, err := cfg.Client.Sandboxes.GetSandboxStatusByID(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.
 			spin.Messagef("error: %v", err)
 			return false
 		}
-		if !result.Payload.Ready {
-			// TODO: Show status message when it's added to the API response.
-			spin.Message("Not Ready")
+		status := result.Payload.Status
+		if !status.Ready {
+			spin.Messagef("Not Ready: %s", status.Message)
 			return false
 		}
-		spin.StopMessage("Ready")
+		spin.StopMessagef("Ready: %s", status.Message)
 		return true
 	})
 	if err != nil {
