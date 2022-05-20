@@ -37,7 +37,7 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return print.SandboxTable(out, sbs)
+		return printSandboxTable(out, sbs)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, sbs)
 	case config.OutputFormatYAML:

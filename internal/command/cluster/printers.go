@@ -1,4 +1,4 @@
-package print
+package cluster
 
 import (
 	"io"
@@ -13,7 +13,7 @@ type clusterRow struct {
 	Version string `sdtab:"OPERATOR VERSION"`
 }
 
-func ClusterTable(out io.Writer, clusters []*models.Cluster) error {
+func printClusterTable(out io.Writer, clusters []*models.Cluster) error {
 	t := sdtab.New[clusterRow](out)
 	t.AddHeader()
 	for _, cluster := range clusters {

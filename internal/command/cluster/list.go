@@ -37,7 +37,7 @@ func list(cfg *config.ClusterList, out io.Writer) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return print.ClusterTable(out, clusters)
+		return printClusterTable(out, clusters)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, clusters)
 	case config.OutputFormatYAML:

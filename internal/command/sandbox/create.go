@@ -8,7 +8,6 @@ import (
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
-	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -74,7 +73,7 @@ func create(cfg *config.SandboxCreate, out io.Writer) error {
 	fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
 
 	if len(resp.PreviewEndpoints) > 0 {
-		if err := print.PreviewEndpointTable(out, resp.PreviewEndpoints); err != nil {
+		if err := printEndpointTable(out, resp.PreviewEndpoints); err != nil {
 			return err
 		}
 	}
