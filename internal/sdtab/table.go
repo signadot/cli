@@ -29,7 +29,7 @@ func (c *column) format(row any) string {
 	return fmt.Sprint(val)
 }
 
-func truncate(v string, maxWidth int) string {
+func Truncate(v string, maxWidth int) string {
 	if utf8.RuneCountInString(v) <= maxWidth {
 		return v
 	}
@@ -154,7 +154,7 @@ func (t *T[R]) writeRow(row []string, colWidth []int) error {
 
 		// Truncate the value, if necessary, and then print it.
 		cw := colWidth[i]
-		v = truncate(v, cw)
+		v = Truncate(v, cw)
 		if _, err := fmt.Fprint(t.out, v); err != nil {
 			return err
 		}

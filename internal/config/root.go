@@ -1,7 +1,10 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -9,6 +12,9 @@ import (
 )
 
 type Root struct {
+	// Config file values
+	DashboardURL *url.URL
+
 	// Flags
 	Debug        bool
 	ConfigFile   string
@@ -54,5 +60,24 @@ func (c *Root) init() error {
 
 	c.Debug = viper.GetBool("debug")
 
+	if dashURL := viper.GetString("dashboard_url"); dashURL != "" {
+		u, err := url.Parse(dashURL)
+		if err != nil {
+			return fmt.Errorf("invalid dashboard_url: %w", err)
+		}
+		c.DashboardURL = u
+	} else {
+		c.DashboardURL = &url.URL{
+			Scheme: "https",
+			Host:   "app.signadot.com",
+		}
+	}
+
 	return nil
+}
+
+func (c *Root) SandboxDashboardURL(id string) *url.URL {
+	u := *c.DashboardURL
+	u.Path = path.Join(u.Path, "sandbox", "id", id)
+	return &u
 }

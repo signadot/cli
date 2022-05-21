@@ -11,22 +11,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGet(sandbox *config.Sandbox) *cobra.Command {
-	cfg := &config.SandboxGet{Sandbox: sandbox}
+func newGetStatus(sandbox *config.Sandbox) *cobra.Command {
+	cfg := &config.SandboxGetStatus{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "get NAME",
-		Short: "Get sandbox",
+		Use:   "get-status NAME",
+		Short: "Get sandbox status",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return get(cfg, cmd.OutOrStdout(), args[0])
+			return getStatus(cfg, cmd.OutOrStdout(), args[0])
 		},
 	}
 
 	return cmd
 }
 
-func get(cfg *config.SandboxGet, out io.Writer, name string) error {
+func getStatus(cfg *config.SandboxGetStatus, out io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -46,13 +46,26 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 		return fmt.Errorf("Sandbox %q not found", name)
 	}
 
+	// Get sandbox status.
+	params := sandboxes.NewGetSandboxStatusByIDParams().WithOrgName(cfg.Org).WithSandboxID(sb.ID)
+	statusResp, err := cfg.Client.Sandboxes.GetSandboxStatusByID(params, nil)
+	if err != nil {
+		return err
+	}
+	status := statusResp.Payload.Status
+
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printSandboxDetails(cfg.Sandbox, out, sb)
+		ready := "Not Ready"
+		if status.Ready {
+			ready = "Ready"
+		}
+		fmt.Fprintf(out, "%s: %s\n", ready, status.Message)
+		return nil
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, sb)
+		return print.RawJSON(out, status)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, sb)
+		return print.RawYAML(out, status)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}

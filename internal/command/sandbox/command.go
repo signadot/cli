@@ -19,6 +19,7 @@ func New(api *config.Api) *cobra.Command {
 		newList(cfg),
 		newCreate(cfg),
 		newDelete(cfg),
+		newGetStatus(cfg),
 	)
 
 	return cmd
