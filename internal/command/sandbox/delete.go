@@ -120,7 +120,7 @@ func waitForDeleted(cfg *config.SandboxDelete, out io.Writer, sandboxID string) 
 		}
 		status := result.Payload.Status
 		if status.Ready {
-			spin.Message("Waiting for sandbox to begin terminating.")
+			spin.Message("Waiting for sandbox to terminate")
 			return false
 		}
 		spin.Messagef("%s: %s", status.Reason, status.Message)
