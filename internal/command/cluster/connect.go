@@ -30,7 +30,7 @@ func newConnect(cluster *config.Cluster) *cobra.Command {
 		Short: "Register a Kubernetes cluster with Signadot",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return connect(cfg, cmd.OutOrStdout())
+			return connect(cfg, cmd.ErrOrStderr())
 		},
 	}
 
@@ -39,7 +39,7 @@ func newConnect(cluster *config.Cluster) *cobra.Command {
 	return cmd
 }
 
-func connect(cfg *config.ClusterConnect, out io.Writer) error {
+func connect(cfg *config.ClusterConnect, log io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -64,8 +64,8 @@ func connect(cfg *config.ClusterConnect, out io.Writer) error {
 	}
 	tokenValue := result.Payload.Token
 
-	fmt.Fprintf(out, "Ready to connect cluster %q. A token has been created for the cluster.\n", cfg.ClusterName)
-	fmt.Fprintf(out, connectMessage, tokenValue)
+	fmt.Fprintf(log, "Ready to connect cluster %q. A token has been created for the cluster.\n", cfg.ClusterName)
+	fmt.Fprintf(log, connectMessage, tokenValue)
 
 	return nil
 }
