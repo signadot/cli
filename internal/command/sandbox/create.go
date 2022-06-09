@@ -8,6 +8,7 @@ import (
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -22,7 +23,7 @@ func newCreate(sandbox *config.Sandbox) *cobra.Command {
 		Short: "Create sandbox",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return create(cfg, cmd.OutOrStdout())
+			return create(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 
@@ -31,7 +32,7 @@ func newCreate(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func create(cfg *config.SandboxCreate, out io.Writer) error {
+func create(cfg *config.SandboxCreate, out, log io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -51,34 +52,42 @@ func create(cfg *config.SandboxCreate, out io.Writer) error {
 	}
 	resp := result.Payload
 
-	fmt.Fprintf(out, "Created sandbox %q (sandbox id: %s) in cluster %q.\n\n",
+	fmt.Fprintf(log, "Created sandbox %q (sandbox id: %s) in cluster %q.\n\n",
 		req.Name, resp.SandboxID, *req.Cluster)
 
 	// Print warnings, if any.
 	for _, msg := range resp.Warnings {
-		fmt.Fprintf(out, "WARNING: %s\n\n", msg)
+		fmt.Fprintf(log, "WARNING: %s\n\n", msg)
 	}
 
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
-		if err := waitForReady(cfg, out, resp.SandboxID); err != nil {
-			fmt.Fprintf(out, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
-			fmt.Fprintf(out, "  signadot sandbox get-status %v\n\n", req.Name)
+		if err := waitForReady(cfg, log, resp.SandboxID); err != nil {
+			fmt.Fprintf(log, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
+			fmt.Fprintf(log, "  signadot sandbox get-status %v\n\n", req.Name)
 			return err
 		}
 	}
 
-	// Print info on how to access the sandbox.
-	sbURL := cfg.SandboxDashboardURL(resp.SandboxID)
-	fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
+	switch cfg.OutputFormat {
+	case config.OutputFormatDefault:
+		// Print info on how to access the sandbox.
+		sbURL := cfg.SandboxDashboardURL(resp.SandboxID)
+		fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
 
-	if len(resp.PreviewEndpoints) > 0 {
-		if err := printEndpointTable(out, resp.PreviewEndpoints); err != nil {
-			return err
+		if len(resp.PreviewEndpoints) > 0 {
+			if err := printEndpointTable(out, resp.PreviewEndpoints); err != nil {
+				return err
+			}
 		}
+		return nil
+	case config.OutputFormatJSON:
+		return print.RawJSON(out, resp)
+	case config.OutputFormatYAML:
+		return print.RawYAML(out, resp)
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-
-	return nil
 }
 
 func waitForReady(cfg *config.SandboxCreate, out io.Writer, sandboxID string) error {

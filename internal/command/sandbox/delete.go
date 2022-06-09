@@ -23,7 +23,7 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 		Short: "Delete sandbox",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return delete(cfg, cmd.OutOrStdout(), args)
+			return delete(cfg, cmd.ErrOrStderr(), args)
 		},
 	}
 
@@ -32,7 +32,7 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
+func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -82,13 +82,13 @@ func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(out, "Deleted sandbox %q.\n\n", name)
+	fmt.Fprintf(log, "Deleted sandbox %q.\n\n", name)
 
 	if cfg.Wait {
 		// Wait for the API server to completely reflect deletion.
-		if err := waitForDeleted(cfg, out, id); err != nil {
-			fmt.Fprintf(out, "\nDeletion was initiated, but the sandbox may still exist in a terminating state. To check status, run:\n\n")
-			fmt.Fprintf(out, "  signadot sandbox get-status %v\n\n", name)
+		if err := waitForDeleted(cfg, log, id); err != nil {
+			fmt.Fprintf(log, "\nDeletion was initiated, but the sandbox may still exist in a terminating state. To check status, run:\n\n")
+			fmt.Fprintf(log, "  signadot sandbox get-status %v\n\n", name)
 			return err
 		}
 	}
@@ -96,12 +96,12 @@ func delete(cfg *config.SandboxDelete, out io.Writer, args []string) error {
 	return nil
 }
 
-func waitForDeleted(cfg *config.SandboxDelete, out io.Writer, sandboxID string) error {
-	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to finish terminating...\n", cfg.WaitTimeout)
+func waitForDeleted(cfg *config.SandboxDelete, log io.Writer, sandboxID string) error {
+	fmt.Fprintf(log, "Waiting (up to --wait-timeout=%v) for sandbox to finish terminating...\n", cfg.WaitTimeout)
 
 	params := sandboxes.NewGetSandboxStatusByIDParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
 
-	spin := spinner.Start(out, "Sandbox status")
+	spin := spinner.Start(log, "Sandbox status")
 	defer spin.Stop()
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
