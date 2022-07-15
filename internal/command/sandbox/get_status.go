@@ -7,7 +7,6 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/sandboxes"
-	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -30,29 +29,12 @@ func getStatus(cfg *config.SandboxGetStatus, out io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	// TODO: Use GetSandboxByName when it's available.
-	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), nil)
+	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(name)
+	resp, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 	if err != nil {
 		return err
 	}
-	var sb *models.SandboxInfo
-	for _, sbinfo := range resp.Payload.Sandboxes {
-		if sbinfo.Name == name {
-			sb = sbinfo
-			break
-		}
-	}
-	if sb == nil {
-		return fmt.Errorf("Sandbox %q not found", name)
-	}
-
-	// Get sandbox status.
-	params := sandboxes.NewGetSandboxStatusByIDParams().WithOrgName(cfg.Org).WithSandboxID(sb.ID)
-	statusResp, err := cfg.Client.Sandboxes.GetSandboxStatusByID(params, nil)
-	if err != nil {
-		return err
-	}
-	status := statusResp.Payload.Status
+	status := resp.Payload.Status
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:

@@ -7,7 +7,6 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/sandboxes"
-	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -30,29 +29,19 @@ func get(cfg *config.SandboxGet, out io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	// TODO: Use GetSandboxByName when it's available.
-	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), nil)
+	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(name)
+	resp, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 	if err != nil {
 		return err
-	}
-	var sb *models.SandboxInfo
-	for _, sbinfo := range resp.Payload.Sandboxes {
-		if sbinfo.Name == name {
-			sb = sbinfo
-			break
-		}
-	}
-	if sb == nil {
-		return fmt.Errorf("Sandbox %q not found", name)
 	}
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printSandboxDetails(cfg.Sandbox, out, sb)
+		return printSandboxDetails(cfg.Sandbox, out, resp.Payload)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, sb)
+		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, sb)
+		return print.RawYAML(out, resp.Payload)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}

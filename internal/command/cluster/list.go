@@ -29,19 +29,18 @@ func list(cfg *config.ClusterList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	resp, err := cfg.Client.Cluster.GetClusters(cluster.NewGetClustersParams().WithOrgName(cfg.Org), nil)
+	resp, err := cfg.Client.Cluster.ListClusters(cluster.NewListClustersParams().WithOrgName(cfg.Org), nil)
 	if err != nil {
 		return err
 	}
-	clusters := resp.Payload.Clusters
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printClusterTable(out, clusters)
+		return printClusterTable(out, resp.Payload)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, clusters)
+		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, clusters)
+		return print.RawYAML(out, resp.Payload)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}

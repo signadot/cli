@@ -20,7 +20,7 @@ func printClusterTable(out io.Writer, clusters []*models.Cluster) error {
 		t.AddRow(clusterRow{
 			Name:    cluster.Name,
 			Created: cluster.CreatedAt,
-			Version: cluster.OperatorVersion,
+			Version: cluster.Operator.Version,
 		})
 	}
 	return t.Flush()

@@ -48,7 +48,7 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	if len(args) > 0 {
 		name = args[0]
 	} else {
-		req, err := clio.LoadYAML[models.CreateSandboxRequest](cfg.Filename)
+		req, err := clio.LoadYAML[models.Sandbox](cfg.Filename)
 		if err != nil {
 			return err
 		}
@@ -58,26 +58,9 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 		return errors.New("sandbox name is required")
 	}
 
-	// List sandboxes to find the one with the desired name.
-	// TODO: Use GetSandboxByName when it's available.
-	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), nil)
-	if err != nil {
-		return err
-	}
-	var id string
-	for _, sb := range resp.Payload.Sandboxes {
-		if sb.Name == name {
-			id = sb.ID
-			break
-		}
-	}
-	if id == "" {
-		return fmt.Errorf("Sandbox %q not found", name)
-	}
-
 	// Delete the sandbox.
-	params := sandboxes.NewDeleteSandboxByIDParams().WithOrgName(cfg.Org).WithSandboxID(id)
-	_, err = cfg.Client.Sandboxes.DeleteSandboxByID(params, nil)
+	params := sandboxes.NewDeleteSandboxParams().WithOrgName(cfg.Org).WithSandboxName(name)
+	_, err := cfg.Client.Sandboxes.DeleteSandbox(params, nil)
 	if err != nil {
 		return err
 	}
@@ -86,7 +69,7 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 
 	if cfg.Wait {
 		// Wait for the API server to completely reflect deletion.
-		if err := waitForDeleted(cfg, log, id); err != nil {
+		if err := waitForDeleted(cfg, log, name); err != nil {
 			fmt.Fprintf(log, "\nDeletion was initiated, but the sandbox may still exist in a terminating state. To check status, run:\n\n")
 			fmt.Fprintf(log, "  signadot sandbox get-status %v\n\n", name)
 			return err
@@ -96,20 +79,20 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	return nil
 }
 
-func waitForDeleted(cfg *config.SandboxDelete, log io.Writer, sandboxID string) error {
+func waitForDeleted(cfg *config.SandboxDelete, log io.Writer, sandboxName string) error {
 	fmt.Fprintf(log, "Waiting (up to --wait-timeout=%v) for sandbox to finish terminating...\n", cfg.WaitTimeout)
 
-	params := sandboxes.NewGetSandboxStatusByIDParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
+	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
 
 	spin := spinner.Start(log, "Sandbox status")
 	defer spin.Stop()
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
-		result, err := cfg.Client.Sandboxes.GetSandboxStatusByID(params, nil)
+		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.
 			// TODO: Pass through an error code so we don't have to rely on the error message.
-			if strings.Contains(err.Error(), "can't get sandbox status: not found") {
+			if strings.Contains(err.Error(), "can't get sandbox: not found") {
 				spin.StopMessage("Terminated")
 				return true
 			}

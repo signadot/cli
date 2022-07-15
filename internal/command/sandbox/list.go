@@ -29,19 +29,18 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	resp, err := cfg.Client.Sandboxes.GetSandboxes(sandboxes.NewGetSandboxesParams().WithOrgName(cfg.Org), nil)
+	resp, err := cfg.Client.Sandboxes.ListSandboxes(sandboxes.NewListSandboxesParams().WithOrgName(cfg.Org), nil)
 	if err != nil {
 		return err
 	}
-	sbs := resp.Payload.Sandboxes
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printSandboxTable(out, sbs)
+		return printSandboxTable(out, resp.Payload)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, sbs)
+		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, sbs)
+		return print.RawYAML(out, resp.Payload)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
