@@ -45,9 +45,9 @@ func apply(cfg *config.SandboxApply, out, log io.Writer) error {
 		return err
 	}
 
-	params := sandboxes.NewUpsertSandboxParams().
+	params := sandboxes.NewApplySandboxParams().
 		WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
-	result, err := cfg.Client.Sandboxes.UpsertSandbox(params, nil)
+	result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)
 	if err != nil {
 		return err
 	}
@@ -71,8 +71,8 @@ func apply(cfg *config.SandboxApply, out, log io.Writer) error {
 		sbURL := cfg.SandboxDashboardURL(resp.RoutingKey)
 		fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
 
-		if len(resp.PreviewEndpoints) > 0 {
-			if err := printEndpointTable(out, resp.PreviewEndpoints); err != nil {
+		if len(resp.Endpoints) > 0 {
+			if err := printEndpointTable(out, resp.Endpoints); err != nil {
 				return err
 			}
 		}

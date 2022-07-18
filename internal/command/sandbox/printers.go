@@ -50,9 +50,9 @@ func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.Sandbox)
 		return err
 	}
 
-	if len(sb.PreviewEndpoints) > 0 {
+	if len(sb.Endpoints) > 0 {
 		fmt.Fprintln(out)
-		if err := printEndpointTable(out, sb.PreviewEndpoints); err != nil {
+		if err := printEndpointTable(out, sb.Endpoints); err != nil {
 			return err
 		}
 	}
@@ -84,14 +84,14 @@ type endpointRow struct {
 	URL  string `sdtab:"URL"`
 }
 
-func printEndpointTable(out io.Writer, endpoints []*models.SandboxPreviewEndpoint) error {
+func printEndpointTable(out io.Writer, endpoints []*models.SandboxEndpoint) error {
 	t := sdtab.New[endpointRow](out)
 	t.AddHeader()
 	for _, ep := range endpoints {
 		t.AddRow(endpointRow{
 			Name: ep.Name,
 			Type: ep.RouteType,
-			URL:  ep.PreviewURL,
+			URL:  ep.URL,
 		})
 	}
 	return t.Flush()
