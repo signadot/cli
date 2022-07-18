@@ -15,15 +15,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newCreate(sandbox *config.Sandbox) *cobra.Command {
-	cfg := &config.SandboxCreate{Sandbox: sandbox}
+func newApply(sandbox *config.Sandbox) *cobra.Command {
+	cfg := &config.SandboxApply{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "create -f FILENAME",
-		Short: "Create sandbox",
+		Use:   "apply -f FILENAME",
+		Short: "Create or update a sandbox",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return create(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 
@@ -32,7 +32,7 @@ func newCreate(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func create(cfg *config.SandboxCreate, out, log io.Writer) error {
+func apply(cfg *config.SandboxApply, out, log io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func create(cfg *config.SandboxCreate, out, log io.Writer) error {
 	}
 }
 
-func waitForReady(cfg *config.SandboxCreate, out io.Writer, sandboxName string) error {
+func waitForReady(cfg *config.SandboxApply, out io.Writer, sandboxName string) error {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
 
 	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
