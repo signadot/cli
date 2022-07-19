@@ -5,21 +5,20 @@ import (
 	"io"
 
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/cli/internal/hack"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/cluster"
 	"github.com/spf13/cobra"
 )
 
-func newCreate(token *config.ClusterToken) *cobra.Command {
-	cfg := &config.ClusterTokenCreate{ClusterToken: token}
+func newList(cluster *config.ClusterToken) *cobra.Command {
+	cfg := &config.ClusterTokenList{ClusterToken: cluster}
 
 	cmd := &cobra.Command{
-		Use:   "create --cluster CLUSTER",
-		Short: "Create an auth token for the given cluster",
+		Use:   "list --cluster CLUSTER",
+		Short: "List auth tokens for the given cluster",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return create(cfg, cmd.OutOrStdout())
+			return list(cfg, cmd.OutOrStdout())
 		},
 	}
 
@@ -28,22 +27,20 @@ func newCreate(token *config.ClusterToken) *cobra.Command {
 	return cmd
 }
 
-func create(cfg *config.ClusterTokenCreate, out io.Writer) error {
+func list(cfg *config.ClusterTokenList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-
-	params := cluster.NewCreateClusterTokenParams().
+	params := cluster.NewListClusterTokensParams().
 		WithOrgName(cfg.Org).WithClusterName(cfg.ClusterName)
-	resp, err := cfg.Client.Cluster.CreateClusterToken(params, nil, hack.SendEmptyBody)
+	resp, err := cfg.Client.Cluster.ListClusterTokens(params, nil)
 	if err != nil {
 		return err
 	}
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		_, err := fmt.Fprintln(out, resp.Payload.Token)
-		return err
+		return printTokenTable(out, resp.Payload)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
