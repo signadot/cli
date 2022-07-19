@@ -71,7 +71,7 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 		// Wait for the API server to completely reflect deletion.
 		if err := waitForDeleted(cfg, log, name); err != nil {
 			fmt.Fprintf(log, "\nDeletion was initiated, but the sandbox may still exist in a terminating state. To check status, run:\n\n")
-			fmt.Fprintf(log, "  signadot sandbox get-status %v\n\n", name)
+			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", name)
 			return err
 		}
 	}

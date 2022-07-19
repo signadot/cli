@@ -45,10 +45,6 @@ type SandboxGet struct {
 	*Sandbox
 }
 
-type SandboxGetStatus struct {
-	*Sandbox
-}
-
 type SandboxList struct {
 	*Sandbox
 }

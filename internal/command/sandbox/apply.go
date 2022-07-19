@@ -60,7 +60,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer) error {
 		// Wait for the sandbox to be ready.
 		if err := waitForReady(cfg, log, resp.Name); err != nil {
 			fmt.Fprintf(log, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
-			fmt.Fprintf(log, "  signadot sandbox get-status %v\n\n", req.Name)
+			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", req.Name)
 			return err
 		}
 	}
