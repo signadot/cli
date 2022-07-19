@@ -6,6 +6,7 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/hack"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/cluster"
 	"github.com/spf13/cobra"
 )
@@ -34,11 +35,20 @@ func create(cfg *config.ClusterTokenCreate, out io.Writer) error {
 
 	params := cluster.NewCreateClusterTokenParams().
 		WithOrgName(cfg.Org).WithClusterName(cfg.ClusterName)
-	result, err := cfg.Client.Cluster.CreateClusterToken(params, nil, hack.SendEmptyBody)
+	resp, err := cfg.Client.Cluster.CreateClusterToken(params, nil, hack.SendEmptyBody)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(out, result.Payload.Token)
 
-	return nil
+	switch cfg.OutputFormat {
+	case config.OutputFormatDefault:
+		_, err := fmt.Fprintln(out, resp.Payload.Token)
+		return err
+	case config.OutputFormatJSON:
+		return print.RawJSON(out, resp.Payload)
+	case config.OutputFormatYAML:
+		return print.RawYAML(out, resp.Payload)
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
+	}
 }

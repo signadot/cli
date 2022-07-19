@@ -15,15 +15,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newCreate(sandbox *config.Sandbox) *cobra.Command {
-	cfg := &config.SandboxCreate{Sandbox: sandbox}
+func newApply(sandbox *config.Sandbox) *cobra.Command {
+	cfg := &config.SandboxApply{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "create -f FILENAME",
-		Short: "Create sandbox",
+		Use:   "apply -f FILENAME",
+		Short: "Create or update a sandbox",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return create(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 
@@ -32,7 +32,7 @@ func newCreate(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func create(cfg *config.SandboxCreate, out, log io.Writer) error {
+func apply(cfg *config.SandboxApply, out, log io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -40,31 +40,27 @@ func create(cfg *config.SandboxCreate, out, log io.Writer) error {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
 
-	req, err := clio.LoadYAML[models.CreateSandboxRequest](cfg.Filename)
+	req, err := clio.LoadYAML[models.Sandbox](cfg.Filename)
 	if err != nil {
 		return err
 	}
 
-	params := sandboxes.NewCreateNewSandboxParams().WithOrgName(cfg.Org).WithData(req)
-	result, err := cfg.Client.Sandboxes.CreateNewSandbox(params, nil)
+	params := sandboxes.NewApplySandboxParams().
+		WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
+	result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)
 	if err != nil {
 		return err
 	}
 	resp := result.Payload
 
-	fmt.Fprintf(log, "Created sandbox %q (sandbox id: %s) in cluster %q.\n\n",
-		req.Name, resp.SandboxID, *req.Cluster)
-
-	// Print warnings, if any.
-	for _, msg := range resp.Warnings {
-		fmt.Fprintf(log, "WARNING: %s\n\n", msg)
-	}
+	fmt.Fprintf(log, "Created sandbox %q (routing key: %s) in cluster %q.\n\n",
+		req.Name, resp.RoutingKey, *req.Spec.Cluster)
 
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
-		if err := waitForReady(cfg, log, resp.SandboxID); err != nil {
+		if err := waitForReady(cfg, log, resp.Name); err != nil {
 			fmt.Fprintf(log, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
-			fmt.Fprintf(log, "  signadot sandbox get-status %v\n\n", req.Name)
+			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", req.Name)
 			return err
 		}
 	}
@@ -72,11 +68,11 @@ func create(cfg *config.SandboxCreate, out, log io.Writer) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the sandbox.
-		sbURL := cfg.SandboxDashboardURL(resp.SandboxID)
+		sbURL := cfg.SandboxDashboardURL(resp.RoutingKey)
 		fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
 
-		if len(resp.PreviewEndpoints) > 0 {
-			if err := printEndpointTable(out, resp.PreviewEndpoints); err != nil {
+		if len(resp.Endpoints) > 0 {
+			if err := printEndpointTable(out, resp.Endpoints); err != nil {
 				return err
 			}
 		}
@@ -90,16 +86,16 @@ func create(cfg *config.SandboxCreate, out, log io.Writer) error {
 	}
 }
 
-func waitForReady(cfg *config.SandboxCreate, out io.Writer, sandboxID string) error {
+func waitForReady(cfg *config.SandboxApply, out io.Writer, sandboxName string) error {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
 
-	params := sandboxes.NewGetSandboxStatusByIDParams().WithOrgName(cfg.Org).WithSandboxID(sandboxID)
+	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
 
 	spin := spinner.Start(out, "Sandbox status")
 	defer spin.Stop()
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
-		result, err := cfg.Client.Sandboxes.GetSandboxStatusByID(params, nil)
+		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.
 			spin.Messagef("error: %v", err)

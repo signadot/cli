@@ -17,44 +17,54 @@ type sandboxRow struct {
 	Description string `sdtab:"DESCRIPTION,trunc"`
 	Cluster     string `sdtab:"CLUSTER"`
 	Created     string `sdtab:"CREATED"`
+	Status      string `sdtab:"STATUS"`
 }
 
-func printSandboxTable(out io.Writer, sbs []*models.SandboxInfo) error {
+func printSandboxTable(out io.Writer, sbs []*models.Sandbox) error {
 	t := sdtab.New[sandboxRow](out)
 	t.AddHeader()
-	for _, sbinfo := range sbs {
+	for _, sb := range sbs {
 		t.AddRow(sandboxRow{
-			Name:        sbinfo.Name,
-			Description: sbinfo.Description,
-			Cluster:     sbinfo.ClusterName,
-			Created:     sbinfo.CreatedAt,
+			Name:        sb.Name,
+			Description: sb.Spec.Description,
+			Cluster:     *sb.Spec.Cluster,
+			Created:     sb.CreatedAt,
+			Status:      readiness(sb.Status),
 		})
 	}
 	return t.Flush()
 }
 
-func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.SandboxInfo) error {
+func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.Sandbox) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
-	fmt.Fprintf(tw, "ID:\t%s\n", sb.ID)
+	fmt.Fprintf(tw, "ID:\t%s\n", sb.RoutingKey)
 	fmt.Fprintf(tw, "Name:\t%s\n", sb.Name)
-	fmt.Fprintf(tw, "Description:\t%s\n", sb.Description)
-	fmt.Fprintf(tw, "Cluster:\t%s\n", sb.ClusterName)
+	fmt.Fprintf(tw, "Description:\t%s\n", sb.Spec.Description)
+	fmt.Fprintf(tw, "Cluster:\t%s\n", *sb.Spec.Cluster)
 	fmt.Fprintf(tw, "Created:\t%s\n", formatTimestamp(sb.CreatedAt))
-	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.SandboxDashboardURL(sb.ID))
+	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.SandboxDashboardURL(sb.RoutingKey))
+	fmt.Fprintf(tw, "Status:\t%s (%s: %s)\n", readiness(sb.Status), sb.Status.Reason, sb.Status.Message)
 
 	if err := tw.Flush(); err != nil {
 		return err
 	}
 
-	if len(sb.PreviewEndpoints) > 0 {
+	if len(sb.Endpoints) > 0 {
 		fmt.Fprintln(out)
-		if err := printEndpointTable(out, sb.PreviewEndpoints); err != nil {
+		if err := printEndpointTable(out, sb.Endpoints); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func readiness(status *models.SandboxReadiness) string {
+	if status.Ready {
+		return "Ready"
+	}
+	return "Not Ready"
 }
 
 func formatTimestamp(in string) string {
@@ -69,21 +79,19 @@ func formatTimestamp(in string) string {
 }
 
 type endpointRow struct {
-	Desc string `sdtab:"PREVIEW ENDPOINT"`
+	Name string `sdtab:"PREVIEW ENDPOINT"`
+	Type string `sdtab:"TYPE"`
 	URL  string `sdtab:"URL"`
 }
 
-func printEndpointTable(out io.Writer, endpoints []*models.PreviewEndpoint) error {
+func printEndpointTable(out io.Writer, endpoints []*models.SandboxEndpoint) error {
 	t := sdtab.New[endpointRow](out)
 	t.AddHeader()
 	for _, ep := range endpoints {
-		desc := ep.Name
-		if ep.ForkOf != nil {
-			desc = fmt.Sprintf("Fork of %s/%s", *ep.ForkOf.Namespace, *ep.ForkOf.Name)
-		}
 		t.AddRow(endpointRow{
-			Desc: desc,
-			URL:  ep.PreviewURL,
+			Name: ep.Name,
+			Type: ep.RouteType,
+			URL:  ep.URL,
 		})
 	}
 	return t.Flush()

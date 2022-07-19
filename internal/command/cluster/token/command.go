@@ -16,6 +16,8 @@ func New(cluster *config.Cluster) *cobra.Command {
 	// Subcommands
 	cmd.AddCommand(
 		newCreate(cfg),
+		newDelete(cfg),
+		newList(cfg),
 	)
 
 	return cmd
