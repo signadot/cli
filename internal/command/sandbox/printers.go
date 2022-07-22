@@ -79,7 +79,7 @@ func formatTimestamp(in string) string {
 }
 
 type endpointRow struct {
-	Name string `sdtab:"PREVIEW ENDPOINT"`
+	Name string `sdtab:"SANDBOX ENDPOINT"`
 	Type string `sdtab:"TYPE"`
 	URL  string `sdtab:"URL"`
 }
