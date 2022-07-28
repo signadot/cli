@@ -23,8 +23,8 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	cfg := &config.SandboxApply{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "apply -f FILENAME",
-		Short: "Create or update a sandbox",
+		Use:   "apply -f FILENAME var1=val1 var2=val2 ...",
+		Short: "Create or update a sandbox with variable expansion",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -41,7 +41,7 @@ func substMap(args []string) (map[string]string, error) {
 	for _, arg := range args {
 		parts := strings.SplitN(arg, "=", 2)
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("arg %q is not in <var>=<value> form")
+			return nil, fmt.Errorf("arg %q is not in <var>=<value> form", arg)
 		}
 		varName, val := parts[0], parts[1]
 		if err := checkVar(varName); err != nil {
