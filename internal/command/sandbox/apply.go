@@ -39,11 +39,10 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 func substMap(args []string) (map[string]string, error) {
 	substMap := map[string]string{}
 	for _, arg := range args {
-		parts := strings.SplitN(arg, "=", 2)
-		if len(parts) != 2 {
+		varName, val, found := strings.Cut(arg, "=")
+		if !found {
 			return nil, fmt.Errorf("arg %q is not in <var>=<value> form", arg)
 		}
-		varName, val := parts[0], parts[1]
 		if err := checkVar(varName); err != nil {
 			return nil, fmt.Errorf("arg %q has invalid variable %q", arg, varName)
 		}
@@ -127,7 +126,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 }
 
 func substTemplate(sbt *any, substMap map[string]string) error {
-	vars := map[string]string{}
+	vars := map[string]struct{}{}
 	err := substTemplateRec(sbt, substMap, vars)
 	if err != nil {
 		return err
@@ -144,7 +143,7 @@ func substTemplate(sbt *any, substMap map[string]string) error {
 	return nil
 }
 
-func substTemplateRec(sbt *any, substMap, vars map[string]string) error {
+func substTemplateRec(sbt *any, substMap map[string]string, vars map[string]struct{}) error {
 	switch x := (*sbt).(type) {
 	case map[string]any:
 		for k, v := range x {
@@ -169,7 +168,7 @@ func substTemplateRec(sbt *any, substMap, vars map[string]string) error {
 
 var varRefRx = regexp.MustCompile(`\$\{([a-zA-Z][a-zA-Z0-9_.-]*)\}`)
 
-func substString(s string, substMap, vars map[string]string) string {
+func substString(s string, substMap map[string]string, vars map[string]struct{}) string {
 	matches := varRefRx.FindAllStringSubmatchIndex(s, -1)
 	if matches == nil {
 		return s
@@ -177,6 +176,8 @@ func substString(s string, substMap, vars map[string]string) string {
 	result := []string{}
 	cur, start, end := 0, 0, 0
 	for i := range matches {
+		// begin and end of submatch corresponding to variable name
+		// in ${<var-name>}.
 		start, end = matches[i][2], matches[i][3]
 		// store any skipped string
 		if cur < start-2 {
@@ -185,7 +186,7 @@ func substString(s string, substMap, vars map[string]string) string {
 		v := s[start:end]
 		end++ // }
 		cur = end
-		vars[v] = ""
+		vars[v] = struct{}{}
 		repl, ok := substMap[v]
 		if !ok {
 			// unsubstituted variables are handled
@@ -216,12 +217,11 @@ func unstructuredToSandbox(un any) (*models.Sandbox, error) {
 	return &sb, nil
 }
 
+// translates all port values to ints if they are strings.
 func port2Int(un *any) error {
-	fmt.Printf("port2Int %#v %T\n", *un, *un)
 	switch x := (*un).(type) {
 	case map[string]any:
 		for k, v := range x {
-			fmt.Printf("looking at key %q\n", k)
 			if k != "port" {
 				if err := port2Int(&v); err != nil {
 					return err
