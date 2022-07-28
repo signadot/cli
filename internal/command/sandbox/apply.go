@@ -1,9 +1,13 @@
 package sandbox
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
@@ -21,9 +25,9 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply -f FILENAME",
 		Short: "Create or update a sandbox",
-		Args:  cobra.NoArgs,
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 
@@ -32,15 +36,51 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func apply(cfg *config.SandboxApply, out, log io.Writer) error {
+func substMap(args []string) (map[string]string, error) {
+	substMap := map[string]string{}
+	for _, arg := range args {
+		parts := strings.SplitN(arg, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("arg %q is not in <var>=<value> form")
+		}
+		varName, val := parts[0], parts[1]
+		if err := checkVar(varName); err != nil {
+			return nil, fmt.Errorf("arg %q has invalid variable %q", arg, varName)
+		}
+		substMap[varName] = val
+	}
+	return substMap, nil
+}
+
+var varPat = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_.-]*$`)
+
+func checkVar(varName string) error {
+	if !varPat.MatchString(varName) {
+		return fmt.Errorf("invalid variable name %q, should match %s", varPat)
+	}
+	return nil
+}
+
+func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
+	substMap, err := substMap(args)
+	if err != nil {
+		return err
+	}
 
-	req, err := clio.LoadYAML[models.Sandbox](cfg.Filename)
+	sbt, err := clio.LoadYAML[any](cfg.Filename)
+	if err != nil {
+		return err
+	}
+	if err := substTemplate(sbt, substMap); err != nil {
+		return err
+	}
+	req, err := unstructuredToSandbox(*sbt)
 	if err != nil {
 		return err
 	}
@@ -84,6 +124,130 @@ func apply(cfg *config.SandboxApply, out, log io.Writer) error {
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
+}
+
+func substTemplate(sbt *any, substMap map[string]string) error {
+	vars := map[string]string{}
+	err := substTemplateRec(sbt, substMap, vars)
+	if err != nil {
+		return err
+	}
+	notExpanded := []string{}
+	for k := range vars {
+		if _, ok := substMap[k]; !ok {
+			notExpanded = append(notExpanded, k)
+		}
+	}
+	if len(notExpanded) > 0 {
+		return fmt.Errorf("unexpanded variables: %s", strings.Join(notExpanded, ", "))
+	}
+	return nil
+}
+
+func substTemplateRec(sbt *any, substMap, vars map[string]string) error {
+	switch x := (*sbt).(type) {
+	case map[string]any:
+		for k, v := range x {
+			if err := substTemplateRec(&v, substMap, vars); err != nil {
+				return err
+			}
+			x[k] = v
+		}
+
+	case []any:
+		for _, v := range x {
+			if err := substTemplateRec(&v, substMap, vars); err != nil {
+				return err
+			}
+		}
+	case string:
+		*sbt = substString(x, substMap, vars)
+	default:
+	}
+	return nil
+}
+
+var varRefRx = regexp.MustCompile(`\$\{([a-zA-Z][a-zA-Z0-9_.-]*)\}`)
+
+func substString(s string, substMap, vars map[string]string) string {
+	matches := varRefRx.FindAllStringSubmatchIndex(s, -1)
+	if matches == nil {
+		return s
+	}
+	result := []string{}
+	cur, start, end := 0, 0, 0
+	for i := range matches {
+		start, end = matches[i][2], matches[i][3]
+		// store any skipped string
+		if cur < start-2 {
+			result = append(result, s[cur:start-2]) // ${
+		}
+		v := s[start:end]
+		end++ // }
+		cur = end
+		vars[v] = ""
+		repl, ok := substMap[v]
+		if !ok {
+			// unsubstituted variables are handled
+			// in substTemplate to report all of them
+			// no error is reported here.
+			continue
+		}
+		result = append(result, repl)
+	}
+	if end < len(s) {
+		result = append(result, s[end:])
+	}
+	return strings.Join(result, "")
+}
+
+func unstructuredToSandbox(un any) (*models.Sandbox, error) {
+	if err := port2Int(&un); err != nil {
+		return nil, err
+	}
+	d, err := json.Marshal(un)
+	if err != nil {
+		return nil, err
+	}
+	var sb models.Sandbox
+	if err := json.Unmarshal(d, &sb); err != nil {
+		return nil, err
+	}
+	return &sb, nil
+}
+
+func port2Int(un *any) error {
+	fmt.Printf("port2Int %#v %T\n", *un, *un)
+	switch x := (*un).(type) {
+	case map[string]any:
+		for k, v := range x {
+			fmt.Printf("looking at key %q\n", k)
+			if k != "port" {
+				if err := port2Int(&v); err != nil {
+					return err
+				}
+				x[k] = v
+				continue
+			}
+			ps, ok := v.(string)
+			if !ok {
+				continue
+			}
+			p, err := strconv.ParseInt(ps, 10, 32)
+			if err != nil {
+				return fmt.Errorf("port is not int: %q", ps)
+			}
+			x[k] = p
+		}
+	case []any:
+		for i := range x {
+			if err := port2Int(&x[i]); err != nil {
+				return err
+			}
+		}
+	default:
+	}
+	return nil
 }
 
 func waitForReady(cfg *config.SandboxApply, out io.Writer, sandboxName string) error {
