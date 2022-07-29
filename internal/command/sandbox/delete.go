@@ -6,12 +6,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
-	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -19,9 +17,9 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 	cfg := &config.SandboxDelete{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "delete { -f FILENAME | NAME }",
+		Use:   "delete { -f FILENAME var1=val1 var2=val2 ... | NAME }",
 		Short: "Delete sandbox",
-		Args:  cobra.MaximumNArgs(1),
+		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return delete(cfg, cmd.ErrOrStderr(), args)
 		},
@@ -36,24 +34,21 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	if cfg.Filename == "" && len(args) == 0 {
-		return errors.New("must specify either filename or sandbox name")
-	}
-	if cfg.Filename != "" && len(args) > 0 {
-		return errors.New("can't specify both filename and sandbox name")
-	}
-
 	// Get the name either from a file or from the command line.
 	var name string
-	if len(args) > 0 {
+	if cfg.Filename == "" {
+		if len(args) != 1 {
+			return errors.New("must specify either filename or sandbox name")
+		}
 		name = args[0]
 	} else {
-		req, err := clio.LoadYAML[models.Sandbox](cfg.Filename)
+		sb, err := loadSandbox(cfg.Filename, args)
 		if err != nil {
 			return err
 		}
-		name = req.Name
+		name = sb.Name
 	}
+
 	if name == "" {
 		return errors.New("sandbox name is required")
 	}
