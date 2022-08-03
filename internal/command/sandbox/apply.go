@@ -17,9 +17,9 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	cfg := &config.SandboxApply{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "apply -f FILENAME var1=val1 var2=val2 ...",
+		Use:   "apply -f FILENAME [ --set var1=val1 --set var2=val2 ... ]",
 		Short: "Create or update a sandbox with variable expansion",
-		Args:  cobra.ArbitraryArgs,
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
@@ -37,7 +37,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
-	req, err := loadSandbox(cfg.Filename, args)
+	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals)
 	if err != nil {
 		return err
 	}

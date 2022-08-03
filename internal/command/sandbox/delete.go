@@ -17,9 +17,9 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 	cfg := &config.SandboxDelete{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "delete { -f FILENAME var1=val1 var2=val2 ... | NAME }",
+		Use:   "delete { NAME | -f FILENAME [ --set var1=val1 --set var2=val2 ... ] }",
 		Short: "Delete sandbox",
-		Args:  cobra.ArbitraryArgs,
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return delete(cfg, cmd.ErrOrStderr(), args)
 		},
@@ -37,12 +37,12 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	// Get the name either from a file or from the command line.
 	var name string
 	if cfg.Filename == "" {
-		if len(args) != 1 {
-			return errors.New("must specify either filename or sandbox name")
+		if len(cfg.TemplateVals) != 0 {
+			return errors.New("must specify filename (-f) to use --set")
 		}
 		name = args[0]
 	} else {
-		sb, err := loadSandbox(cfg.Filename, args)
+		sb, err := loadSandbox(cfg.Filename, cfg.TemplateVals)
 		if err != nil {
 			return err
 		}

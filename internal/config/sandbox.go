@@ -14,9 +14,10 @@ type SandboxApply struct {
 	*Sandbox
 
 	// Flags
-	Filename    string
-	Wait        bool
-	WaitTimeout time.Duration
+	Filename     string
+	Wait         bool
+	WaitTimeout  time.Duration
+	TemplateVals TemplateVals
 }
 
 func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
@@ -24,15 +25,17 @@ func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for the sandbox status to be Ready before returning")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 5*time.Minute, "timeout when waiting for the sandbox to be Ready")
 	cmd.MarkFlagRequired("filename")
+	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 }
 
 type SandboxDelete struct {
 	*Sandbox
 
 	// Flags
-	Filename    string
-	Wait        bool
-	WaitTimeout time.Duration
+	Filename     string
+	Wait         bool
+	WaitTimeout  time.Duration
+	TemplateVals TemplateVals
 }
 
 func (c *SandboxDelete) AddFlags(cmd *cobra.Command) {

@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/signadot/cli/internal/config"
 )
 
 type SubstTest struct {
@@ -20,37 +22,37 @@ type SubstTest struct {
 // TODO: fix omitempties in go-sdk.
 var substCases = []SubstTest{
 	{
-		Yaml:   `{"name":"${dev}-service"}`,
+		Yaml:   `{"name":"@{dev}-service"}`,
 		Args:   []string{"dev=jane"},
 		Result: `{"endpoints":null,"name":"jane-service"}`,
 	},
 	{
-		Yaml:  `{"name":"${dev}-service"}`,
+		Yaml:  `{"name":"@{dev}-service"}`,
 		Args:  []string{"xdev=jane"},
 		Error: true,
 	},
 	{
-		Yaml:   `{"name":"service-${dev}"}`,
+		Yaml:   `{"name":"service-@{dev}"}`,
 		Args:   []string{"dev=jane"},
 		Result: `{"endpoints":null,"name":"service-jane"}`,
 	},
 	{
-		Yaml:   `{"name":"${team}-service-${dev}"}`,
+		Yaml:   `{"name":"@{team}-service-@{dev}"}`,
 		Args:   []string{"team=gorillas", "dev=jane"},
 		Result: `{"endpoints":null,"name":"gorillas-service-jane"}`,
 	},
 	{
-		Yaml:   `{"name":"${team}${dev}"}`,
+		Yaml:   `{"name":"@{team}@{dev}"}`,
 		Args:   []string{"team=gorillas", "dev=jane"},
 		Result: `{"endpoints":null,"name":"gorillasjane"}`,
 	},
 	{
-		Yaml:   `{"name":"b${team}${dev}e"}`,
+		Yaml:   `{"name":"b@{team}@{dev}e"}`,
 		Args:   []string{"team=gorillas", "dev=jane"},
 		Result: `{"endpoints":null,"name":"bgorillasjanee"}`,
 	},
 	{
-		Yaml:   `{"spec":{"cluster":"${dev}-cluster"}}`,
+		Yaml:   `{"spec":{"cluster":"@{dev}-cluster"}}`,
 		Args:   []string{"dev=jane"},
 		Result: `{"endpoints":null,"spec":{"cluster":"jane-cluster","endpoints":null,"forks":null,"resources":null}}`,
 	},
@@ -69,7 +71,17 @@ func testSubstCase(tc *SubstTest, t *testing.T) {
 		return
 	}
 	f.Close()
-	sb, err := loadSandbox(f.Name(), tc.Args)
+	tplVals := &config.TemplateVals{}
+	for _, arg := range tc.Args {
+		if err := tplVals.Set(arg); err != nil {
+			if !tc.Error {
+				t.Errorf("unexpected error %s", err.Error())
+				return
+			}
+			return
+		}
+	}
+	sb, err := loadSandbox(f.Name(), *tplVals)
 	if err == nil && tc.Error {
 		t.Errorf("didn't get error on %s", tc.Yaml)
 		return

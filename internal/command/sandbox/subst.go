@@ -3,20 +3,16 @@ package sandbox
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/signadot/cli/internal/clio"
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/models"
 )
 
-func loadSandbox(file string, args []string) (*models.Sandbox, error) {
-	substMap, err := substMap(args)
-	if err != nil {
-		return nil, err
-	}
-
+func loadSandbox(file string, tplVals config.TemplateVals) (*models.Sandbox, error) {
+	substMap := substMap(tplVals)
 	sbt, err := clio.LoadYAML[any](file)
 	if err != nil {
 		return nil, err
@@ -27,19 +23,12 @@ func loadSandbox(file string, args []string) (*models.Sandbox, error) {
 	return unstructuredToSandbox(*sbt)
 }
 
-func substMap(args []string) (map[string]string, error) {
+func substMap(tplVals []config.TemplateVal) map[string]string {
 	substMap := map[string]string{}
-	for _, arg := range args {
-		varName, val, found := strings.Cut(arg, "=")
-		if !found {
-			return nil, fmt.Errorf("arg %q is not in <var>=<value> form", arg)
-		}
-		if err := checkVar(varName); err != nil {
-			return nil, fmt.Errorf("arg %q has invalid variable %q", arg, varName)
-		}
-		substMap[varName] = val
+	for _, tv := range tplVals {
+		substMap[tv.Var] = tv.Val
 	}
-	return substMap, nil
+	return substMap
 }
 
 func substTemplate(sbt *any, substMap map[string]string) error {
@@ -83,10 +72,8 @@ func substTemplateRec(sbt *any, substMap map[string]string, vars map[string]stru
 	return nil
 }
 
-var varRefRx = regexp.MustCompile(`\$\{([a-zA-Z][a-zA-Z0-9_.-]*)\}`)
-
 func substString(s string, substMap map[string]string, vars map[string]struct{}) string {
-	matches := varRefRx.FindAllStringSubmatchIndex(s, -1)
+	matches := config.VarRefRx.FindAllStringSubmatchIndex(s, -1)
 	if matches == nil {
 		return s
 	}
@@ -94,11 +81,11 @@ func substString(s string, substMap map[string]string, vars map[string]struct{})
 	cur, start, end := 0, 0, 0
 	for i := range matches {
 		// begin and end of submatch corresponding to variable name
-		// in ${<var-name>}.
+		// in @{<var-name>}.
 		start, end = matches[i][2], matches[i][3]
 		// store any skipped string
 		if cur < start-2 {
-			result = append(result, s[cur:start-2]) // ${
+			result = append(result, s[cur:start-2]) // @{
 		}
 		v := s[start:end]
 		end++ // }
@@ -150,11 +137,11 @@ func port2Int(un *any) error {
 			if !ok {
 				continue
 			}
-			p, err := strconv.ParseInt(ps, 10, 32)
+			port, err := strconv.ParseInt(ps, 10, 32)
 			if err != nil {
 				return fmt.Errorf("port is not int: %q", ps)
 			}
-			x[k] = p
+			x[k] = port
 		}
 	case []any:
 		for i := range x {
@@ -163,15 +150,6 @@ func port2Int(un *any) error {
 			}
 		}
 	default:
-	}
-	return nil
-}
-
-var varPat = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_.-]*$`)
-
-func checkVar(varName string) error {
-	if !varPat.MatchString(varName) {
-		return fmt.Errorf("invalid variable name %q, should match %s", varName, varPat)
 	}
 	return nil
 }
