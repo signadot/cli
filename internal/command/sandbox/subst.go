@@ -3,6 +3,7 @@ package sandbox
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -12,7 +13,10 @@ import (
 )
 
 func loadSandbox(file string, tplVals config.TemplateVals) (*models.Sandbox, error) {
-	substMap := substMap(tplVals)
+	substMap, err := substMap(tplVals)
+	if err != nil {
+		return nil, err
+	}
 	sbt, err := clio.LoadYAML[any](file)
 	if err != nil {
 		return nil, err
@@ -23,12 +27,35 @@ func loadSandbox(file string, tplVals config.TemplateVals) (*models.Sandbox, err
 	return unstructuredToSandbox(*sbt)
 }
 
-func substMap(tplVals []config.TemplateVal) map[string]string {
+func substMap(tplVals []config.TemplateVal) (map[string]string, error) {
 	substMap := map[string]string{}
+	conflicts := map[string][]string{}
 	for _, tv := range tplVals {
+		if tVal, present := substMap[tv.Var]; present {
+			if tVal != tv.Val {
+				if len(conflicts[tv.Var]) == 0 {
+					conflicts[tv.Var] = []string{tv.Val}
+				}
+				conflicts[tv.Var] = append(conflicts[tv.Var], tVal)
+				continue
+			}
+		}
 		substMap[tv.Var] = tv.Val
 	}
-	return substMap
+	if len(conflicts) == 0 {
+		return substMap, nil
+	}
+	conflictKeys := make([]string, 0, len(conflicts))
+	for k := range conflicts {
+		conflictKeys = append(conflictKeys, k)
+	}
+	sort.Strings(conflictKeys)
+	msgs := make([]string, 0, len(conflictKeys))
+	for _, key := range conflictKeys {
+		vals := strings.Join(conflicts[key], ", ")
+		msgs = append(msgs, fmt.Sprintf("%s: %s", key, vals))
+	}
+	return nil, fmt.Errorf("conflicting variable defs:\n\t%s\n", strings.Join(msgs, "\n\t"))
 }
 
 func substTemplate(sbt *any, substMap map[string]string) error {
