@@ -42,6 +42,7 @@ func (c *SandboxDelete) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "optional YAML or JSON file containing the original sandbox creation request")
 	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for the sandbox to finish terminating before returning")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 5*time.Minute, "timeout when waiting for the sandbox to finish terminating")
+	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 }
 
 type SandboxGet struct {

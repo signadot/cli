@@ -34,9 +34,9 @@ func substMap(tplVals []config.TemplateVal) (map[string]string, error) {
 		if tVal, present := substMap[tv.Var]; present {
 			if tVal != tv.Val {
 				if len(conflicts[tv.Var]) == 0 {
-					conflicts[tv.Var] = []string{tv.Val}
+					conflicts[tv.Var] = []string{tVal}
 				}
-				conflicts[tv.Var] = append(conflicts[tv.Var], tVal)
+				conflicts[tv.Var] = append(conflicts[tv.Var], tv.Val)
 				continue
 			}
 		}
@@ -87,8 +87,8 @@ func substTemplateRec(sbt *any, substMap map[string]string, vars map[string]stru
 		}
 
 	case []any:
-		for _, v := range x {
-			if err := substTemplateRec(&v, substMap, vars); err != nil {
+		for i := range x {
+			if err := substTemplateRec(&x[i], substMap, vars); err != nil {
 				return err
 			}
 		}
