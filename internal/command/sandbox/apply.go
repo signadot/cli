@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
-	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -19,11 +17,11 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	cfg := &config.SandboxApply{Sandbox: sandbox}
 
 	cmd := &cobra.Command{
-		Use:   "apply -f FILENAME",
-		Short: "Create or update a sandbox",
+		Use:   "apply -f FILENAME [ --set var1=val1 --set var2=val2 ... ]",
+		Short: "Create or update a sandbox with variable expansion",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 
@@ -32,15 +30,14 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func apply(cfg *config.SandboxApply, out, log io.Writer) error {
+func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
-
-	req, err := clio.LoadYAML[models.Sandbox](cfg.Filename)
+	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals)
 	if err != nil {
 		return err
 	}
