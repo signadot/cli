@@ -69,11 +69,11 @@ dockers:
       - "--label=com.signadot.image.version={{.Version}}"
       - "--platform=linux/arm64/v8"
 docker_manifests:
-  - name_template: signadot/sigandot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:v{{ .Version }}
+  - name_template: signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:v{{ .Version }}
     image_templates:
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:v{{ .Version }}-amd64
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:v{{ .Version }}-arm64v8
-  - name_template: signadot/sigandot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest
+  - name_template: signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest
     image_templates:
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-amd64
       - signadot/signadot-cli:{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-arm64v8
