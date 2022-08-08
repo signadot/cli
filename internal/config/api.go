@@ -53,16 +53,14 @@ func (a *Api) InitAPIConfig() error {
 	transport.SetDebug(a.Debug)
 
 	// Add User-Agent to every request
-	transport.Transport = setUserAgent(transport.Transport,
-		fmt.Sprintf("signadot-cli:%s", buildinfo.Version))
+	transport.Transport = &userAgent{
+		inner: transport.Transport,
+		agent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
+	}
 
 	a.Client = client.New(hack.FixAPIErrors(transport), nil)
 
 	return nil
-}
-
-func setUserAgent(t http.RoundTripper, ua string) http.RoundTripper {
-	return &userAgent{t, ua}
 }
 
 type userAgent struct {
