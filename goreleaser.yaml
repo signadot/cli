@@ -52,6 +52,7 @@ dockers:
       - "--label=com.signadot.image.title={{.ProjectName}}"
       - "--label=com.signadot.image.revision={{.ShortCommit}}"
       - "--label=com.signadot.image.version={{.Version}}"
+      - "--platform=linux/amd64"
   -
     use: buildx
     goos: linux
@@ -66,6 +67,7 @@ dockers:
       - "--label=com.signadot.image.title={{.ProjectName}}"
       - "--label=com.signadot.image.revision={{.ShortCommit}}"
       - "--label=com.signadot.image.version={{.Version}}"
+      - "--platform=linux/arm64/v8"
 docker_manifests:
   - name_template: signadot/sigandot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:v{{ .Version }}
     image_templates:
