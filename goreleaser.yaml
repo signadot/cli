@@ -24,19 +24,19 @@ checksum:
   name_template: checksums.txt
 snapshot:
   name_template: "{{ .Version }}-{{ .ShortCommit }}"
-    #brews:
-    #- name: signadot-cli
-    #  description: Command-line interface for Signadot
-    #  homepage: https://signadot.com
-    #  folder: Formula
-    #  commit_author:
-    #    name: foxish
-    #    email: info@signadot.com
-    #  tap:
-    #    owner: signadot
-    #    name: homebrew-tap
-    #  install: |-
-    #    bin.install "signadot"
+brews:
+- name: signadot-cli
+  description: Command-line interface for Signadot
+  homepage: https://signadot.com
+  folder: Formula
+  commit_author:
+    name: foxish
+    email: info@signadot.com
+  tap:
+    owner: signadot
+    name: homebrew-tap
+  install: |-
+    bin.install "signadot"
 dockers:
   -
     use: buildx
@@ -78,8 +78,6 @@ docker_manifests:
   - name_template: signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest
     image_templates:
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-amd64
-      - signadot/signadot-cli:{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-arm64v8
+      - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-arm64v8
     create_flags:
       - "--amend"
-release:
-  disable: true
