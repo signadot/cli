@@ -73,9 +73,13 @@ docker_manifests:
     image_templates:
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:v{{ .Version }}-amd64
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:v{{ .Version }}-arm64v8
+    create_flags:
+      - "--amend"
   - name_template: signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest
     image_templates:
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-amd64
       - signadot/signadot-cli:{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-arm64v8
+    create_flags:
+      - "--amend"
 release:
   disable: true
