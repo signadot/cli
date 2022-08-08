@@ -3,9 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
 	oaclient "github.com/go-openapi/runtime/client"
+	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/hack"
 	"github.com/signadot/go-sdk/client"
 	"github.com/spf13/viper"
@@ -50,7 +52,23 @@ func (a *Api) InitAPIConfig() error {
 	transport.DefaultAuthentication = oaclient.APIKeyAuth("signadot-api-key", "header", apiKey)
 	transport.SetDebug(a.Debug)
 
+	// Add User-Agent to every request
+	transport.Transport = &userAgent{
+		inner: transport.Transport,
+		agent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
+	}
+
 	a.Client = client.New(hack.FixAPIErrors(transport), nil)
 
 	return nil
+}
+
+type userAgent struct {
+	inner http.RoundTripper
+	agent string
+}
+
+func (ua *userAgent) RoundTrip(r *http.Request) (*http.Response, error) {
+	r.Header.Set("User-Agent", ua.agent)
+	return ua.inner.RoundTrip(r)
 }
