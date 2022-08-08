@@ -4,7 +4,6 @@ FROM ubuntu
 RUN apt-get update && \
     apt-get install -y ca-certificates && \
     apt-get clean autoclean && \
-    rm -rf /var/lib/{apt,dpkg,cache,log}/ && \
-    update-ca-certificates
+    rm -rf /var/lib/{apt,dpkg,cache,log}/
 
 COPY signadot /signadot
