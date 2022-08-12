@@ -1,7 +1,7 @@
 .PHONY: build
 
 build:
-	goreleaser release --rm-dist --snapshot
+	SIGNADOT_IMAGE_SUFFIX='' goreleaser release --rm-dist --snapshot
 
 release:
-	goreleaser release --rm-dist
+	SIGNADOT_IMAGE_SUFFIX='' goreleaser release --rm-dist
