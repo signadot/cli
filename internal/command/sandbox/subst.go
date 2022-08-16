@@ -12,7 +12,7 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
-func loadSandbox(file string, tplVals config.TemplateVals) (*models.Sandbox, error) {
+func loadSandbox(file string, tplVals config.TemplateVals, forDelete bool) (*models.Sandbox, error) {
 	substMap, err := substMap(tplVals)
 	if err != nil {
 		return nil, err
@@ -21,10 +21,28 @@ func loadSandbox(file string, tplVals config.TemplateVals) (*models.Sandbox, err
 	if err != nil {
 		return nil, err
 	}
+	if forDelete {
+		*sbt = extractName(*sbt)
+	}
+
 	if err := substTemplate(sbt, substMap); err != nil {
 		return nil, err
 	}
 	return unstructuredToSandbox(*sbt)
+}
+
+func extractName(sbt any) map[string]any {
+	topLevel, ok := sbt.(map[string]any)
+	if !ok {
+		return map[string]any{}
+	}
+	for k := range topLevel {
+		if k == "name" {
+			continue
+		}
+		delete(topLevel, k)
+	}
+	return topLevel
 }
 
 func substMap(tplVals []config.TemplateVal) (map[string]string, error) {

@@ -21,7 +21,7 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 		Short: "Delete sandbox",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return delete(cfg, cmd.ErrOrStderr(), args)
+			return sbDelete(cfg, cmd.ErrOrStderr(), args)
 		},
 	}
 
@@ -30,7 +30,7 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
+func sbDelete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -48,7 +48,7 @@ func delete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 		if len(args) != 0 {
 			return errors.New("must not provide args when filename (-f) specified")
 		}
-		sb, err := loadSandbox(cfg.Filename, cfg.TemplateVals)
+		sb, err := loadSandbox(cfg.Filename, cfg.TemplateVals, true /* forDelete */)
 		if err != nil {
 			return err
 		}
