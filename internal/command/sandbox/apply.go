@@ -37,7 +37,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
-	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals)
+	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals, false /*forDelete */)
 	if err != nil {
 		return err
 	}
