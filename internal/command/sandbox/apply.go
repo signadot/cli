@@ -10,6 +10,7 @@ import (
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -55,13 +56,22 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
-		if err := waitForReady(cfg, log, resp.Name); err != nil {
+		// store latest resp for output below
+		resp, err = waitForReady(cfg, log, resp.Name)
+		if err != nil {
+			writeOutput(cfg, out, resp)
 			fmt.Fprintf(log, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
 			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", req.Name)
 			return err
 		}
+		writeOutput(cfg, out, resp)
+		fmt.Fprintf(log, "\nThe sandbox %q was created and is ready.\n", resp.Name)
+		return nil
 	}
+	return writeOutput(cfg, out, resp)
+}
 
+func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the sandbox.
@@ -83,13 +93,16 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	}
 }
 
-func waitForReady(cfg *config.SandboxApply, out io.Writer, sandboxName string) error {
+func waitForReady(cfg *config.SandboxApply, out io.Writer, sandboxName string) (*models.Sandbox, error) {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
 
 	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
 
 	spin := spinner.Start(out, "Sandbox status")
 	defer spin.Stop()
+
+	// store latest sandbox model
+	var sb *models.Sandbox
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
@@ -98,17 +111,17 @@ func waitForReady(cfg *config.SandboxApply, out io.Writer, sandboxName string) e
 			spin.Messagef("error: %v", err)
 			return false
 		}
-		status := result.Payload.Status
-		if !status.Ready {
-			spin.Messagef("Not Ready: %s", status.Message)
+		sb = result.Payload
+		if !sb.Status.Ready {
+			spin.Messagef("Not Ready: %s", sb.Status.Message)
 			return false
 		}
-		spin.StopMessagef("Ready: %s", status.Message)
+		spin.StopMessagef("Ready: %s", sb.Status.Message)
 		return true
 	})
 	if err != nil {
 		spin.StopFail()
-		return err
+		return sb, err
 	}
-	return nil
+	return sb, nil
 }
