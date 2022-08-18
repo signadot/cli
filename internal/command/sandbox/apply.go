@@ -57,7 +57,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
 		// store latest resp for output below
-		resp, err = waitForReady(cfg, log, resp.Name)
+		resp, err = waitForReady(cfg, log, resp)
 		if err != nil {
 			writeOutput(cfg, out, resp)
 			fmt.Fprintf(log, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
@@ -93,16 +93,13 @@ func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) 
 	}
 }
 
-func waitForReady(cfg *config.SandboxApply, out io.Writer, sandboxName string) (*models.Sandbox, error) {
+func waitForReady(cfg *config.SandboxApply, out io.Writer, sb *models.Sandbox) (*models.Sandbox, error) {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
 
-	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
+	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sb.Name)
 
 	spin := spinner.Start(out, "Sandbox status")
 	defer spin.Stop()
-
-	// store latest sandbox model
-	var sb *models.Sandbox
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
