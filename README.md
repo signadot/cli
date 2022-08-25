@@ -5,6 +5,8 @@ This is the source repository for the [Signadot](https://signadot.com) command-l
 Please see the [usage guide](https://docs.signadot.com/docs/cli) if all you want
 is to install and run the CLI.
 
+To file an issue, please use our [community issue tracker](https://github.com/signadot/community/issues).
+
 ## Build
 
 To build the CLI from source, such as to test changes, you'll need Go 1.18+.
