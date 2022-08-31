@@ -60,12 +60,12 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		resp, err = waitForReady(cfg, log, resp)
 		if err != nil {
 			writeOutput(cfg, out, resp)
-			fmt.Fprintf(log, "\nThe sandbox was created, but it may not be ready yet. To check status, run:\n\n")
+			fmt.Fprintf(log, "\nThe sandbox was applied, but it may not be ready yet. To check status, run:\n\n")
 			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", req.Name)
 			return err
 		}
 		writeOutput(cfg, out, resp)
-		fmt.Fprintf(log, "\nThe sandbox %q was created and is ready.\n", resp.Name)
+		fmt.Fprintf(log, "\nThe sandbox %q was applied and is ready.\n", resp.Name)
 		return nil
 	}
 	return writeOutput(cfg, out, resp)
