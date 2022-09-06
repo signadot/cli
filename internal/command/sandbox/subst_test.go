@@ -81,7 +81,7 @@ func testSubstCase(tc *SubstTest, t *testing.T) {
 			return
 		}
 	}
-	sb, err := loadSandbox(f.Name(), *tplVals)
+	sb, err := loadSandbox(f.Name(), *tplVals, false)
 	if err == nil && tc.Error {
 		t.Errorf("didn't get error on %s", tc.Yaml)
 		return
