@@ -54,7 +54,7 @@ func (c *Root) init() error {
 		// The config file is optional (required params (org, apikey) can
 		// be set by env var instead).
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return err
+			return fmt.Errorf("error reading config file: %w", err)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,17 +14,39 @@ import (
 	"github.com/spf13/viper"
 )
 
-type Api struct {
+type API struct {
 	Root
 
 	// Config file values
-	Org string
+	Org          string
+	MaskedAPIKey string
+	APIURL       string
 
 	// Runtime values
-	Client *client.SignadotAPI
+	Client *client.SignadotAPI `json:"-"`
 }
 
-func (a *Api) InitAPIConfig() error {
+// for error reporting, we select the config that
+// the user controls.
+func (a *API) MarshalJSON() ([]byte, error) {
+	type T struct {
+		Debug        bool
+		ConfigFile   string
+		Org          string
+		MaskedAPIKey string
+		APIURL       string
+	}
+	t := &T{
+		Debug:        a.Debug,
+		ConfigFile:   a.ConfigFile,
+		Org:          a.Org,
+		MaskedAPIKey: a.MaskedAPIKey,
+		APIURL:       a.APIURL,
+	}
+	return json.Marshal(t)
+}
+
+func (a *API) InitAPIConfig() error {
 
 	a.Org = viper.GetString("org")
 	if a.Org == "" {
@@ -33,6 +56,8 @@ func (a *Api) InitAPIConfig() error {
 	apiKey := viper.GetString("api_key")
 	if apiKey == "" {
 		return errors.New("Signadot API key must be specified through either the SIGNADOT_API_KEY env var or the 'api_key' field in ~/.signadot/config.yaml")
+	} else {
+		a.MaskedAPIKey = apiKey[:6] + "..."
 	}
 
 	tc := client.DefaultTransportConfig()
@@ -45,6 +70,10 @@ func (a *Api) InitAPIConfig() error {
 		}
 		tc.Host = u.Host
 		tc.Schemes = []string{u.Scheme}
+		a.APIURL = apiURL
+
+	} else {
+		a.APIURL = "https://api.signadot.com"
 	}
 
 	// Add auth info to every request.
