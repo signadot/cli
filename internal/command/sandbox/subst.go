@@ -73,7 +73,7 @@ func substMap(tplVals []config.TemplateVal) (map[string]string, error) {
 		vals := strings.Join(conflicts[key], ", ")
 		msgs = append(msgs, fmt.Sprintf("%s: %s", key, vals))
 	}
-	return nil, fmt.Errorf("conflicting variable defs:\n\t%s\n", strings.Join(msgs, "\n\t"))
+	return nil, fmt.Errorf("conflicting variable defs:\n\t%s", strings.Join(msgs, "\n\t"))
 }
 
 func substTemplate(sbt *any, substMap map[string]string) error {
