@@ -21,7 +21,6 @@ type column struct {
 	fieldName string
 	title     string
 	trunc     bool
-	minWidth  int
 }
 
 func (c *column) format(row any) string {

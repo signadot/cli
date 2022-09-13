@@ -1,6 +1,6 @@
 module github.com/signadot/cli
 
-go 1.18
+go 1.19
 
 require (
 	github.com/docker/go-units v0.4.0
