@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/signadot/cli/internal/buildinfo"
+	"github.com/signadot/cli/internal/command/bug"
 	"github.com/signadot/cli/internal/command/cluster"
 	"github.com/signadot/cli/internal/command/sandbox"
 	"github.com/signadot/cli/internal/config"
@@ -11,7 +12,7 @@ import (
 )
 
 func New() *cobra.Command {
-	cfg := &config.Api{}
+	cfg := &config.API{}
 	cobra.OnInitialize(cfg.Init)
 
 	cmd := &cobra.Command{
@@ -29,6 +30,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		cluster.New(cfg),
 		sandbox.New(cfg),
+		bug.New(cfg),
 	)
 
 	return cmd

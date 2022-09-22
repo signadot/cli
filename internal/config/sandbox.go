@@ -7,7 +7,7 @@ import (
 )
 
 type Sandbox struct {
-	*Api
+	*API
 }
 
 type SandboxApply struct {

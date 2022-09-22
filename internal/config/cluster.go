@@ -3,7 +3,7 @@ package config
 import "github.com/spf13/cobra"
 
 type Cluster struct {
-	*Api
+	*API
 }
 
 type ClusterAdd struct {
