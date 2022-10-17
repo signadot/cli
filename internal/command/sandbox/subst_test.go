@@ -3,7 +3,6 @@ package sandbox
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -59,7 +58,7 @@ var substCases = []SubstTest{
 }
 
 func testSubstCase(tc *SubstTest, t *testing.T) {
-	f, err := ioutil.TempFile(".", "substCase")
+	f, err := os.CreateTemp(".", "substCase")
 	if err != nil {
 		t.Error(err)
 		return

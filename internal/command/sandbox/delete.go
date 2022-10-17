@@ -60,7 +60,10 @@ func sbDelete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	}
 
 	// Delete the sandbox.
-	params := sandboxes.NewDeleteSandboxParams().WithOrgName(cfg.Org).WithSandboxName(name)
+	params := sandboxes.NewDeleteSandboxParams().
+		WithOrgName(cfg.Org).
+		WithSandboxName(name).
+		WithForce(&cfg.Force)
 	_, err := cfg.Client.Sandboxes.DeleteSandbox(params, nil)
 	if err != nil {
 		return err
