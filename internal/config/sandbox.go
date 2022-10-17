@@ -36,12 +36,14 @@ type SandboxDelete struct {
 	Wait         bool
 	WaitTimeout  time.Duration
 	TemplateVals TemplateVals
+	Force        bool
 }
 
 func (c *SandboxDelete) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "optional YAML or JSON file containing the original sandbox creation request")
 	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for the sandbox to finish terminating before returning")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 5*time.Minute, "timeout when waiting for the sandbox to finish terminating")
+	cmd.Flags().BoolVar(&c.Force, "force", false, "force delete the sandbox, removing resources without deprovisioning them")
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 }
 
