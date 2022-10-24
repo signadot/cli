@@ -3,6 +3,7 @@ package sandbox
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"text/tabwriter"
 	"time"
 
@@ -43,6 +44,7 @@ func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.Sandbox)
 	fmt.Fprintf(tw, "Description:\t%s\n", sb.Spec.Description)
 	fmt.Fprintf(tw, "Cluster:\t%s\n", *sb.Spec.Cluster)
 	fmt.Fprintf(tw, "Created:\t%s\n", formatTimestamp(sb.CreatedAt))
+	fmt.Fprintf(tw, "TTL:\t%s\n", formatTTL(sb))
 	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.SandboxDashboardURL(sb.RoutingKey))
 	fmt.Fprintf(tw, "Status:\t%s (%s: %s)\n", readiness(sb.Status), sb.Status.Reason, sb.Status.Message)
 
@@ -76,6 +78,41 @@ func formatTimestamp(in string) string {
 	local := t.Local().Format(time.RFC1123)
 
 	return fmt.Sprintf("%s (%s ago)", local, elapsed)
+}
+
+func formatTTL(sb *models.Sandbox) string {
+	ttl := sb.Spec.TTL
+	if ttl == nil {
+		return "-"
+	}
+	createdAt, err := time.Parse(time.RFC3339, sb.CreatedAt)
+	if err != nil {
+		return "?(e parse-created-at)"
+	}
+	n := len(ttl.Duration)
+	count, unit := ttl.Duration[0:n-1], ttl.Duration[n-1:]
+	m, err := strconv.ParseInt(count, 10, 32)
+	if err != nil {
+		return "?(e parse dur)"
+	}
+	if m < 0 {
+		return "?(e negative dur)"
+	}
+	offset := time.Duration(m)
+	switch unit {
+	case "m":
+		offset *= time.Minute
+	case "h":
+		offset *= time.Hour
+	case "d":
+		offset *= 24 * time.Hour
+	case "w":
+		offset *= 24 * 7 * time.Hour
+	}
+	eol := createdAt.Add(offset)
+	local := eol.Local().Format(time.RFC1123)
+	remaining := eol.Sub(time.Now())
+	return fmt.Sprintf("%s (%s)", local, units.HumanDuration(remaining))
 }
 
 type endpointRow struct {
