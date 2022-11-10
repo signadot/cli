@@ -83,7 +83,7 @@ func formatTimestamp(in string) string {
 func formatTTL(sb *models.Sandbox) string {
 	ttl := sb.Spec.TTL
 	if ttl == nil {
-		return "-"
+		return "- (forever)"
 	}
 	createdAt, err := time.Parse(time.RFC3339, sb.CreatedAt)
 	if err != nil {
