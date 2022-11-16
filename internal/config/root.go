@@ -22,9 +22,7 @@ type Root struct {
 }
 
 func (c *Root) AddFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().Bool("debug", false, "enable debug output")
-	viper.BindPFlag("debug", cmd.PersistentFlags().Lookup("debug"))
-
+	cmd.PersistentFlags().BoolVar(&c.Debug, "debug", false, "enable debug output")
 	cmd.PersistentFlags().StringVar(&c.ConfigFile, "config", "", "config file (default is $HOME/.signadot/config.yaml)")
 	cmd.PersistentFlags().VarP(&c.OutputFormat, "output", "o", "output format (json|yaml)")
 }
