@@ -1,0 +1,32 @@
+name: Release CLI
+on:
+  workflow_dispatch:
+    inputs:
+      release-version:
+        description: 'Release version. Eg. vX.Y.Z'
+        required: true
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: main
+      - name: Check version
+        run: |
+          regex="v[0-9]+[.][0-9]+[.][0-9]+"
+          if [[ ${{ github.event.inputs.release-version }} =~ $regex ]]
+          then
+            echo "Version format is valid"
+          else
+            echo "version format is invalid"
+            exit 1
+          fi
+      - name: Create release tag
+        run: |
+          git tag -a -m 'Release ${{ github.event.inputs.release-version}}' ${{ github.event.inputs.release-version }}
+          git push origin ${{ github.event.inputs.release-version }}
+      - name: Release
+        run: |
+          GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }} make release
