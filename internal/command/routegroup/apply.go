@@ -36,26 +36,26 @@ func apply(cfg *config.RouteGroupApply, out, log io.Writer, args []string) error
 		return err
 	}
 	if cfg.Filename == "" {
-		return errors.New("must specify sandbox request file with '-f' flag")
+		return errors.New("must specify routegroup request file with '-f' flag")
 	}
 	req, err := loadRouteGroup(cfg.Filename, cfg.TemplateVals, false /*forDelete */)
 	if err != nil {
 		return err
 	}
 
-	params := routegroups.NewApplyRouteGroupParams().
-		WithOrgName(cfg.Org).WithRouteGroupName(req.Name).WithData(req)
-	result, err := cfg.Client.RouteGroups.ApplyRouteGroup(params, nil)
+	params := routegroups.NewApplyRoutegroupParams().
+		WithOrgName(cfg.Org).WithRoutegroupName(req.Name).WithData(req)
+	result, err := cfg.Client.RouteGroups.ApplyRoutegroup(params, nil)
 	if err != nil {
 		return err
 	}
 	resp := result.Payload
 
 	fmt.Fprintf(log, "Created routegroup %q (routing key: %s) in cluster %q.\n\n",
-		req.Name, resp.RoutingKey, *req.Spec.Cluster)
+		req.Name, resp.RoutingKey, req.Spec.Cluster)
 
 	if cfg.Wait {
-		// Wait for the sandbox to be ready.
+		// Wait for the routegroup to be ready.
 		// store latest resp for output below
 		resp, err = waitForReady(cfg, log, resp)
 		if err != nil {
@@ -74,12 +74,12 @@ func apply(cfg *config.RouteGroupApply, out, log io.Writer, args []string) error
 func writeOutput(cfg *config.RouteGroupApply, out io.Writer, resp *models.RouteGroup) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		// Print info on how to access the sandbox.
-		sbURL := cfg.RouteGroupDashboardURL(resp.RoutingKey)
+		// Print info on how to access the routegroup.
+		sbURL := cfg.RouteGroup.DashboardURL
 		fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
 
-		if len(resp.EndpointURLs) > 0 {
-			if err := printEndpointTable(out, resp.EndpointURLs); err != nil {
+		if len(resp.Endpoints) > 0 {
+			if err := printEndpointTable(out, resp.Endpoints); err != nil {
 				return err
 			}
 		}
@@ -93,16 +93,16 @@ func writeOutput(cfg *config.RouteGroupApply, out io.Writer, resp *models.RouteG
 	}
 }
 
-func waitForReady(cfg *config.SandboxApply, out io.Writer, rg *models.RouteGroup) (*models.RouteGroup, error) {
-	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
+func waitForReady(cfg *config.RouteGroupApply, out io.Writer, rg *models.RouteGroup) (*models.RouteGroup, error) {
+	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for route group to be ready...\n", cfg.WaitTimeout)
 
-	params := routegroups.NewGetRouteGroupParams().WithOrgName(cfg.Org).WithRouteGroupName(rg.Name)
+	params := routegroups.NewGetRoutegroupParams().WithOrgName(cfg.Org).WithRoutegroupName(rg.Name)
 
-	spin := spinner.Start(out, "Sandbox status")
+	spin := spinner.Start(out, "Route group status")
 	defer spin.Stop()
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
-		result, err := cfg.Client.RouteGroups.GetRouteGroup(params, nil)
+		result, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.
 			spin.Messagef("error: %v", err)

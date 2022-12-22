@@ -29,15 +29,15 @@ func get(cfg *config.RouteGroupGet, out io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	params := routegroups.NewGetRouteGroupParams().WithOrgName(cfg.Org).WithRouteGroupName(name)
-	resp, err := cfg.Client.RouteGroups.GetRouteGroups(params, nil)
+	params := routegroups.NewGetRoutegroupParams().WithOrgName(cfg.Org).WithRoutegroupName(name)
+	resp, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 	if err != nil {
 		return err
 	}
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printRouteGroupDetails(cfg.Sandbox, out, resp.Payload)
+		return printRouteGroupDetails(cfg.RouteGroup, out, resp.Payload)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:

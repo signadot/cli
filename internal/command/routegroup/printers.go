@@ -3,7 +3,6 @@ package routegroup
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"text/tabwriter"
 	"time"
 
@@ -28,7 +27,7 @@ func printRouteGroupTable(out io.Writer, rgs []*models.RouteGroup) error {
 		t.AddRow(routegroupRow{
 			Name:       rg.Name,
 			RoutingKey: rg.RoutingKey,
-			Cluster:    *rg.Spec.Cluster,
+			Cluster:    rg.Spec.Cluster,
 			Created:    rg.CreatedAt,
 			Status:     readiness(rg.Status),
 		})
@@ -36,14 +35,14 @@ func printRouteGroupTable(out io.Writer, rgs []*models.RouteGroup) error {
 	return t.Flush()
 }
 
-func printRouteGroupDetails(cfg *config.Sandbox, out io.Writer, rg *models.RouteGroup) error {
+func printRouteGroupDetails(cfg *config.RouteGroup, out io.Writer, rg *models.RouteGroup) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	fmt.Fprintf(tw, "Name:\t%s\n", rg.Name)
 	fmt.Fprintf(tw, "Routing Key:\t%s\n", rg.RoutingKey)
-	fmt.Fprintf(tw, "Cluster:\t%s\n", *rg.Spec.Cluster)
+	fmt.Fprintf(tw, "Cluster:\t%s\n", rg.Spec.Cluster)
 	fmt.Fprintf(tw, "Created:\t%s\n", formatTimestamp(rg.CreatedAt))
-	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.RouteGroupDashboardURL(rg.Name))
+	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.DashboardURL)
 	fmt.Fprintf(tw, "Status:\t%s (%s: %s)\n", readiness(rg.Status), rg.Status.Reason, rg.Status.Message)
 
 	if err := tw.Flush(); err != nil {
@@ -60,7 +59,7 @@ func printRouteGroupDetails(cfg *config.Sandbox, out io.Writer, rg *models.Route
 	return nil
 }
 
-func readiness(status *models.SandboxReadiness) string {
+func readiness(status *models.RouteGroupStatus) string {
 	if status.Ready {
 		return "Ready"
 	}
@@ -79,7 +78,7 @@ func formatTimestamp(in string) string {
 }
 
 type endpointRow struct {
-	Name   string `sdtab:"SANDBOX ENDPOINT"`
+	Name   string `sdtab:"ROUTEGROUP ENDPOINT"`
 	Target string `sdtab:"TARGET"`
 	URL    string `sdtab:"URL"`
 }
@@ -89,9 +88,9 @@ func printEndpointTable(out io.Writer, endpoints []*models.RouteGroupEndpoint) e
 	t.AddHeader()
 	for _, ep := range endpoints {
 		t.AddRow(endpointRow{
-			Name: ep.Name,
-			Type: ep.Target,
-			URL:  ep.URL,
+			Name:   ep.Name,
+			Target: ep.Target,
+			URL:    ep.URL,
 		})
 	}
 	return t.Flush()

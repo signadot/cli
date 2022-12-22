@@ -48,11 +48,11 @@ func rgDelete(cfg *config.RouteGroupDelete, log io.Writer, args []string) error 
 		if len(args) != 0 {
 			return errors.New("must not provide args when filename (-f) specified")
 		}
-		sb, err := loadRouteGroup(cfg.Filename, cfg.TemplateVals, true /* forDelete */)
+		rg, err := loadRouteGroup(cfg.Filename, cfg.TemplateVals, true /* forDelete */)
 		if err != nil {
 			return err
 		}
-		name = sb.Name
+		name = rg.Name
 	}
 
 	if name == "" {
@@ -60,11 +60,10 @@ func rgDelete(cfg *config.RouteGroupDelete, log io.Writer, args []string) error 
 	}
 
 	// Delete the routegroup.
-	params := routegroups.NewDeleteRouteGroupParams().
+	params := routegroups.NewDeleteRoutegroupParams().
 		WithOrgName(cfg.Org).
-		WithRouteGroupName(name).
-		WithForce(&cfg.Force)
-	_, err := cfg.Client.RouteGroups.DeleteRouteGroup(params, nil)
+		WithRoutegroupName(name)
+	_, err := cfg.Client.RouteGroups.DeleteRoutegroup(params, nil)
 	if err != nil {
 		return err
 	}
@@ -86,17 +85,17 @@ func rgDelete(cfg *config.RouteGroupDelete, log io.Writer, args []string) error 
 func waitForDeleted(cfg *config.RouteGroupDelete, log io.Writer, routegroupName string) error {
 	fmt.Fprintf(log, "Waiting (up to --wait-timeout=%v) for routegroup to finish terminating...\n", cfg.WaitTimeout)
 
-	params := routegroups.NewGetRouteGroupParams().WithOrgName(cfg.Org).WithRouteGroupName(routegroupName)
+	params := routegroups.NewGetRoutegroupParams().WithOrgName(cfg.Org).WithRoutegroupName(routegroupName)
 
 	spin := spinner.Start(log, "RouteGroup status")
 	defer spin.Stop()
 
 	err := poll.Until(cfg.WaitTimeout, func() bool {
-		result, err := cfg.Client.RouteGroups.GetRouteGroup(params, nil)
+		result, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.
 			// TODO: Pass through an error code so we don't have to rely on the error message.
-			if strings.Contains(err.Error(), "can't get routegroup: not found") {
+			if strings.Contains(err.Error(), "unable to fetch routegroup: not found") {
 				spin.StopMessage("Terminated")
 				return true
 			}

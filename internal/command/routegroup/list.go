@@ -6,7 +6,7 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
-	routegroup "github.com/signadot/go-sdk/client/route_groups"
+	routegroups "github.com/signadot/go-sdk/client/route_groups"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +29,7 @@ func list(cfg *config.RouteGroupList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	resp, err := cfg.Client.RouteGroups.ListRouteGroups(routegroups.NewListRouteGroupsParams().WithOrgName(cfg.Org), nil)
+	resp, err := cfg.Client.RouteGroups.ListRoutegroups(routegroups.NewListRoutegroupsParams().WithOrgName(cfg.Org), nil)
 	if err != nil {
 		return err
 	}
