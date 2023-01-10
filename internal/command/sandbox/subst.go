@@ -9,6 +9,7 @@ import (
 
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/jsonexact"
 	"github.com/signadot/go-sdk/models"
 )
 
@@ -160,8 +161,9 @@ func unstructuredToSandbox(un any) (*models.Sandbox, error) {
 		return nil, err
 	}
 	var sb models.Sandbox
-	if err := json.Unmarshal(d, &sb); err != nil {
-		return nil, err
+	if err := jsonexact.Unmarshal(d, &sb); err != nil {
+		return nil, fmt.Errorf("couldn't parse YAML sandbox definition - %s",
+			strings.TrimPrefix(err.Error(), "json: "))
 	}
 	return &sb, nil
 }
