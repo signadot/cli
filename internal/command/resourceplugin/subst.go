@@ -1,4 +1,4 @@
-package routegroup
+package resourceplugin
 
 import (
 	"encoding/json"
@@ -8,22 +8,22 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
-func loadRouteGroup(file string, tplVals config.TemplateVals, forDelete bool) (*models.RouteGroup, error) {
+func loadResourcePlugin(file string, tplVals config.TemplateVals, forDelete bool) (*models.ResourcePlugin, error) {
 	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete)
 	if err != nil {
 		return nil, err
 	}
-	return unstructuredToRouteGroup(template)
+	return unstructuredToResourcePlugin(template)
 }
 
-func unstructuredToRouteGroup(un any) (*models.RouteGroup, error) {
+func unstructuredToResourcePlugin(un any) (*models.ResourcePlugin, error) {
 	d, err := json.Marshal(un)
 	if err != nil {
 		return nil, err
 	}
-	var rg models.RouteGroup
-	if err := json.Unmarshal(d, &rg); err != nil {
+	var rp models.ResourcePlugin
+	if err := json.Unmarshal(d, &rp); err != nil {
 		return nil, err
 	}
-	return &rg, nil
+	return &rp, nil
 }
