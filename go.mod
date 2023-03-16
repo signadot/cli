@@ -6,7 +6,8 @@ require (
 	github.com/docker/go-units v0.4.0
 	github.com/go-openapi/runtime v0.25.0
 	github.com/go-openapi/strfmt v0.21.3
-	github.com/signadot/go-sdk v0.3.7-0.20230310214135-3f47ce384c70
+	github.com/google/go-cmp v0.5.9
+	github.com/signadot/go-sdk v0.3.7-0.20230315223237-b782529d1e10
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
