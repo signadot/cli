@@ -11,7 +11,7 @@ import (
 )
 
 func loadSandbox(file string, tplVals config.TemplateVals, forDelete bool) (*models.Sandbox, error) {
-	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete)
+	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete, utils.ReadFileContent)
 	if err != nil {
 		return nil, err
 	}

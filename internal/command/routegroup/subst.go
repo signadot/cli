@@ -9,7 +9,7 @@ import (
 )
 
 func loadRouteGroup(file string, tplVals config.TemplateVals, forDelete bool) (*models.RouteGroup, error) {
-	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete)
+	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete, utils.ReadFileContent)
 	if err != nil {
 		return nil, err
 	}
