@@ -1,59 +1,30 @@
 package utils
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
-	"sigs.k8s.io/yaml"
 )
 
 var (
-	/*
-		Explanation with example:
-		Regex pattern: @{\s*(?:([a-zA-Z][a-zA-Z0-9_.-]*)\s*:)?\s*([a-zA-Z0-9_.\\/-]*)\s*}
-		String to match: "Hi! @{ embed : file.yaml } var @{ dev }!"
+	placeholderPattern = regexp.MustCompile(`@{[^}]+}`)
 
-		// Character positions (^ below represents space in the string to match)
-		// H i ! ^ @ { ^ e m b e  d  ^  :  ^  f  i  l  e  .  y  a  m  l  ^  }  ^  v  a  r  ^  @  {  ^  d  e  v  ^  }  !
-		// 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39
-
-		// ExpectedResult of `match all` regex operation:
-		// [[4 26 7 12 15 24] [31 39 -1 -1 34 37]]
-
-		// Explanation:
-
-		// [4 26 7 12 15 24]               # directive with operation and operand
-		//  4 - 26: @{^embed^:^file.yaml^} (directive string)
-		//  7 - 12: embed                  (group #1: operation)
-		// 15 - 24: file.yaml              (group #2: operand)
-
-		// [31 39 -1 -1 34 37]             # plain variable substitution
-		// 31 - 39: @{^dev^}               (placeholder string)
-		// -1 - -1: NO_MATCH               (group #1: no operation to match)
-		// 34 - 37: dev                    (group #2: variable name)
-	*/
-	placeholderPattern = regexp.MustCompile(`@{\s*(?:([a-zA-Z][a-zA-Z0-9_.\[\]-]*)\s*:)?\s*([a-zA-Z0-9_.\\/-]*)\s*}`)
+	errUnexpandedVar = errors.New("unexpanded variable")
+	errUnsupportedOp = errors.New("unsupported operation")
+	errInvalidEnc    = errors.New("invalid encoding")
 )
 
-type FileReaderSignature func(string) (string, error)
-
-func ReadFileContent(filename string) (content string, err error) {
-	b, err := os.ReadFile(filename)
-	if err != nil {
-		return "", fmt.Errorf("error reading from file %v: %v", filename, err)
-	}
-	return string(b), nil
-}
-
-func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelete bool, fileReader FileReaderSignature) (any, error) {
+func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelete bool) (any, error) {
 	substMap, err := substMap(tplVals)
 	if err != nil {
 		return nil, err
@@ -65,7 +36,7 @@ func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelet
 	if forDelete {
 		*template = extractName(*template)
 	}
-	if err := substTemplate(template, substMap, fileReader, file); err != nil {
+	if err := substTemplate(template, substMap, file); err != nil {
 		return nil, err
 	}
 	return template, nil
@@ -85,6 +56,33 @@ func extractName(rpt any) map[string]any {
 	return topLevel
 }
 
+// does template substitution, including error checking
+// that variables in the template are expanded
+func substTemplate(rpt *any, substMap map[string]string, templatePath string) error {
+	absPath, err := filepath.Abs(templatePath)
+	if err != nil {
+		return err
+	}
+	wdir := filepath.Dir(absPath)
+	vars := map[string]struct{}{}
+	err = substTemplateRec(rpt, substMap, vars, wdir)
+	if err != nil {
+		return err
+	}
+	notExpanded := []string{}
+	for k := range vars {
+		if _, ok := substMap[k]; !ok {
+			notExpanded = append(notExpanded, k)
+		}
+	}
+	if len(notExpanded) > 0 {
+		return fmt.Errorf("%w: %s", errUnexpandedVar, strings.Join(notExpanded, ", "))
+	}
+	return nil
+}
+
+// returns a map[string]string of variable names to values from
+// cli template vals, checks for conflicts
 func substMap(tplVals []config.TemplateVal) (map[string]string, error) {
 	substMap := map[string]string{}
 	conflicts := map[string][]string{}
@@ -116,29 +114,12 @@ func substMap(tplVals []config.TemplateVal) (map[string]string, error) {
 	return nil, fmt.Errorf("conflicting variable defs:\n\t%s", strings.Join(msgs, "\n\t"))
 }
 
-func substTemplate(rpt *any, substMap map[string]string, fileReader FileReaderSignature, templatePath string) error {
-	vars := map[string]struct{}{}
-	err := substTemplateRec(rpt, substMap, vars, fileReader, templatePath)
-	if err != nil {
-		return err
-	}
-	notExpanded := []string{}
-	for k := range vars {
-		if _, ok := substMap[k]; !ok {
-			notExpanded = append(notExpanded, k)
-		}
-	}
-	if len(notExpanded) > 0 {
-		return fmt.Errorf("unexpanded variables: %s", strings.Join(notExpanded, ", "))
-	}
-	return nil
-}
-
-func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]struct{}, fileReader FileReaderSignature, templatePath string) error {
+// actually substitutes a yaml template
+func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]struct{}, wdir string) error {
 	switch x := (*rpt).(type) {
 	case map[string]any:
 		for k, v := range x {
-			if err := substTemplateRec(&v, substMap, vars, fileReader, templatePath); err != nil {
+			if err := substTemplateRec(&v, substMap, vars, wdir); err != nil {
 				return err
 			}
 			x[k] = v
@@ -146,12 +127,12 @@ func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]stru
 
 	case []any:
 		for i := range x {
-			if err := substTemplateRec(&x[i], substMap, vars, fileReader, templatePath); err != nil {
+			if err := substTemplateRec(&x[i], substMap, vars, wdir); err != nil {
 				return err
 			}
 		}
 	case string:
-		res, err := substString(x, substMap, vars, fileReader, templatePath)
+		res, err := substString(x, substMap, vars, wdir)
 		if err != nil {
 			return err
 		}
@@ -161,135 +142,161 @@ func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]stru
 	return nil
 }
 
-func substString(s string, substMap map[string]string, vars map[string]struct{}, fileReader FileReaderSignature, templatePath string) (any, error) {
-	result := strings.Clone(s)
-	matches, err := parseForMatches(s)
-	if err != nil {
-		return "", err
-	}
+// substitution of or within a yaml string
+func substString(s string, substMap map[string]string, vars map[string]struct{}, wd string) (any, error) {
+	matches := placeholderPattern.FindAllStringIndex(s, -1)
 	if matches == nil {
 		return s, nil
 	}
+	// check if s is exactly @{...}.  If it is
+	// then we can embed in ways other than raw.
+	if len(matches) == 1 {
+		begin, end := matches[0][0], matches[0][1]
+		if begin == 0 && end == len(s) {
+			d, t, e := getValue(substMap, vars, getReplSpec(s, 0, len(s)), wd)
+			if e != nil {
+				return nil, e
+			}
+			enc, err := encodeValue(d, t)
+			if err != nil {
+				return nil, err
+			}
+			return enc, nil
+		}
+	}
+
+	// proper string interpolation, we need to slice and dice s
+	// into parts.  parts will contain segments of s that are
+	// not in @{...} interleaved with substitutions for
+	// whatever is found in @{...} (raw embedding)
+	parts := make([]string, 0, len(matches)*2+1)
+	var (
+		begin, end, lastEnd int
+	)
+
 	for i := range matches {
 		match := matches[i]
+		begin, end = match[0], match[1]
+		parts = append(parts, s[lastEnd:begin])
+		lastEnd = end // }
+		subst, ty, err := getValue(substMap, vars, getReplSpec(s, begin, end), wd)
 		if err != nil {
-			panic(err.Error())
+			return "", err
 		}
-		if match.Operation == nil { // plan variable substitution without specific operation defined in the format @{operation:operand}
-			vars[match.Operand] = struct{}{}
-			// plain key value substitution
-			value, ok := substMap[match.Operand]
-			if !ok {
-				continue
-			}
-			result = strings.ReplaceAll(result, match.Placeholder, value)
-		} else {
-			// Directive based substitution
-			switch *match.Operation {
-			case "embed":
-				filename := match.Operand
-				content, err := getEmbeddedFileContent(fileReader, templatePath, filename)
-				if err != nil {
-					return nil, err
-				}
-				result = strings.ReplaceAll(result, match.Placeholder, content)
-			case "embed[yaml]": // TODO: Handle `embed[yaml]` under `embed` later
-				if match.Placeholder != s {
-					return nil, errors.New("embed[yaml] directive must be a complete string. Eg. \"@{embed[yaml]:file.yaml}\" with nothing else surrounding it")
-				}
-				filename := match.Operand
-				content, err := getEmbeddedFileContent(fileReader, templatePath, filename)
-				if err != nil {
-					return nil, err
-				}
-				var res interface{}
-				err = yaml.Unmarshal([]byte(content), &res)
-				if err != nil {
-					log.Fatal(err)
-				}
-				return res, nil
-			default:
-				return nil, fmt.Errorf("unsupported operation")
-			}
+		if ty != opRaw {
+			return "", fmt.Errorf("%w: embed %s does not work as part of a larger string", errInvalidEnc, ty)
 		}
+		parts = append(parts, string(subst))
 	}
-	return result, nil
+	if lastEnd < len(s) {
+		parts = append(parts, s[lastEnd:])
+	}
+	return strings.Join(parts, ""), nil
 }
 
-func getEmbeddedFileContent(fileReader FileReaderSignature, templatePath, fileToEmbed string) (string, error) {
-	embeddedFilePath, err := resolveEmbeddedFilePath(templatePath, fileToEmbed)
-	if err != nil {
-		return "", err
-	}
-	content, err := fileReader(embeddedFilePath)
-	if err != nil {
-		return "", err
-	}
-	return content, nil
-}
-
-func resolveEmbeddedFilePath(templatePath, embeddedFilePath string) (string, error) {
-	absTemplatePath, err := filepath.Abs(templatePath)
-	if err != nil {
-		return "", err
-	}
-	templateDir := filepath.Dir(absTemplatePath)
-	absEmbeddedFilePath := filepath.Join(templateDir, embeddedFilePath)
-	return absEmbeddedFilePath, nil
-}
-
-type Match struct {
-	Placeholder string
-	Operation   *string
-	Operand     string
-}
-
-func parseForMatches(s string) ([]Match, error) {
-	allMatchIndices := placeholderPattern.FindAllStringSubmatchIndex(s, -1)
-	if allMatchIndices == nil {
-		return nil, nil
-	}
-	var matches []Match
-	for i := range allMatchIndices {
-		singleMatchIndices := allMatchIndices[i]
-		placeholder, operation, operand, err := parseByIndices(s, singleMatchIndices)
+func getValue(substMap map[string]string, vars map[string]struct{}, replSpec, wdir string) ([]byte, opType, error) {
+	replSpec = strings.TrimSpace(replSpec)
+	opSpec, rest, found := strings.Cut(replSpec, ":")
+	if !found {
+		// variable
+		ty, err := getOpType(replSpec)
+		vars[getOp(replSpec)] = struct{}{}
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
-		match := Match{Placeholder: placeholder, Operation: operation, Operand: operand}
-		matches = append(matches, match)
+		return []byte(substMap[replSpec]), ty, nil
 	}
-	return matches, nil
+	// directive
+	opSpec = strings.TrimSpace(opSpec)
+	rest = strings.TrimSpace(rest)
+	ty, err := getOpType(opSpec)
+	if err != nil {
+		return nil, 0, fmt.Errorf("error parsing %q: %w", opSpec, err)
+	}
+	switch getOp(opSpec) {
+	case "embed":
+		p := filepath.Join(wdir, rest)
+		d, e := os.ReadFile(p)
+		if e != nil {
+			return nil, 0, e
+		}
+		return d, ty, nil
+	default:
+		return nil, 0, fmt.Errorf("error parsing template: %w: %q", errUnsupportedOp, opSpec)
+	}
 }
 
-func parseByIndices(str string, indices []int) (placeholder string, operation *string, operand string, err error) {
-	if len(indices) != 6 {
-		// Check the doc where placeholderPattern is defined on why this is expected to have 6 entries
-		// This error can occur only because of faulty regex pattern in the current scenario, and
-		// hence is unexpected. The caller of this function can issue a panic() when this happens.
-		return "", nil, "", fmt.Errorf("unexpected regex error generating content from template")
+func getReplSpec(s string, begin, end int) string {
+	return s[begin+2 : end-1]
+}
+
+func encodeValue(d []byte, t opType) (any, error) {
+	switch t {
+	case opRaw:
+		return string(d), nil
+	case opYaml:
+		var a any
+		err := yaml.Unmarshal(d, &a)
+		if err != nil {
+			return "", err
+		}
+		return a, nil
+	case opBinary:
+		return base64.StdEncoding.EncodeToString(d), nil
+	default:
+		panic(t)
 	}
+}
 
-	// Here is an example showing the computation of groups based on the input string, and the
-	// value for indices:
-
-	// Input string (str) with character positions where `^` represents a space
-	// H i ! ^ @ { ^ e m b e  d  ^  :  ^  f  i  l  e  .  y  a  m  l  ^  }  ^  v  a  r  ^  @  {  ^  d  e  v  ^  }  !
-	// 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39
-
-	// Consider indices = [4 26 7 12 15 24]
-	//  4 - 26: @{^embed^:^file.yaml^} (directive string)
-	//  7 - 12: embed                  (group #1: operation)
-	// 15 - 24: file.yaml              (group #2: operand)
-
-	placeholder = str[indices[0]:indices[1]] // matches `@{^embed^:^file.yaml%}`
-
-	if indices[2] != -1 && indices[3] != -1 { // optional value
-		x := str[indices[2]:indices[3]] // matches `embed`
-		operation = &x
+func getOp(opSpec string) string {
+	lsb := strings.IndexByte(opSpec, '[')
+	if lsb == -1 {
+		return opSpec
 	}
+	return opSpec[:lsb]
+}
 
-	operand = str[indices[4]:indices[5]] // matches: `file.yaml`
+type opType int
 
-	return placeholder, operation, operand, nil
+const (
+	opRaw    opType = iota
+	opYaml          = iota
+	opBinary        = iota
+	// TODO add opTemplate for embedding expanded templates
+)
+
+func (t opType) String() string {
+	switch t {
+	case opRaw:
+		return "raw"
+	case opYaml:
+		return "yaml"
+	case opBinary:
+		return "binary"
+	default:
+		panic(fmt.Sprintf("unknown type <%d>", t))
+	}
+}
+
+func getOpType(opSpec string) (opType, error) {
+	lsb := strings.IndexByte(opSpec, '[')
+	if lsb == -1 {
+		// default value
+		return opRaw, nil
+	}
+	rsb := strings.LastIndexByte(opSpec, ']')
+	if rsb == -1 {
+		return 0, fmt.Errorf("invalid op spec: %q imbalanced '[]'", opSpec)
+	}
+	tySpec := strings.TrimSpace(opSpec[lsb+1 : rsb])
+	switch tySpec {
+	case "raw":
+		return opRaw, nil
+	case "yaml":
+		return opYaml, nil
+	case "binary":
+		return opBinary, nil
+	default:
+		return 0, fmt.Errorf("unrecognized template op type: %q", tySpec)
+	}
 }

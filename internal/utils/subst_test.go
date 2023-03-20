@@ -1,13 +1,15 @@
 package utils
 
 import (
-	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/nsf/jsondiff"
 	"github.com/signadot/cli/internal/config"
 )
 
@@ -24,7 +26,7 @@ type TestCase struct {
 	TestName       string
 	Files          []TestFile
 	Args           []string
-	ExpectedError  string
+	ExpectedError  func(error) bool
 	ExpectedResult string
 }
 
@@ -54,7 +56,7 @@ var testCases = []TestCase{
 			},
 		},
 		Args:          []string{"xdev=jane"},
-		ExpectedError: "unexpanded variables: dev",
+		ExpectedError: func(e error) bool { return errors.Is(e, errUnexpandedVar) },
 	},
 	{
 		TestName: "single variable substitution (suffixed); arg available",
@@ -138,7 +140,7 @@ var testCases = []TestCase{
 			},
 		},
 		Args:          []string{},
-		ExpectedError: "error reading from file: file1.py",
+		ExpectedError: func(e error) bool { return os.IsNotExist(e) },
 	},
 	{
 		TestName: "unsupported operation",
@@ -156,7 +158,24 @@ var testCases = []TestCase{
 			},
 		},
 		Args:          []string{},
-		ExpectedError: "unsupported operation",
+		ExpectedError: func(e error) bool { return errors.Is(e, errUnsupportedOp) },
+	},
+	{
+		TestName: "binary encoding",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"data":"@{ embed[binary] : bin }"}`,
+			},
+			{
+				Name:    "bin",
+				RelPath: ".",
+				Content: string([]byte{0, 1, 100, 11, 23, 17}),
+			},
+		},
+		Args:           []string{},
+		ExpectedResult: fmt.Sprintf(`{"data": %q}`, base64.StdEncoding.EncodeToString([]byte{0, 1, 100, 11, 23, 17})),
 	},
 	{
 		TestName: "embed yaml; file available; embedding valid",
@@ -190,7 +209,7 @@ var testCases = []TestCase{
 			},
 		},
 		Args:          []string{},
-		ExpectedError: "embed[yaml] directive must be a complete string. Eg. \"@{embed[yaml]:file.yaml}\" with nothing else surrounding it",
+		ExpectedError: func(e error) bool { return errors.Is(e, errInvalidEnc) },
 	},
 	{
 		TestName: "embed from files in different directories",
@@ -290,7 +309,7 @@ func testLoadUnstructuredTemplate(tc *TestCase, t *testing.T) {
 	tplVals := &config.TemplateVals{}
 	for _, arg := range tc.Args {
 		if err := tplVals.Set(arg); err != nil {
-			if tc.ExpectedError == "" {
+			if tc.ExpectedError == nil {
 				t.Errorf("unexpected error %s", err.Error())
 				return
 			}
@@ -298,24 +317,16 @@ func testLoadUnstructuredTemplate(tc *TestCase, t *testing.T) {
 		}
 	}
 
-	fileReader := func(filename string) (content string, err error) {
-		b, err := os.ReadFile(filename)
-		if err != nil {
-			return "", fmt.Errorf("error reading from file: %v", filepath.Base(filename))
-		}
-		return string(b), nil
-	}
-
-	template, err := LoadUnstructuredTemplate(fs[specTemplateFile].FullPath, *tplVals, false, fileReader)
-	if err == nil && tc.ExpectedError != "" {
+	template, err := LoadUnstructuredTemplate(fs[specTemplateFile].FullPath, *tplVals, false)
+	if err == nil && tc.ExpectedError != nil {
 		t.Errorf("[Test: %s] error expected but not received", tc.TestName)
 		return
-	} else if err != nil && tc.ExpectedError == "" {
+	} else if err != nil && tc.ExpectedError == nil {
 		t.Errorf("[Test: %s] error not expected but received. Error: %s", tc.TestName, err.Error())
 		return
-	} else if err != nil && tc.ExpectedError != "" {
-		if err.Error() != tc.ExpectedError {
-			t.Errorf("[Test: %s] expected error %q got %q", tc.TestName, tc.ExpectedError, err.Error())
+	} else if err != nil && tc.ExpectedError != nil {
+		if !tc.ExpectedError(err) {
+			t.Errorf("[Test: %s] unexpected got %q", tc.TestName, err.Error())
 		}
 		return
 	}
@@ -324,8 +335,10 @@ func testLoadUnstructuredTemplate(tc *TestCase, t *testing.T) {
 		t.Error(e)
 		return
 	}
-	if !bytes.Equal(d, []byte(tc.ExpectedResult)) {
-		t.Errorf("[Test: %s] got %s want %s", tc.TestName, string(d), tc.ExpectedResult)
+	opts := jsondiff.DefaultJSONOptions()
+	m, _ := jsondiff.Compare(d, []byte(tc.ExpectedResult), &opts)
+	if m != jsondiff.FullMatch {
+		t.Errorf("[Test: %s] got %q want %q", tc.TestName, string(d), tc.ExpectedResult)
 	}
 }
 
