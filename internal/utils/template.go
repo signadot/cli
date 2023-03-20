@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -64,7 +65,7 @@ func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelet
 	if forDelete {
 		*template = extractName(*template)
 	}
-	if err := substTemplate(template, substMap, fileReader); err != nil {
+	if err := substTemplate(template, substMap, fileReader, file); err != nil {
 		return nil, err
 	}
 	return template, nil
@@ -115,9 +116,9 @@ func substMap(tplVals []config.TemplateVal) (map[string]string, error) {
 	return nil, fmt.Errorf("conflicting variable defs:\n\t%s", strings.Join(msgs, "\n\t"))
 }
 
-func substTemplate(rpt *any, substMap map[string]string, fileReader FileReaderSignature) error {
+func substTemplate(rpt *any, substMap map[string]string, fileReader FileReaderSignature, templatePath string) error {
 	vars := map[string]struct{}{}
-	err := substTemplateRec(rpt, substMap, vars, fileReader)
+	err := substTemplateRec(rpt, substMap, vars, fileReader, templatePath)
 	if err != nil {
 		return err
 	}
@@ -133,11 +134,11 @@ func substTemplate(rpt *any, substMap map[string]string, fileReader FileReaderSi
 	return nil
 }
 
-func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]struct{}, fileReader FileReaderSignature) error {
+func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]struct{}, fileReader FileReaderSignature, templatePath string) error {
 	switch x := (*rpt).(type) {
 	case map[string]any:
 		for k, v := range x {
-			if err := substTemplateRec(&v, substMap, vars, fileReader); err != nil {
+			if err := substTemplateRec(&v, substMap, vars, fileReader, templatePath); err != nil {
 				return err
 			}
 			x[k] = v
@@ -145,12 +146,12 @@ func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]stru
 
 	case []any:
 		for i := range x {
-			if err := substTemplateRec(&x[i], substMap, vars, fileReader); err != nil {
+			if err := substTemplateRec(&x[i], substMap, vars, fileReader, templatePath); err != nil {
 				return err
 			}
 		}
 	case string:
-		res, err := substString(x, substMap, vars, fileReader)
+		res, err := substString(x, substMap, vars, fileReader, templatePath)
 		if err != nil {
 			return err
 		}
@@ -160,7 +161,7 @@ func substTemplateRec(rpt *any, substMap map[string]string, vars map[string]stru
 	return nil
 }
 
-func substString(s string, substMap map[string]string, vars map[string]struct{}, fileReader FileReaderSignature) (any, error) {
+func substString(s string, substMap map[string]string, vars map[string]struct{}, fileReader FileReaderSignature, templatePath string) (any, error) {
 	result := strings.Clone(s)
 	matches, err := parseForMatches(s)
 	if err != nil {
@@ -187,32 +188,54 @@ func substString(s string, substMap map[string]string, vars map[string]struct{},
 			switch *match.Operation {
 			case "embed":
 				filename := match.Operand
-				text, err := fileReader(filename)
+				content, err := getEmbeddedFileContent(fileReader, templatePath, filename)
 				if err != nil {
-					return "", err
+					return nil, err
 				}
-				result = strings.ReplaceAll(result, match.Placeholder, text)
+				result = strings.ReplaceAll(result, match.Placeholder, content)
 			case "embed[yaml]": // TODO: Handle `embed[yaml]` under `embed` later
 				if match.Placeholder != s {
 					return nil, errors.New("embed[yaml] directive must be a complete string. Eg. \"@{embed[yaml]:file.yaml}\" with nothing else surrounding it")
 				}
 				filename := match.Operand
-				text, err := fileReader(filename)
+				content, err := getEmbeddedFileContent(fileReader, templatePath, filename)
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 				var res interface{}
-				err = yaml.Unmarshal([]byte(text), &res)
+				err = yaml.Unmarshal([]byte(content), &res)
 				if err != nil {
 					log.Fatal(err)
 				}
 				return res, nil
 			default:
-				return "", fmt.Errorf("unsupported operation")
+				return nil, fmt.Errorf("unsupported operation")
 			}
 		}
 	}
 	return result, nil
+}
+
+func getEmbeddedFileContent(fileReader FileReaderSignature, templatePath, fileToEmbed string) (string, error) {
+	embeddedFilePath, err := resolveEmbeddedFilePath(templatePath, fileToEmbed)
+	if err != nil {
+		return "", err
+	}
+	content, err := fileReader(embeddedFilePath)
+	if err != nil {
+		return "", err
+	}
+	return content, nil
+}
+
+func resolveEmbeddedFilePath(templatePath, embeddedFilePath string) (string, error) {
+	absTemplatePath, err := filepath.Abs(templatePath)
+	if err != nil {
+		return "", err
+	}
+	templateDir := filepath.Dir(absTemplatePath)
+	absEmbeddedFilePath := filepath.Join(templateDir, embeddedFilePath)
+	return absEmbeddedFilePath, nil
 }
 
 type Match struct {
