@@ -9,7 +9,7 @@ import (
 )
 
 func loadResourcePlugin(file string, tplVals config.TemplateVals, forDelete bool) (*models.ResourcePlugin, error) {
-	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete, utils.ReadFileContent)
+	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete)
 	if err != nil {
 		return nil, err
 	}

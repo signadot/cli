@@ -22,6 +22,7 @@ var (
 	errUnexpandedVar = errors.New("unexpanded variable")
 	errUnsupportedOp = errors.New("unsupported operation")
 	errInvalidEnc    = errors.New("invalid encoding")
+	errInvalidVar    = errors.New("invalid variable name")
 )
 
 func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelete bool) (any, error) {
@@ -199,6 +200,9 @@ func getValue(substMap map[string]string, vars map[string]struct{}, replSpec, wd
 	opSpec, rest, found := strings.Cut(replSpec, ":")
 	if !found {
 		// variable
+		if !config.VarRx.MatchString(replSpec) {
+			return nil, 0, fmt.Errorf("%w: %q", errInvalidVar, replSpec)
+		}
 		ty, err := getOpType(replSpec)
 		vars[getOp(replSpec)] = struct{}{}
 		if err != nil {
