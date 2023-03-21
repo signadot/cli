@@ -36,8 +36,7 @@ func (o *OutputFormat) Type() string {
 }
 
 var (
-	VarRefRx = regexp.MustCompile(`\@\{([a-zA-Z][a-zA-Z0-9_.-]*)\}`)
-	VarRx    = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_.-]*$`)
+	VarRx = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_.-]*$`)
 )
 
 type TemplateVal struct {
