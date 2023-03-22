@@ -161,7 +161,7 @@ var testCases = []TestCase{
 		ExpectedError: func(e error) bool { return errors.Is(e, errUnsupportedOp) },
 	},
 	{
-		TestName: "binary encoding",
+		TestName: "binary encoding embed",
 		Files: []TestFile{
 			{
 				Name:    specTemplateFile,
@@ -175,6 +175,23 @@ var testCases = []TestCase{
 			},
 		},
 		Args:           []string{},
+		ExpectedResult: fmt.Sprintf(`{"data": %q}`, base64.StdEncoding.EncodeToString([]byte{0, 1, 100, 11, 23, 17})),
+	},
+	{
+		TestName: "binary encoding var",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"data":"@{ x[binary] }"}`,
+			},
+			{
+				Name:    "bin",
+				RelPath: ".",
+				Content: string([]byte{0, 1, 100, 11, 23, 17}),
+			},
+		},
+		Args:           []string{fmt.Sprintf("x=%s", string([]byte{0, 1, 100, 11, 23, 17}))},
 		ExpectedResult: fmt.Sprintf(`{"data": %q}`, base64.StdEncoding.EncodeToString([]byte{0, 1, 100, 11, 23, 17})),
 	},
 	{

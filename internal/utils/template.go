@@ -200,15 +200,16 @@ func getValue(substMap map[string]string, vars map[string]struct{}, replSpec, wd
 	opSpec, rest, found := strings.Cut(replSpec, ":")
 	if !found {
 		// variable
-		if !config.VarRx.MatchString(replSpec) {
+		varRef := getOp(replSpec)
+		if !config.VarRx.MatchString(varRef) {
 			return nil, 0, fmt.Errorf("%w: %q", errInvalidVar, replSpec)
 		}
 		ty, err := getOpType(replSpec)
-		vars[getOp(replSpec)] = struct{}{}
+		vars[varRef] = struct{}{}
 		if err != nil {
 			return nil, 0, err
 		}
-		return []byte(substMap[replSpec]), ty, nil
+		return []byte(substMap[varRef]), ty, nil
 	}
 	// directive
 	opSpec = strings.TrimSpace(opSpec)
