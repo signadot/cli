@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 
-	"sigs.k8s.io/yaml"
+	"github.com/goccy/go-yaml"
 )
 
 func RawJSON(out io.Writer, v any) error {
@@ -14,7 +14,8 @@ func RawJSON(out io.Writer, v any) error {
 }
 
 func RawYAML(out io.Writer, v any) error {
-	data, err := yaml.Marshal(v)
+	opt := yaml.UseLiteralStyleIfMultiline(true)
+	data, err := yaml.MarshalWithOptions(v, opt)
 	if err != nil {
 		return err
 	}
