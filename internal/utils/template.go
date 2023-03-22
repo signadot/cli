@@ -154,11 +154,11 @@ func substString(s string, substMap map[string]string, vars map[string]struct{},
 	if len(matches) == 1 {
 		begin, end := matches[0][0], matches[0][1]
 		if begin == 0 && end == len(s) {
-			d, t, e := getValue(substMap, vars, getReplSpec(s, 0, len(s)), wd)
-			if e != nil {
-				return nil, e
+			data, encType, err := getValue(substMap, vars, getReplSpec(s, 0, len(s)), wd)
+			if err != nil {
+				return nil, err
 			}
-			enc, err := encodeValue(d, t)
+			enc, err := encodeValue(data, encType)
 			if err != nil {
 				return nil, err
 			}
@@ -231,6 +231,9 @@ func getValue(substMap map[string]string, vars map[string]struct{}, replSpec, wd
 	}
 }
 
+// getReplSpec returns the part inside @{...}
+// given match indices begin, end from a match placeholderPattern
+// on s.
 func getReplSpec(s string, begin, end int) string {
 	return s[begin+2 : end-1]
 }
