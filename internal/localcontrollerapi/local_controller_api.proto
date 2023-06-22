@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/signadot/cli/internal/localcontrollerapi";
+
+package localcontrollerapi;
+
+
+service LocalControllerAPI {
+  // This method is used to create a sandbox with local references.
+  // The local controller (signadot local connect) should be running,
+  // otherwise it will return an error
+  rpc ApplySandbox(ApplySandboxRequest) returns (ApplySandboxResponse) {}
+
+
+  // This method tells if a given sandbox is managed by the local controller
+  // or not
+  rpc CheckSandbox(CheckSandboxRequest) returns (CheckSandboxResponse) {}
+
+  // This method requests the deletion of a sandbox. It will fail if the specified
+  // sandbox is not managed by the local controller
+  rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
+
+  // This is a communication channel between the localnet process and the
+  // local controller. It assumes that the connection is established by the
+  // localnet process.
+  rpc LocalNetChannel(stream LocalNetEvent) returns (stream LocalNetAction) {}
+
+  // This method requests the local controller to shutdown
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
+}
+
+// ApplySandbox
+// ----------------------------------------------------------------------------
+
+message ApplySandboxRequest {
+  // sandbox name
+  string name = 1;
+  // sandbox spec (instance of github.com/signadot/go-sdk/models.SandboxSpec)
+  google.protobuf.Struct sandbox_spec = 2;
+}
+
+message ApplySandboxResponse {
+  // sandbox (instance of github.com/signadot/go-sdk/models.Sandbox)
+  google.protobuf.Struct sandbox = 1;
+}
+
+// CheckSandbox
+// ----------------------------------------------------------------------------
+
+message CheckSandboxRequest {
+  // sandbox name
+  string name = 1;
+}
+
+message CheckSandboxResponse {
+  // is this a sandbox managed by local controller?
+  bool is_local = 1;
+}
+
+// DeleteSandbox
+// ----------------------------------------------------------------------------
+
+message DeleteSandboxRequest {
+  // sandbox name
+  string name = 1;
+}
+
+message DeleteSandboxResponse {
+}
+
+// LocalNetChannel
+// ----------------------------------------------------------------------------
+
+message LocalNetEvent {
+  // This indicates the localnet process is up
+  message Up {
+  }
+
+  // This is the current status of the localnet process
+  message Status {
+    // CIDRs info
+    repeated string cidrs = 1;
+    repeated string excluded_cidrs = 2;
+
+    // Health
+    bool healthy = 3;
+    uint32 num_hosts = 4;
+    uint32 restart_count = 5;
+    string last_restart_reason = 6;
+    google.protobuf.Timestamp last_restart_time = 7;
+  }
+
+  // This indicates the localnet process is going down
+  message Down {
+  }
+
+  // process id of the localnet process
+  uint64 pid = 1;
+  // localnet event
+  oneof event {
+    Up up = 2;
+    Status status = 3;
+    Down down = 4;
+  }
+}
+
+message LocalNetAction {
+  // This action requests the localnet process to send its
+  // status
+  message SendStatus {
+  }
+
+  // This action requests the localnet process to shutdown
+  message Shutdown {
+  }
+
+  oneof event {
+    SendStatus send_status = 1;
+    Shutdown shutdown = 2;
+  }
+}
+
+// Shutdown
+// ----------------------------------------------------------------------------
+
+message ShutdownRequest {
+}
+
+message ShutdownResponse {
+}
