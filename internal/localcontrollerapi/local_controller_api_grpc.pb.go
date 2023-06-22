@@ -20,7 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	LocalControllerAPI_ApplySandbox_FullMethodName    = "/localcontrollerapi.LocalControllerAPI/ApplySandbox"
-	LocalControllerAPI_CheckSandbox_FullMethodName    = "/localcontrollerapi.LocalControllerAPI/CheckSandbox"
+	LocalControllerAPI_IsLocalSandbox_FullMethodName  = "/localcontrollerapi.LocalControllerAPI/IsLocalSandbox"
 	LocalControllerAPI_DeleteSandbox_FullMethodName   = "/localcontrollerapi.LocalControllerAPI/DeleteSandbox"
 	LocalControllerAPI_LocalNetChannel_FullMethodName = "/localcontrollerapi.LocalControllerAPI/LocalNetChannel"
 	LocalControllerAPI_Shutdown_FullMethodName        = "/localcontrollerapi.LocalControllerAPI/Shutdown"
@@ -36,7 +36,7 @@ type LocalControllerAPIClient interface {
 	ApplySandbox(ctx context.Context, in *ApplySandboxRequest, opts ...grpc.CallOption) (*ApplySandboxResponse, error)
 	// This method tells if a given sandbox is managed by the local controller
 	// or not
-	CheckSandbox(ctx context.Context, in *CheckSandboxRequest, opts ...grpc.CallOption) (*CheckSandboxResponse, error)
+	IsLocalSandbox(ctx context.Context, in *IsLocalSandboxRequest, opts ...grpc.CallOption) (*IsLocalSandboxResponse, error)
 	// This method requests the deletion of a sandbox. It will fail if the specified
 	// sandbox is not managed by the local controller
 	DeleteSandbox(ctx context.Context, in *DeleteSandboxRequest, opts ...grpc.CallOption) (*DeleteSandboxResponse, error)
@@ -65,9 +65,9 @@ func (c *localControllerAPIClient) ApplySandbox(ctx context.Context, in *ApplySa
 	return out, nil
 }
 
-func (c *localControllerAPIClient) CheckSandbox(ctx context.Context, in *CheckSandboxRequest, opts ...grpc.CallOption) (*CheckSandboxResponse, error) {
-	out := new(CheckSandboxResponse)
-	err := c.cc.Invoke(ctx, LocalControllerAPI_CheckSandbox_FullMethodName, in, out, opts...)
+func (c *localControllerAPIClient) IsLocalSandbox(ctx context.Context, in *IsLocalSandboxRequest, opts ...grpc.CallOption) (*IsLocalSandboxResponse, error) {
+	out := new(IsLocalSandboxResponse)
+	err := c.cc.Invoke(ctx, LocalControllerAPI_IsLocalSandbox_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ type LocalControllerAPIServer interface {
 	ApplySandbox(context.Context, *ApplySandboxRequest) (*ApplySandboxResponse, error)
 	// This method tells if a given sandbox is managed by the local controller
 	// or not
-	CheckSandbox(context.Context, *CheckSandboxRequest) (*CheckSandboxResponse, error)
+	IsLocalSandbox(context.Context, *IsLocalSandboxRequest) (*IsLocalSandboxResponse, error)
 	// This method requests the deletion of a sandbox. It will fail if the specified
 	// sandbox is not managed by the local controller
 	DeleteSandbox(context.Context, *DeleteSandboxRequest) (*DeleteSandboxResponse, error)
@@ -153,8 +153,8 @@ type UnimplementedLocalControllerAPIServer struct {
 func (UnimplementedLocalControllerAPIServer) ApplySandbox(context.Context, *ApplySandboxRequest) (*ApplySandboxResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ApplySandbox not implemented")
 }
-func (UnimplementedLocalControllerAPIServer) CheckSandbox(context.Context, *CheckSandboxRequest) (*CheckSandboxResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CheckSandbox not implemented")
+func (UnimplementedLocalControllerAPIServer) IsLocalSandbox(context.Context, *IsLocalSandboxRequest) (*IsLocalSandboxResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IsLocalSandbox not implemented")
 }
 func (UnimplementedLocalControllerAPIServer) DeleteSandbox(context.Context, *DeleteSandboxRequest) (*DeleteSandboxResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteSandbox not implemented")
@@ -196,20 +196,20 @@ func _LocalControllerAPI_ApplySandbox_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _LocalControllerAPI_CheckSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CheckSandboxRequest)
+func _LocalControllerAPI_IsLocalSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IsLocalSandboxRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(LocalControllerAPIServer).CheckSandbox(ctx, in)
+		return srv.(LocalControllerAPIServer).IsLocalSandbox(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: LocalControllerAPI_CheckSandbox_FullMethodName,
+		FullMethod: LocalControllerAPI_IsLocalSandbox_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(LocalControllerAPIServer).CheckSandbox(ctx, req.(*CheckSandboxRequest))
+		return srv.(LocalControllerAPIServer).IsLocalSandbox(ctx, req.(*IsLocalSandboxRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -288,8 +288,8 @@ var LocalControllerAPI_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _LocalControllerAPI_ApplySandbox_Handler,
 		},
 		{
-			MethodName: "CheckSandbox",
-			Handler:    _LocalControllerAPI_CheckSandbox_Handler,
+			MethodName: "IsLocalSandbox",
+			Handler:    _LocalControllerAPI_IsLocalSandbox_Handler,
 		},
 		{
 			MethodName: "DeleteSandbox",

@@ -17,7 +17,7 @@ service LocalControllerAPI {
 
   // This method tells if a given sandbox is managed by the local controller
   // or not
-  rpc CheckSandbox(CheckSandboxRequest) returns (CheckSandboxResponse) {}
+  rpc IsLocalSandbox(IsLocalSandboxRequest) returns (IsLocalSandboxResponse) {}
 
   // This method requests the deletion of a sandbox. It will fail if the specified
   // sandbox is not managed by the local controller
@@ -47,15 +47,15 @@ message ApplySandboxResponse {
   google.protobuf.Struct sandbox = 1;
 }
 
-// CheckSandbox
+// IsLocalSandbox
 // ----------------------------------------------------------------------------
 
-message CheckSandboxRequest {
+message IsLocalSandboxRequest {
   // sandbox name
   string name = 1;
 }
 
-message CheckSandboxResponse {
+message IsLocalSandboxResponse {
   // is this a sandbox managed by local controller?
   bool is_local = 1;
 }
