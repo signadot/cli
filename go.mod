@@ -7,6 +7,7 @@ require (
 	github.com/go-openapi/runtime v0.25.0
 	github.com/go-openapi/strfmt v0.21.5
 	github.com/goccy/go-yaml v1.10.0
+	github.com/golang/protobuf v1.5.3
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/signadot/go-sdk v0.3.7
 	github.com/signadot/libconnect v0.1.1-0.20230626151647-361a4b334966
@@ -35,7 +36,6 @@ require (
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-openapi/validate v0.22.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gofuzz v1.1.0 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
