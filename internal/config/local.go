@@ -23,11 +23,3 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 type LocalDisconnect struct {
 	*Local
 }
-
-type LocalControlRoot struct {
-	*Local
-}
-
-type LocalControl struct {
-	*Local
-}

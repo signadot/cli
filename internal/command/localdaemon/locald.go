@@ -1,22 +1,22 @@
-package local
+package localdaemon
 
 import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
-func newRootControl(localConfig *config.Local) *cobra.Command {
-	cfg := &config.LocalControlRoot{Local: localConfig}
-	_ = cfg
+func newLocalDaemon(apiConfig *config.API) *cobra.Command {
+	cfg := &config.LocalDaemon{API: apiConfig}
 
 	cmd := &cobra.Command{
-		Use:    "rootcontrol",
-		Short:  "local controller requiring root access",
+		Use:    "locald",
+		Short:  "local controller",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			panic("unimplemented")
 		},
 	}
+	cfg.AddFlags(cmd)
 
 	return cmd
 }

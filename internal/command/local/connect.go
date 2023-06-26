@@ -16,6 +16,7 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 			panic("unimplemented")
 		},
 	}
+	cfg.AddFlags(cmd)
 
 	return cmd
 }
