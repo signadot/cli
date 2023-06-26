@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/signadot/cli/internal/locald/api";
+
+package apicommon;
+
+
+// Service health
+message ServiceHealth {
+  bool healthy = 1;
+  uint32 error_count = 2;
+  string last_error_reason = 3;
+  google.protobuf.Timestamp last_error_time = 4;
+}
+
+// LocalNet status (produced by root controller)
+message LocalNetStatus {
+  ServiceHealth health = 1;
+  repeated string cidrs = 2;
+  repeated string excluded_cidrs = 3;
+}
+
+// Hosts status (produced by root controller)
+message HostsStatus {
+  ServiceHealth health = 1;
+  uint32 num_hosts = 2;
+  uint32 num_updates = 3;
+  google.protobuf.Timestamp last_update_time = 4;
+}
+
+// PortForward status (produced by local controller)
+message PortForwardStatus {
+  ServiceHealth health = 1;
+  string local_address = 2;
+}
+
+// Sandbox status (produced by local controller)
+message SandboxStatus {
+  message LocalWorkload {
+    string name = 1;
+    ServiceHealth tunnel_health = 2;
+    string in_cluster_url = 3;
+  }
+
+  string name = 1;
+  string routing_key = 2;
+  repeated LocalWorkload local_workloads = 3;
+}

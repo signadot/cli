@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+import "internal/locald/api/common.proto";
+
+option go_package = "github.com/signadot/cli/internal/locald/api/localnet";
+
+package localnet;
+
+
+service LocalnetAPI {
+  // This method returns the status of the root controller
+  rpc Status(StatusRequest) returns (StatusResponse) {}
+
+  // This method requests the root controller to shutdown
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
+}
+
+// Status
+// ----------------------------------------------------------------------------
+
+message StatusRequest {
+}
+
+message StatusResponse {
+  apicommon.LocalNetStatus localnet = 1;
+  apicommon.HostsStatus hosts = 2;
+}
+
+// Shutdown
+// ----------------------------------------------------------------------------
+
+message ShutdownRequest {
+}
+
+message ShutdownResponse {
+}
