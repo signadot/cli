@@ -1,14 +1,14 @@
 syntax = "proto3";
 
 import "google/protobuf/struct.proto";
-import "internal/api/common.proto";
+import "internal/locald/api/common.proto";
 
-option go_package = "github.com/signadot/cli/internal/api/localctrlapi";
+option go_package = "github.com/signadot/cli/internal/locald/api/sandboxmanager";
 
-package localctrlapi;
+package sandboxmanager;
 
 
-service LocalControllerAPI {
+service SandboxManagerAPI {
   // This method is used to create a sandbox with local references.
   // The local controller (signadot local connect) should be running,
   // otherwise it will return an error
