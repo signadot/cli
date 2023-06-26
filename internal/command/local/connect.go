@@ -13,10 +13,17 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 		Use:   "connect",
 		Short: "connect with sandboxes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			panic("unimplemented")
+			return runConnect(cfg, args)
 		},
 	}
 	cfg.AddFlags(cmd)
 
 	return cmd
+}
+
+func runConnect(cfg *config.LocalConnect, args []string) error {
+	if err := cfg.InitLocalConfig(); err != nil {
+		return err
+	}
+	panic("unimplemented")
 }

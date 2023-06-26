@@ -6,7 +6,7 @@ import (
 )
 
 type LocalDaemon struct {
-	*API
+	*Local
 
 	// Flags
 	RunAsRoot bool
