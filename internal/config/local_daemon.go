@@ -1,7 +1,6 @@
 package config
 
 import (
-	_ "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
 )
 
