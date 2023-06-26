@@ -1,0 +1,21 @@
+name: consumer-test
+routingKey: w5gv99nz4rhjy
+spec:
+  description: "@{data[binary]}"
+  cluster: signadot-test
+  endpoints: null
+  forks:
+  - customizations:
+      env: null
+      images: null
+    endpoints: null
+    forkOf:
+      kind: Deployment
+      name: consumer
+      namespace: kafka-demo
+  labels:
+    feature: x
+  resources: null
+status:
+  message: Not all desired workloads are available.
+  reason: NotAllDesiredForksReady
