@@ -2,7 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/signadot/cli/internal/api";
+option go_package = "github.com/signadot/cli/internal/locald/api";
 
 package apicommon;
 
