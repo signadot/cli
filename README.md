@@ -7,6 +7,10 @@ is to install and run the CLI.
 
 To file an issue, please use our [community issue tracker](https://github.com/signadot/community/issues).
 
+NOTE: Starting next release, and hence in the main branch, this repository has a dependency
+on a private repository, and hence building or running from source will not work.
+Previous releases should continue to work.
+
 ## Build
 
 To build the CLI from source, such as to test changes, you'll need Go 1.18+.
