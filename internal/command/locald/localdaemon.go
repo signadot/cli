@@ -1,4 +1,4 @@
-package localdaemon
+package locald
 
 import (
 	"github.com/signadot/cli/internal/config"
