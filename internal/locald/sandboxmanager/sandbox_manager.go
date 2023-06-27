@@ -1,4 +1,4 @@
-package locald
+package sandboxmanager
 
 import (
 	"context"
@@ -16,16 +16,14 @@ import (
 )
 
 type sandboxManager struct {
+	apiPort      uint16
 	localdConfig *config.LocalDaemon
 	connConfig   *connectcfg.ConnectionConfig
 	grpcServer   *grpc.Server
 }
 
-func newSandboxManager(cfg *config.LocalDaemon, args []string) (*sandboxManager, error) {
-	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
-	if err != nil {
-		return nil, err
-	}
+func NewSandboxManager(cfg *config.LocalDaemon, args []string) (*sandboxManager, error) {
+	connConfig := cfg.ConnectInvocationConfig.ConnectionConfig
 	restConfig, err := connConfig.GetRESTConfig()
 	if err != nil {
 		return nil, err
@@ -45,6 +43,7 @@ func newSandboxManager(cfg *config.LocalDaemon, args []string) (*sandboxManager,
 	})
 
 	return &sandboxManager{
+		apiPort:      cfg.ConnectInvocationConfig.APIPort,
 		grpcServer:   grpcServer,
 		connConfig:   connConfig,
 		localdConfig: cfg,
@@ -52,7 +51,7 @@ func newSandboxManager(cfg *config.LocalDaemon, args []string) (*sandboxManager,
 }
 
 func (m *sandboxManager) Run() error {
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.localdConfig.Port))
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.apiPort))
 	if err != nil {
 		return err
 	}

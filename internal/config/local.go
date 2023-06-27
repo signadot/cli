@@ -35,7 +35,7 @@ func (l *Local) InitLocalConfig() error {
 		return fmt.Errorf("no connections in local section in %s", viper.ConfigFileUsed())
 	}
 	if !localConfig.Local.Debug {
-		localConfig.Local.Debug = viper.GetBool("debug")
+		localConfig.Local.Debug = l.Debug
 	}
 	l.LocalConfig = localConfig.Local
 	return nil
@@ -68,11 +68,17 @@ type LocalConnect struct {
 	// Flags
 	NonInteractive bool
 	Cluster        string
+
+	// Hidden Flags
+	Unpriveleged bool
 }
 
 func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.NonInteractive, "non-interactive", false, "run in background")
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "signadot cluster name")
+
+	cmd.Flags().BoolVar(&c.Unpriveleged, "unpriveleged", false, "run without root priveleges")
+	cmd.Flags().MarkHidden("unpriveleged")
 }
 
 type LocalDisconnect struct {

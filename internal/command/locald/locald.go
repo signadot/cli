@@ -23,10 +23,10 @@ func New(apiConfig *config.API) *cobra.Command {
 }
 
 func run(cfg *config.LocalDaemon, args []string) error {
-	if err := cfg.InitLocalConfig(); err != nil {
+	if err := cfg.InitLocalDaemon(); err != nil {
 		return err
 	}
-	if cfg.RunUnpriveleged {
+	if cfg.ConnectInvocationConfig.Unpriveleged {
 		return locald.RunSandboxManager(cfg, args)
 	}
 	return locald.RunAsRoot(cfg, args)
