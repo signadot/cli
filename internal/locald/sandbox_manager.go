@@ -1,12 +1,17 @@
 package locald
 
 import (
+	"context"
 	"fmt"
 	"net"
 
-	"google.golang.org/grpc"
-
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	"golang.org/x/exp/slog"
+	"google.golang.org/grpc"
+	"k8s.io/client-go/kubernetes"
+
+	"github.com/signadot/libconnect/common/portforward"
 	connectcfg "github.com/signadot/libconnect/config"
 )
 
@@ -17,13 +22,27 @@ type sandboxManager struct {
 }
 
 func newSandboxManager(cfg *config.LocalDaemon, args []string) (*sandboxManager, error) {
-	grpcServer := grpc.NewServer()
 	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
 	if err != nil {
 		return nil, err
 	}
-	_ = connConfig
-	// TODO setup everything
+	restConfig, err := connConfig.GetRESTConfig()
+	if err != nil {
+		return nil, err
+	}
+	clientSet, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, err
+	}
+	var portForward *portforward.PortForward
+	if connConfig.Type == connectcfg.PortForwardLinkType {
+		portForward = portforward.NewPortForward(context.Background(),
+			restConfig, clientSet, slog.Default(), 0, "signadot", "tunnel-proxy", 1080)
+	}
+	grpcServer := grpc.NewServer()
+	sandboxmanager.RegisterSandboxManagerAPIServer(grpcServer, &sbmServer{
+		portForward: portForward,
+	})
 
 	return &sandboxManager{
 		grpcServer:   grpcServer,
