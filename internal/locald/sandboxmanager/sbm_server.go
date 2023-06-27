@@ -1,4 +1,4 @@
-package locald
+package sandboxmanager
 
 import (
 	"context"
@@ -21,7 +21,7 @@ func (s *sbmServer) Status(ctx context.Context, req *sbmgrpc.StatusRequest) (*sb
 	resp.Portfoward = &commonapi.PortForwardStatus{}
 	if s.portForward != nil {
 		st := s.portForward.Status()
-		resp.Portfoward.Health = toGRPCServiceHealth(&st.ServiceHealth)
+		resp.Portfoward.Health = commonapi.ToGRPCServiceHealth(&st.ServiceHealth)
 		if st.LocalPort != nil && st.Healthy {
 			resp.Portfoward.LocalAddress = fmt.Sprintf(":%d", *st.LocalPort)
 		}

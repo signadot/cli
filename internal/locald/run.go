@@ -6,10 +6,11 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald/rootmanager"
+	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 )
 
 func RunSandboxManager(cfg *config.LocalDaemon, args []string) error {
-	sbMgr, err := newSandboxManager(cfg, args)
+	sbMgr, err := sbmgr.NewSandboxManager(cfg, args)
 	if err != nil {
 		return err
 	}
