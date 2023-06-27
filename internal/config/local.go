@@ -2,14 +2,10 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"k8s.io/client-go/util/homedir"
-	"sigs.k8s.io/yaml"
 )
 
 type Local struct {
@@ -23,28 +19,22 @@ func (l *Local) InitLocalConfig() error {
 	if err := l.API.InitAPIConfig(); err != nil {
 		return err
 	}
-	p := filepath.Join(homedir.HomeDir(), ".signadot", "config.yaml")
-	d, e := os.ReadFile(p)
-	if e != nil {
-		return e
-	}
+
 	type Tmp struct {
 		Local *config.Config `json:"local"`
 	}
 	localConfig := &Tmp{}
-	if err := yaml.Unmarshal(d, localConfig); err != nil {
-		return err
-	}
+	viper.Unmarshal(localConfig)
 	if localConfig.Local == nil {
-		return fmt.Errorf("no local section in $HOME/.signadot/config.yaml")
+		return fmt.Errorf("no local section in %s", viper.ConfigFileUsed())
 	}
 	if err := localConfig.Local.Validate(); err != nil {
 		return err
 	}
 	if len(localConfig.Local.Connections) == 0 {
-		return fmt.Errorf("no connections in local section in $HOME/.signadot/config.yaml")
+		return fmt.Errorf("no connections in local section in %s", viper.ConfigFileUsed())
 	}
-	if localConfig.Local.Debug == false {
+	if !localConfig.Local.Debug {
 		localConfig.Local.Debug = viper.GetBool("debug")
 	}
 	l.LocalConfig = localConfig.Local

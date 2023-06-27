@@ -2,12 +2,12 @@ syntax = "proto3";
 
 import "internal/locald/api/common.proto";
 
-option go_package = "github.com/signadot/cli/internal/locald/api/localnet";
+option go_package = "github.com/signadot/cli/internal/locald/api/rootmanager";
 
-package localnet;
+package rootmanager;
 
 
-service LocalnetAPI {
+service RootManagerAPI {
   // This method returns the status of the root controller
   rpc Status(StatusRequest) returns (StatusResponse) {}
 
