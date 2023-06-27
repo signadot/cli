@@ -2,6 +2,7 @@ package locald
 
 import (
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/locald"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,8 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
 	}
-	panic("unimplemented")
-	return nil
+	if cfg.RunUnpriveleged {
+		return locald.RunSandboxManager(cfg, args)
+	}
+	return locald.RunAsRoot(cfg, args)
 }
