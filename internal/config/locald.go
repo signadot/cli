@@ -8,9 +8,9 @@ type LocalDaemon struct {
 	*Local
 
 	// Flags
-	RunAsRoot bool
+	RunUnpriveleged bool
 }
 
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&c.RunAsRoot, "net", true, "enable local networking")
+	cmd.Flags().BoolVar(&c.RunUnpriveleged, "sandbox-manager", false, "run without root priveleges")
 }
