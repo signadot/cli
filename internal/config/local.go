@@ -33,11 +33,11 @@ func (l *Local) InitLocalConfig() error {
 	if err := ln.Validate(); err != nil {
 		return err
 	}
+	if len(ln.Connections) == 0 {
+		return fmt.Errorf("no connections in local section in $HOME/signadot/config.yaml")
+	}
 	if ln.Debug == false {
 		ln.Debug = viper.GetBool("debug")
-	}
-
-	if ln.Debug {
 	}
 
 	l.LocalNet = ln
