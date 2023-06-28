@@ -3,10 +3,9 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path"
-	"path/filepath"
 
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -35,12 +34,12 @@ func (c *Root) init() error {
 	if c.ConfigFile != "" {
 		viper.SetConfigFile(c.ConfigFile)
 	} else {
-		homeDir, err := os.UserHomeDir()
+		signadotDir, err := system.GetSignadotDir()
 		if err != nil {
 			return err
 		}
 
-		viper.AddConfigPath(filepath.Join(homeDir, ".signadot"))
+		viper.AddConfigPath(signadotDir)
 		viper.SetConfigName("config") // Doesn't include extension.
 		viper.SetConfigType("yaml")   // File name will be "config.yaml".
 	}

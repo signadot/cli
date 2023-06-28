@@ -1,6 +1,7 @@
 package locald
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -21,9 +22,10 @@ func RunAsRoot(cfg *config.LocalDaemon, args []string) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("must run as root without --sandbox-manager=true")
 	}
+	ctx := context.Background()
 	rootMgr, err := rootmanager.NewRootManager(cfg, args)
 	if err != nil {
 		return err
 	}
-	return rootMgr.Run()
+	return rootMgr.Run(ctx)
 }
