@@ -9,6 +9,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	RootManagerPIDFile    = "rootmanager.pid"
+	SandboxManagerPIDFile = "sandboxmanager.pid"
+)
+
 type LocalDaemon struct {
 	*Local
 
@@ -55,6 +60,7 @@ type ConnectInvocationConfig struct {
 	Cluster          string                       `json:"cluster"`
 	APIPort          uint16                       `json:"apiPort"`
 	LocalNetPort     uint16                       `json:"localNetPort"`
+	SignadotDir      string                       `json:"signadotDir"`
 	UID              int                          `json:"uid"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	API              *API                         `json:"api"`
