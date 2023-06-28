@@ -2,7 +2,6 @@ package sandboxmanager
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -14,6 +13,8 @@ import (
 	clapi "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/portforward"
 	"golang.org/x/exp/slog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type sbmServer struct {
@@ -30,45 +31,29 @@ type sbmServer struct {
 	clusterProxyAddr string
 
 	// sandboxes
-	sbMu            sync.Mutex
-	clapiClient     clapi.Client
-	clapiClientErrC chan error
-	sbMonitors      map[string]*sbMonitor
+	sbMu        sync.Mutex
+	clAPIClient clapi.Client
+	sbMonitors  map[string]*sbMonitor
 
 	// rootmanager statuses
 }
 
-func newSBMServer(pf *portforward.PortForward, clProxyAddr string, apiConfig *cliconfig.API, log *slog.Logger) *sbmServer {
+func newSBMServer(pf *portforward.PortForward, clProxyAddr string, apiConfig *cliconfig.API, clAPIClient clapi.Client, log *slog.Logger) *sbmServer {
 	srv := &sbmServer{
 		log:              log,
 		apiConfig:        apiConfig,
 		portForward:      pf,
 		clusterProxyAddr: clProxyAddr,
 		sbMonitors:       make(map[string]*sbMonitor),
-		clapiClientErrC:  make(chan error),
+		clAPIClient:      clAPIClient,
 	}
-	go srv.monitorSandboxes()
 	return srv
-}
-
-func (s *sbmServer) monitorSandboxes() {
-	for {
-		func() {
-			s.sbMu.Lock()
-			defer s.sbMu.Unlock()
-		}()
-		select {
-		case err := <-s.clapiClientErrC:
-			s.log.Error("tunnel api client error", "error", err)
-			// create a new client
-		}
-	}
 }
 
 func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandboxRequest) (*sbmgrpc.ApplySandboxResponse, error) {
 	sbSpec, err := sbmgrpc.ToModelsSandboxSpec(req.SandboxSpec)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "unable create go-sdk sandbox spec: %s", err.Error())
 	}
 	sb := &models.Sandbox{
 		Spec: sbSpec,
@@ -77,27 +62,33 @@ func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandboxR
 		WithOrgName(s.apiConfig.Org).WithSandboxName(req.Name).WithData(sb)
 	result, err := s.apiConfig.Client.Sandboxes.ApplySandbox(params, nil)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "error applying sandbox to signadot api: %s", err.Error())
 	}
-	if !result.IsSuccess() {
-		if result.IsClientError() {
-			// TODO grpc errors
-			return nil, errors.New(result.Error())
-
-		} else if result.IsServerError() {
-			// TODO grpc errors
-			return nil, errors.New(result.Error())
-		} else {
-			return nil, errors.New(result.Error())
+	code := result.Code()
+	switch {
+	default:
+		return nil, status.Errorf(codes.Unknown, "api server error: %s", result.Error())
+	case code/100 == 4:
+		if code == 404 {
+			return nil, status.Errorf(codes.NotFound, "sandbox %q not found", req.Name)
 		}
+		return nil, status.Errorf(codes.InvalidArgument, "invalid sandbox %q", req.Name)
+	case code/100 == 5:
+		if code == 502 {
+			return nil, status.Errorf(codes.Unavailable, "invalid gateway: %s", result.Error())
+		}
+		return nil, status.Errorf(codes.Internal, "api server error: %s", result.Error())
+	case code/100 == 2:
+		// success, continue below
 	}
+
 	// the api call was a success, register sandbox
 	s.registerSandbox(result.Payload)
 
 	// construct response
 	grpcSandbox, err := sbmgrpc.ToGRPCSandbox(result.Payload)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "unable to create grpc sandbox: %s", err.Error())
 	}
 	resp := &sbmgrpc.ApplySandboxResponse{}
 	resp.Sandbox = grpcSandbox
@@ -105,18 +96,13 @@ func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandboxR
 }
 
 func (s *sbmServer) registerSandbox(sb *models.Sandbox) {
-	cond := sync.NewCond(&s.sbMu)
-	cond.L.Lock()
-	for s.clapiClient == nil {
-		cond.Wait()
-	}
-	defer cond.L.Unlock()
+	s.sbMu.Lock()
+	defer s.sbMu.Unlock()
 	_, present := s.sbMonitors[sb.Name]
 	if present {
 		return
 	}
-	sbm := newSBMonitor(sb.RoutingKey, s.clapiClientErrC)
-	sbm.clapiClientC <- s.clapiClient
+	sbm := newSBMonitor(sb.RoutingKey, s.clAPIClient)
 	s.sbMonitors[sb.Name] = sbm
 }
 

@@ -12,12 +12,11 @@ import (
 
 type sbMonitor struct {
 	sync.Mutex
-	routingKey   string
-	clapiErrC    chan<- error
-	clapiClientC chan clapiclient.Client
-	done         chan struct{}
-	status       *clapi.WatchSandboxStatus
-	xws          map[string]*xwRevtun
+	routingKey  string
+	clapiClient clapiclient.Client
+	done        chan struct{}
+	status      *clapi.WatchSandboxStatus
+	xws         map[string]*xwRevtun
 }
 
 type xwRevtun struct {
@@ -27,13 +26,12 @@ type xwRevtun struct {
 	rtErr    error
 }
 
-func newSBMonitor(rk string, clapiErrC chan<- error) *sbMonitor {
+func newSBMonitor(rk string, clapiClient clapiclient.Client) *sbMonitor {
 	res := &sbMonitor{
-		routingKey:   rk,
-		clapiErrC:    clapiErrC,
-		clapiClientC: make(chan clapiclient.Client, 1),
-		done:         make(chan struct{}),
-		xws:          make(map[string]*xwRevtun),
+		routingKey:  rk,
+		clapiClient: clapiClient,
+		done:        make(chan struct{}),
+		xws:         make(map[string]*xwRevtun),
 	}
 	res.monitor()
 	return res
@@ -41,9 +39,8 @@ func newSBMonitor(rk string, clapiErrC chan<- error) *sbMonitor {
 
 func (sbm *sbMonitor) monitor() {
 	var (
-		clapiClient clapiclient.Client
-		err         error
-		sbwClient   clapi.TunnelAPI_WatchSandboxClient
+		err       error
+		sbwClient clapi.TunnelAPI_WatchSandboxClient
 	)
 	// setup context for grp stream requests
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,11 +50,7 @@ func (sbm *sbMonitor) monitor() {
 	}()
 
 	for {
-		clapiClient = sbm.clapiClient(clapiClient, err)
-		if clapiClient == nil {
-			return
-		}
-		sbwClient, err = clapiClient.WatchSandbox(ctx, &clapi.WatchSandboxRequest{
+		sbwClient, err = sbm.clapiClient.WatchSandbox(ctx, &clapi.WatchSandboxRequest{
 			RoutingKey: sbm.routingKey,
 		})
 		if err != nil {
@@ -73,30 +66,6 @@ func (sbm *sbMonitor) monitor() {
 			sbm.setStatus(sbst)
 		}
 	}
-}
-
-func (sbm *sbMonitor) clapiClient(cc clapiclient.Client, err error) clapiclient.Client {
-	if err != nil {
-		select {
-		case sbm.clapiErrC <- err:
-		default:
-		}
-		select {
-		case c := <-sbm.clapiClientC:
-			return c
-		case <-sbm.done:
-			return nil
-		}
-	}
-	if cc == nil {
-		select {
-		case c := <-sbm.clapiClientC:
-			return c
-		case <-sbm.done:
-			return nil
-		}
-	}
-	return cc
 }
 
 func (sbm *sbMonitor) setStatus(st *clapi.WatchSandboxStatus) {
