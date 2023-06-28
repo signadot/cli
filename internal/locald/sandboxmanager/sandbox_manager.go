@@ -48,6 +48,7 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	if err != nil {
 		return nil, err
 	}
+	log.Debug("got cluster api client")
 
 	sbmSrv := newSBMServer(portForward, cfg.ConnectInvocationConfig.ConnectionConfig.ProxyAddress,
 		cfg.API, clapiClient, log)
@@ -55,6 +56,7 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	sandboxmanager.RegisterSandboxManagerAPIServer(grpcServer, sbmSrv)
 
 	return &sandboxManager{
+		log:          log,
 		apiPort:      cfg.ConnectInvocationConfig.APIPort,
 		grpcServer:   grpcServer,
 		connConfig:   connConfig,

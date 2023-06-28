@@ -1,13 +1,20 @@
 package local
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"syscall"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/utils/system"
+	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slog"
 )
 
 func newConnect(localConfig *config.Local) *cobra.Command {
@@ -30,19 +37,39 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
 	}
-	// we will pass the connConfig to rootmanager
-	// and sandboxmanager
+
+	// TODO:
+	// - define logging
+	// - check if another local connect is already running
+	// - non-interactive mode
+	// - interactive display
+
+	// we will pass the connConfig to rootmanager and sandboxmanager
 	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
 	if err != nil {
 		return err
 	}
+
+	// Get the sigandot dir
+	signadotDir, err := system.GetSignadotDir()
+	if err != nil {
+		return err
+	}
+	err = system.CreateDirIfNotExist(signadotDir)
+	if err != nil {
+		return err
+	}
+
+	// Set KubeConfigPath if not defined
 	if connConfig.KubeConfigPath == nil {
 		kcp := connConfig.GetKubeConfigPath()
 		connConfig.KubeConfigPath = &kcp
 	}
+
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
 		Unpriveleged:     cfg.Unpriveleged,
+		SignadotDir:      signadotDir,
 		APIPort:          6666,
 		LocalNetPort:     6667,
 		Cluster:          cfg.Cluster,
@@ -55,19 +82,52 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 		// should be impossible
 		return err
 	}
-	var cmdToRun *exec.Cmd
+
+	// Define the pid file name
+	var pidFile string
 	if !cfg.Unpriveleged {
-		cmdToRun = exec.Command("sudo",
-			"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-			os.Args[0], "locald")
+		pidFile = filepath.Join(signadotDir, config.RootManagerPIDFile)
 	} else {
-		cmdToRun = exec.Command(os.Args[0], "locald")
+		pidFile = filepath.Join(signadotDir, config.SandboxManagerPIDFile)
 	}
-	cmdToRun.Env = append(cmdToRun.Env, fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)))
-	cmdToRun.Env = append(cmdToRun.Env, os.Environ()...)
-	cmdToRun.Stderr = os.Stderr
-	cmdToRun.Stdout = os.Stdout
-	cmdToRun.Stdin = os.Stdin
-	fmt.Printf("command: %v\n", cmdToRun)
-	return cmdToRun.Run()
+
+	ctx := context.Background()
+
+	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	proc, err := processes.NewRetryProcess(ctx, &processes.RetryProcessConf{
+		Log: log,
+		GetCmd: func() *exec.Cmd {
+			var cmdToRun *exec.Cmd
+			if !cfg.Unpriveleged {
+				cmdToRun = exec.Command("sudo",
+					"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
+					os.Args[0], "locald")
+			} else {
+				cmdToRun = exec.Command(os.Args[0], "locald")
+			}
+			cmdToRun.Env = append(cmdToRun.Env, fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)))
+			cmdToRun.Stderr = os.Stderr
+			cmdToRun.Stdout = os.Stdout
+			cmdToRun.Stdin = os.Stdin
+			// Prevent signaling the children
+			cmdToRun.SysProcAttr = &syscall.SysProcAttr{
+				Setpgid: true,
+			}
+			return cmdToRun
+		},
+		PIDFile: pidFile,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Wait until termination
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	<-sigs
+
+	return proc.Stop()
 }

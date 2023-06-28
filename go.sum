@@ -334,6 +334,8 @@ github.com/signadot/libconnect v0.1.1-0.20230627071419-87ef8ba7b32c h1:07votlz5j
 github.com/signadot/libconnect v0.1.1-0.20230627071419-87ef8ba7b32c/go.mod h1:eGYTGuvJKmO6n/10y149rfxAhsZoCPrx5ScwWztOtBo=
 github.com/signadot/libconnect v0.1.1-0.20230628081043-8ca30c215470 h1:8oCNthIe0JoJ5zlJBw3b0aqH+lPbwwDHvLmwpG9+xw8=
 github.com/signadot/libconnect v0.1.1-0.20230628081043-8ca30c215470/go.mod h1:E6ExZIKzVtccOHRZxc11OiDnB0/s6ecSjs8Y+STjWL8=
+github.com/signadot/libconnect v0.1.1-0.20230628123132-63f40b39258f h1:rmX6TODOSBStWqR0cHdQXSEBhFqsb0t01T3vy7xvYO8=
+github.com/signadot/libconnect v0.1.1-0.20230628123132-63f40b39258f/go.mod h1:E6ExZIKzVtccOHRZxc11OiDnB0/s6ecSjs8Y+STjWL8=
 github.com/sirupsen/logrus v1.4.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
