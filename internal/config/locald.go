@@ -62,6 +62,8 @@ type ConnectInvocationConfig struct {
 	LocalNetPort     uint16                       `json:"localNetPort"`
 	SignadotDir      string                       `json:"signadotDir"`
 	UID              int                          `json:"uid"`
+	UIDHome          string                       `json:"uidHome"`
+	UIDPath          string                       `json:"uidPath"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	API              *API                         `json:"api"`
 }
