@@ -16,13 +16,14 @@ import (
 )
 
 type sandboxManager struct {
+	log          *slog.Logger
 	apiPort      uint16
 	localdConfig *config.LocalDaemon
 	connConfig   *connectcfg.ConnectionConfig
 	grpcServer   *grpc.Server
 }
 
-func NewSandboxManager(cfg *config.LocalDaemon, args []string) (*sandboxManager, error) {
+func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*sandboxManager, error) {
 	connConfig := cfg.ConnectInvocationConfig.ConnectionConfig
 	restConfig, err := connConfig.GetRESTConfig()
 	if err != nil {
@@ -37,10 +38,10 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string) (*sandboxManager,
 		portForward = portforward.NewPortForward(context.Background(),
 			restConfig, clientSet, slog.Default(), 0, "signadot", "tunnel-proxy", 1080)
 	}
+	sbmSrv := newSBMServer(portForward, cfg.ConnectInvocationConfig.ConnectionConfig.ProxyAddress,
+		cfg.API, log)
 	grpcServer := grpc.NewServer()
-	sandboxmanager.RegisterSandboxManagerAPIServer(grpcServer, &sbmServer{
-		portForward: portForward,
-	})
+	sandboxmanager.RegisterSandboxManagerAPIServer(grpcServer, sbmSrv)
 
 	return &sandboxManager{
 		apiPort:      cfg.ConnectInvocationConfig.APIPort,
