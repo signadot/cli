@@ -6,12 +6,16 @@ import (
 )
 
 func ToGRPCServiceHealth(csh *svchealth.ServiceHealth) *ServiceHealth {
+	var lastErrorTime *timestamp.Timestamp
+	if csh.LastErrorTime != nil {
+		lastErrorTime = &timestamp.Timestamp{
+			Seconds: csh.LastErrorTime.Unix(),
+		}
+	}
 	return &ServiceHealth{
 		Healthy:         csh.Healthy,
 		ErrorCount:      uint32(csh.ErrorCount),
 		LastErrorReason: csh.LastErrorReason,
-		LastErrorTime: &timestamp.Timestamp{
-			Seconds: csh.LastErrorTime.Unix(),
-		},
+		LastErrorTime:   lastErrorTime,
 	}
 }

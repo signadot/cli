@@ -16,6 +16,7 @@ import (
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -86,6 +87,7 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 		UIDHome:          homeDir,
 		UIDPath:          os.Getenv("PATH"),
 		API:              cfg.API,
+		APIKey:           viper.Get("api_key").(string),
 		ConnectionConfig: connConfig,
 	}
 	ciBytes, err := json.Marshal(ciConfig)

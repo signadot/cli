@@ -48,9 +48,11 @@ func (a *API) MarshalJSON() ([]byte, error) {
 
 func (a *API) InitAPIConfig() error {
 
-	a.Org = viper.GetString("org")
 	if a.Org == "" {
-		return errors.New("Signadot Org name must be specified through either the SIGNADOT_ORG env var or the 'org' field in ~/.signadot/config.yaml")
+		a.Org = viper.GetString("org")
+		if a.Org == "" {
+			return errors.New("Signadot Org name must be specified through either the SIGNADOT_ORG env var or the 'org' field in ~/.signadot/config.yaml")
+		}
 	}
 
 	apiKey := viper.GetString("api_key")
@@ -62,18 +64,20 @@ func (a *API) InitAPIConfig() error {
 
 	tc := client.DefaultTransportConfig()
 
-	// Allow API URL to be overridden (e.g. for talking to dev/staging).
-	if apiURL := viper.GetString("api_url"); apiURL != "" {
-		u, err := url.Parse(apiURL)
-		if err != nil {
-			return fmt.Errorf("invalid api_url: %w", err)
-		}
-		tc.Host = u.Host
-		tc.Schemes = []string{u.Scheme}
-		a.APIURL = apiURL
+	if a.APIURL == "" {
+		// Allow API URL to be overridden (e.g. for talking to dev/staging).
+		if apiURL := viper.GetString("api_url"); apiURL != "" {
+			u, err := url.Parse(apiURL)
+			if err != nil {
+				return fmt.Errorf("invalid api_url: %w", err)
+			}
+			tc.Host = u.Host
+			tc.Schemes = []string{u.Scheme}
+			a.APIURL = apiURL
 
-	} else {
-		a.APIURL = "https://api.signadot.com"
+		} else {
+			a.APIURL = "https://api.signadot.com"
+		}
 	}
 
 	// Add auth info to every request.

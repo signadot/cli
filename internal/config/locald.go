@@ -7,6 +7,7 @@ import (
 
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -45,6 +46,7 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 	if err := json.Unmarshal(ciBytes, ciConfig); err != nil {
 		return err
 	}
+	viper.Set("api_key", ciConfig.APIKey)
 	if err := ciConfig.API.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -70,6 +72,7 @@ type ConnectInvocationConfig struct {
 	UIDPath          string                       `json:"uidPath"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	API              *API                         `json:"api"`
+	APIKey           string                       `json:"apiKey"`
 }
 
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
