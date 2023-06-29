@@ -8,6 +8,7 @@ import (
 	"github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"sigs.k8s.io/yaml"
 )
 
 type Local struct {
@@ -26,11 +27,11 @@ func (l *Local) InitLocalConfig() error {
 		Local *config.Config `json:"local"`
 	}
 	localConfig := &Tmp{}
-	d, e := os.ReadFile(l.ConfigFile)
+	d, e := os.ReadFile(viper.ConfigFileUsed())
 	if e != nil {
 		return e
 	}
-	if e := json.Unmarshal(d, localConfig); e != nil {
+	if e := yaml.Unmarshal(d, localConfig); e != nil {
 		return e
 	}
 	if localConfig.Local == nil {
