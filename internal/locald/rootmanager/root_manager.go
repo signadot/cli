@@ -34,6 +34,7 @@ type rootManager struct {
 	root       *rootServer
 	sbManager  *processes.RetryProcess
 	pfwMonitor *pfwMonitor
+	shutdownCh chan struct{}
 }
 
 func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*rootManager, error) {
@@ -43,7 +44,10 @@ func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*
 		return nil, fmt.Errorf("invalid UID=%d, %w", cfg.ConnectInvocationConfig.UID, err)
 	}
 
-	root := &rootServer{}
+	shutdownCh := make(chan struct{})
+	root := &rootServer{
+		shutdownCh: shutdownCh,
+	}
 	grpcServer := grpc.NewServer()
 	rootapi.RegisterRootManagerAPIServer(grpcServer, root)
 
@@ -53,6 +57,7 @@ func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*
 		userInfo:   userInfo,
 		grpcServer: grpcServer,
 		root:       root,
+		shutdownCh: shutdownCh,
 	}, nil
 }
 
@@ -80,9 +85,13 @@ func (m *rootManager) Run(ctx context.Context) error {
 	// Wait until termination
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	<-sigs
+	select {
+	case <-sigs:
+	case <-m.shutdownCh:
+	}
 
 	// Clean up
+	m.log.Info("Shutting down")
 	var me *multierror.Error
 	m.pfwMonitor.Stop()
 	me = multierror.Append(me, m.stopLocalnetService())
@@ -153,7 +162,7 @@ func (m *rootManager) runLocalnetService(ctx context.Context, socks5Addr string)
 		Log:        m.log,
 		User:       user,
 		SOCKS5Addr: socks5Addr,
-		ListenAddr: ":8700",
+		ListenAddr: ":2223",
 	}, m.conf.ConnectionConfig)
 
 	// Register the localnet service in root api
