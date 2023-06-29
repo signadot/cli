@@ -2,34 +2,33 @@ package sandboxmanager
 
 import (
 	"context"
+	"errors"
 	"io"
 	"sync"
 
 	clapi "github.com/signadot/libconnect/apiv1"
 	clapiclient "github.com/signadot/libconnect/common/apiclient"
-	rtproto "github.com/signadot/libconnect/revtun/protocol"
+	"golang.org/x/exp/slog"
 )
 
 type sbMonitor struct {
 	sync.Mutex
 	routingKey  string
 	clapiClient clapiclient.Client
-	done        chan struct{}
-	status      *clapi.WatchSandboxStatus
-	xws         map[string]*xwRevtun
+	// func called on delete
+	delFn  func()
+	log    *slog.Logger
+	done   chan struct{}
+	status *clapi.WatchSandboxStatus
+	xws    map[string]*xwRevtun
 }
 
-type xwRevtun struct {
-	rtConfig *rtproto.Config
-	rtCloser io.Closer
-	rtClosed <-chan struct{}
-	rtErr    error
-}
-
-func newSBMonitor(rk string, clapiClient clapiclient.Client) *sbMonitor {
+func newSBMonitor(rk string, clapiClient clapiclient.Client, delFn func(), log *slog.Logger) *sbMonitor {
 	res := &sbMonitor{
 		routingKey:  rk,
 		clapiClient: clapiClient,
+		delFn:       delFn,
+		log:         log,
 		done:        make(chan struct{}),
 		xws:         make(map[string]*xwRevtun),
 	}
@@ -54,16 +53,22 @@ func (sbm *sbMonitor) monitor() {
 			RoutingKey: sbm.routingKey,
 		})
 		if err != nil {
+			sbm.log.Error("error getting sb watch stream", "error", err)
 			continue
 		}
 		for {
-			sbst, err := sbwClient.Recv()
+			sbStatus, err := sbwClient.Recv()
 			if err != nil {
+				if errors.Is(err, io.EOF) {
+					sbm.log.Debug("sandbox monitor eof", "routing-key", sbm.routingKey)
+					sbm.delFn()
+					break
+				}
 				// TODO sandbox gone, detect
 				// client errors
 				break
 			}
-			sbm.setStatus(sbst)
+			sbm.setStatus(sbStatus)
 		}
 	}
 }
@@ -72,4 +77,32 @@ func (sbm *sbMonitor) setStatus(st *clapi.WatchSandboxStatus) {
 	sbm.Lock()
 	defer sbm.Unlock()
 	sbm.status = st
+	// reconcile
+	statusXWs := make(map[string]*clapi.WatchSandboxStatus_ExternalWorkload, len(st.ExternalWorkloads))
+	for _, xw := range st.ExternalWorkloads {
+		statusXWs[xw.Name] = xw
+	}
+	for xwName, sxw := range statusXWs {
+		_, has := sbm.xws[xwName]
+		if has {
+			continue
+		}
+		// create revtun
+		sbm.xws[xwName] = nil
+		_ = sxw
+	}
+	for xwName, xw := range sbm.xws {
+		_, desired := statusXWs[xwName]
+		if !desired {
+			xw.rtCloser.Close()
+			delete(sbm.xws, xwName)
+			continue
+		}
+	}
+}
+
+func (sbm *sbMonitor) getStatus() *clapi.WatchSandboxStatus {
+	sbm.Lock()
+	defer sbm.Unlock()
+	return sbm.status
 }

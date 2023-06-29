@@ -102,8 +102,14 @@ func (s *sbmServer) registerSandbox(sb *models.Sandbox) {
 	if present {
 		return
 	}
-	sbm := newSBMonitor(sb.RoutingKey, s.clAPIClient)
+	sbm := newSBMonitor(sb.RoutingKey, s.clAPIClient, func() {
+		s.sbMu.Lock()
+		defer s.sbMu.Unlock()
+		delete(s.sbMonitors, sb.Name)
+	}, s.log)
 	s.sbMonitors[sb.Name] = sbm
+	// TODO add local workloads to sbm so we know how to
+	// connect revtuns
 }
 
 func (s *sbmServer) Status(ctx context.Context, req *sbmgrpc.StatusRequest) (*sbmgrpc.StatusResponse, error) {
@@ -127,6 +133,27 @@ func (s *sbmServer) portforwardStatus() *commonapi.PortForwardStatus {
 }
 
 func (s *sbmServer) sbStatuses() []*commonapi.SandboxStatus {
-	res := []*commonapi.SandboxStatus{}
+	s.sbMu.Lock()
+	defer s.sbMu.Unlock()
+	res := make([]*commonapi.SandboxStatus, 0, len(s.sbMonitors))
+	for name, sbM := range s.sbMonitors {
+		sbmStatus := sbM.getStatus()
+		grpcStatus := &commonapi.SandboxStatus{
+			Name:           name,
+			RoutingKey:     sbM.routingKey,
+			LocalWorkloads: make([]*commonapi.SandboxStatus_LocalWorkload, len(sbmStatus.ExternalWorkloads)),
+		}
+		for i, xw := range sbmStatus.ExternalWorkloads {
+			lwStatus := &commonapi.SandboxStatus_LocalWorkload{
+				Name: xw.Name,
+				TunnelHealth: &commonapi.ServiceHealth{
+					Healthy: xw.Connected,
+					// TODO plumb health into commonapi
+				},
+			}
+			grpcStatus.LocalWorkloads[i] = lwStatus
+		}
+		res = append(res, grpcStatus)
+	}
 	return res
 }
