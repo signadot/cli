@@ -10,11 +10,12 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/signadot/go-sdk v0.3.7
-	github.com/signadot/libconnect v0.1.1-0.20230628123132-63f40b39258f
+	github.com/signadot/libconnect v0.1.1-0.20230629104716-691601f80d12
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
+	golang.org/x/net v0.10.0
 	golang.org/x/term v0.9.0
 	google.golang.org/grpc v1.56.0
 	google.golang.org/protobuf v1.30.0
@@ -73,7 +74,6 @@ require (
 	go.mongodb.org/mongo-driver v1.11.3 // indirect
 	go.opentelemetry.io/otel v1.14.0 // indirect
 	go.opentelemetry.io/otel/trace v1.14.0 // indirect
-	golang.org/x/net v0.10.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect
