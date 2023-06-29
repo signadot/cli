@@ -14,6 +14,7 @@ import (
 
 type rt struct {
 	log       *slog.Logger
+	localName string
 	rtClient  revtun.Client
 	rtConfig  *rtproto.Config
 	rtCloser  io.Closer
@@ -46,6 +47,7 @@ func newXWRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *mo
 	}
 	res := &rt{
 		log:       log.With("sandbox", rk, "local", name),
+		localName: name,
 		rtClient:  rtc,
 		rtConfig:  rtConfig,
 		rtToClose: make(chan struct{}),
@@ -66,11 +68,12 @@ func (t *rt) monitor() {
 			<-time.After(time.Second)
 			continue
 		}
-		t.log.Info("reverse tunnel setup")
+		t.log.Info("reverse tunnel is setup")
 		select {
 		case <-t.rtClosed:
 			t.log.Info("closed, retrying")
 		case <-t.rtToClose:
+			t.rtCloser.Close()
 			return
 		}
 	}

@@ -1,0 +1,14 @@
+name: local-hotrod-route
+spec:
+  cluster: "@{cluster}"
+  local:
+  - name: "l0"
+    from:
+      kind: Deployment
+      namespace: hotrod
+      name: route
+    mappings:
+      # why string?
+    - port: "8083"
+      toLocal: "localhost:8083"
+

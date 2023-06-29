@@ -27,3 +27,25 @@ func ToGRPCSandbox(sb *models.Sandbox) (*structpb.Struct, error) {
 	}
 	return structpb.NewStruct(un)
 }
+
+func ToGRPCSandboxSpec(sbs *models.SandboxSpec) (*structpb.Struct, error) {
+	d, _ := json.Marshal(sbs)
+	un := map[string]any{}
+	if err := json.Unmarshal(d, &un); err != nil {
+		return nil, err
+	}
+	return structpb.NewStruct(un)
+}
+
+// TODO maybe use generics here?
+func ToModelsSandbox(grpcSandbox *structpb.Struct) (*models.Sandbox, error) {
+	d, e := grpcSandbox.MarshalJSON()
+	if e != nil {
+		return nil, e
+	}
+	sb := &models.Sandbox{}
+	if err := json.Unmarshal(d, sb); err != nil {
+		return nil, err
+	}
+	return sb, nil
+}

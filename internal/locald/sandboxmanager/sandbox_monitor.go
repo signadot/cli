@@ -5,38 +5,41 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/signadot/go-sdk/models"
 	clapi "github.com/signadot/libconnect/apiv1"
 	clapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/revtun"
 	"golang.org/x/exp/slog"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type sbMonitor struct {
 	sync.Mutex
-	routingKey  string
-	clapiClient clapiclient.Client
+	routingKey   string
+	clapiClient  clapiclient.Client
+	revtunClient revtun.Client
 	// func called on delete
-	delFn            func()
-	log              *slog.Logger
-	done             chan struct{}
-	status           *clapi.WatchSandboxStatus
-	revtuns          map[string]*rt
-	locals           map[string]*models.Local
-	revtunClientFunc func() revtun.Client
+	delFn   func()
+	log     *slog.Logger
+	done    chan struct{}
+	status  *clapi.WatchSandboxStatus
+	revtuns map[string]*rt
+	locals  map[string]*models.Local
 }
 
-func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClientFunc func() revtun.Client, delFn func(), log *slog.Logger) *sbMonitor {
+func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Client, delFn func(), log *slog.Logger) *sbMonitor {
 	res := &sbMonitor{
-		routingKey:       rk,
-		clapiClient:      clapiClient,
-		revtunClientFunc: rtClientFunc,
-		delFn:            delFn,
-		log:              log,
-		done:             make(chan struct{}),
-		locals:           make(map[string]*models.Local),
-		revtuns:          make(map[string]*rt),
+		routingKey:   rk,
+		clapiClient:  clapiClient,
+		revtunClient: rtClient,
+		delFn:        delFn,
+		log:          log,
+		done:         make(chan struct{}),
+		locals:       make(map[string]*models.Local),
+		revtuns:      make(map[string]*rt),
 	}
 	res.monitor()
 	return res
@@ -59,27 +62,54 @@ func (sbm *sbMonitor) monitor() {
 			RoutingKey: sbm.routingKey,
 		})
 		if err != nil {
-			sbm.log.Error("error getting sb watch stream", "error", err)
+			sbm.log.Error("error getting sb watch stream, retrying", "error", err)
+			<-time.After(3 * time.Second)
 			continue
 		}
 		for {
 			sbStatus, err := sbwClient.Recv()
-			if err != nil {
-				if errors.Is(err, io.EOF) {
-					sbm.log.Debug("sandbox monitor eof",
-						"routing-key", sbm.routingKey)
-					break
-				}
-				sbm.log.Error("sandbox monitor grpc stream error",
+			if err == nil {
+				sbm.setStatus(sbStatus)
+				continue
+			}
+			var (
+				st *status.Status
+				ok bool
+			)
+			if st, ok = status.FromError(err); !ok {
+				sbm.log.Error("sandbox monitor grpc stream error: no status",
 					"routing-key", sbm.routingKey,
 					"error", err)
 				break
 			}
-			sbm.setStatus(sbStatus)
+			switch st.Code() {
+			case codes.OK:
+				sbm.setStatus(sbStatus)
+				continue
+			case codes.Internal:
+				sbm.log.Error("sandbox watch: internal grpc error",
+					"routing-key", sbm.routingKey,
+					"error", err)
+
+			case codes.NotFound:
+				sbm.log.Info("sandbox watch: sandbox not found", "routing-key", sbm.routingKey)
+				break
+			}
+
+			if errors.Is(err, io.EOF) {
+				sbm.log.Debug("sandbox monitor eof",
+					"routing-key", sbm.routingKey)
+				break
+			}
+			// TODO deal with
+			// rpc error: code = Internal desc = stream terminated by RST_STREAM with error code: NO_ERROR
+			break
+
 		}
-		// we're done
+		// we're done, clean up revtuns
 		sbm.delFn()
 		sbm.reconcileLocals(nil)
+		sbm.setStatus(&clapi.WatchSandboxStatus{})
 	}
 }
 
@@ -117,6 +147,7 @@ func (sbm *sbMonitor) setStatus(st *clapi.WatchSandboxStatus) {
 	sbm.status = st
 	// reconcile
 	statusXWs := make(map[string]*clapi.WatchSandboxStatus_ExternalWorkload, len(st.ExternalWorkloads))
+	// put the xwls in a map
 	for _, xw := range st.ExternalWorkloads {
 		statusXWs[xw.Name] = xw
 	}
@@ -125,16 +156,29 @@ func (sbm *sbMonitor) setStatus(st *clapi.WatchSandboxStatus) {
 		if has {
 			continue
 		}
+		local := sbm.locals[xwName]
+		if local == nil {
+			sbm.log.Error("no local found for clust extworkload status", "local", xwName)
+			continue
+		}
 		// create revtun
-		sbm.revtuns[xwName] = nil
-		_ = sxw
+		rt, err := newXWRevtun(sbm.log.With("local", sxw.Name),
+			sbm.revtunClient, sxw.Name, sbm.routingKey, local)
+		if err != nil {
+			sbm.log.Error("error creating revtun", "error", err)
+			continue
+		}
+		sbm.revtuns[xwName] = rt
 	}
 	for xwName, xw := range sbm.revtuns {
 		_, desired := statusXWs[xwName]
-		if !desired {
-			xw.rtCloser.Close()
-			delete(sbm.revtuns, xwName)
+		if desired {
 			continue
+		}
+		select {
+		case <-xw.rtToClose:
+		default:
+			close(xw.rtToClose)
 		}
 	}
 }
