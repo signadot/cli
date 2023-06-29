@@ -109,10 +109,13 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 		GetCmd: func() *exec.Cmd {
 			var cmdToRun *exec.Cmd
 			if !cfg.Unpriveleged {
-				cmdToRun = exec.Command("sudo", "-S",
+				cmdToRun = exec.Command(
+					"sudo",
+					"-S",
 					"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-					os.Args[0], "locald")
-				// Prevent signaling the children
+					os.Args[0],
+					"locald",
+				)
 				cmdToRun.SysProcAttr = &syscall.SysProcAttr{
 					Setsid: true,
 				}
