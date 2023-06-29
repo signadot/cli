@@ -23,13 +23,16 @@ import (
 type sandboxManager struct {
 	log          *slog.Logger
 	apiPort      uint16
+	proxyAddress string
 	localdConfig *config.LocalDaemon
 	connConfig   *connectcfg.ConnectionConfig
 	grpcServer   *grpc.Server
+	portForward  *portforward.PortForward
 }
 
 func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*sandboxManager, error) {
-	connConfig := cfg.ConnectInvocationConfig.ConnectionConfig
+	ciConfig := cfg.ConnectInvocationConfig
+	connConfig := ciConfig.ConnectionConfig
 	restConfig, err := connConfig.GetRESTConfig()
 	if err != nil {
 		return nil, err
@@ -46,8 +49,11 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 		portForward = portforward.NewPortForward(context.Background(),
 			restConfig, clientSet, slog.Default(), 0, "signadot", "tunnel-proxy", 1080)
 	}
-	clapiClient, err := getClusterAPIClient(portForward, connConfig.ProxyAddress)
-
+	proxyAddress, err := getProxyAddress(portForward, connConfig.ProxyAddress)
+	if err != nil {
+		return nil, err
+	}
+	clapiClient, err := clapiclient.NewClient(proxyAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -57,13 +63,15 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	sbMgr := &sandboxManager{
 		log:          log,
 		apiPort:      cfg.ConnectInvocationConfig.APIPort,
+		proxyAddress: proxyAddress,
 		grpcServer:   grpcServer,
 		connConfig:   connConfig,
+		portForward:  portForward,
 		localdConfig: cfg,
 	}
 
-	sbmSrv := newSandboxManagerGRPCServer(portForward, cfg.ConnectInvocationConfig.ConnectionConfig.ProxyAddress,
-		cfg.API, clapiClient, sbMgr.revtunClient, log)
+	sbmSrv := newSandboxManagerGRPCServer(portForward, connConfig.ProxyAddress,
+		ciConfig.API, clapiClient, sbMgr.revtunClient, log)
 	sandboxmanager.RegisterSandboxManagerAPIServer(grpcServer, sbmSrv)
 
 	return &sandboxManager{
@@ -86,15 +94,22 @@ func (m *sandboxManager) Run() error {
 func (m *sandboxManager) revtunClient() revtun.Client {
 	connConfig := m.localdConfig.ConnectInvocationConfig.ConnectionConfig
 	rtClientConfig := &revtun.ClientConfig{
-		User: connConfig.KubeContext,
+		User:       connConfig.KubeContext,
+		Socks5Addr: m.proxyAddress,
 		ErrFunc: func(e error) {
 			m.log.Error("revtun.errfunc", "error", e)
 		},
 	}
-	switch connConfig.Inbound.Protocol {
+	inboundProto := connectcfg.SSHInboundProtocol
+	if connConfig.Inbound != nil {
+		inboundProto = connConfig.Inbound.Protocol
+	}
+	switch inboundProto {
 	case connectcfg.XAPInboundProtocol:
+		rtClientConfig.Addr = "tunnel-proxy.signadot.svc:7777"
 		return xaprevtun.NewClient(rtClientConfig, "")
 	case connectcfg.SSHInboundProtocol:
+		rtClientConfig.Addr = "tunnel-proxy.signadot.svc:2222"
 		return sshrevtun.NewClient(rtClientConfig, nil)
 	default:
 		// already validated
@@ -103,15 +118,15 @@ func (m *sandboxManager) revtunClient() revtun.Client {
 	return nil
 }
 
-func getClusterAPIClient(pf *portforward.PortForward, proxyAddress string) (clapiclient.Client, error) {
+func getProxyAddress(pf *portforward.PortForward, proxyAddress string) (string, error) {
 	if pf == nil {
-		return clapiclient.NewClient(proxyAddress)
+		return proxyAddress, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	st, err := pf.WaitHealthy(ctx)
 	if err != nil || st.LocalPort == nil {
-		return nil, fmt.Errorf("error getting tunnel api client: %w: portforward not ready in time", err)
+		return "", fmt.Errorf("error getting tunnel api client: %w: portforward not ready in time", err)
 	}
-	return clapiclient.NewClient(fmt.Sprintf(":%d", *st.LocalPort))
+	return fmt.Sprintf("localhost:%d", *st.LocalPort), nil
 }

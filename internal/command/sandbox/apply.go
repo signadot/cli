@@ -1,11 +1,14 @@
 package sandbox
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/signadot/cli/internal/config"
+	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
@@ -25,9 +28,7 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
-
 	cfg.AddFlags(cmd)
-
 	return cmd
 }
 
@@ -43,13 +44,25 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		return err
 	}
 
-	params := sandboxes.NewApplySandboxParams().
-		WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
-	result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)
-	if err != nil {
-		return err
+	// TODO test if local is up
+	var resp *models.Sandbox
+	if true {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		resp, err = sbmgr.Apply(ctx, cfg.Org, req.Name, req.Spec)
+		if err != nil {
+			return err
+		}
+
+	} else {
+		params := sandboxes.NewApplySandboxParams().
+			WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
+		result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)
+		if err != nil {
+			return err
+		}
+		resp = result.Payload
 	}
-	resp := result.Payload
 
 	fmt.Fprintf(log, "Created sandbox %q (routing key: %s) in cluster %q.\n\n",
 		req.Name, resp.RoutingKey, *req.Spec.Cluster)

@@ -29,6 +29,7 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 		ciBytes []byte
 		err     error
 	)
+
 	if ld.ConnectInvocationConfigFile != "" {
 		ciBytes, err = os.ReadFile(ld.ConnectInvocationConfigFile)
 		if err != nil {
@@ -42,6 +43,9 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 	}
 	ciConfig := &ConnectInvocationConfig{}
 	if err := json.Unmarshal(ciBytes, ciConfig); err != nil {
+		return err
+	}
+	if err := ciConfig.API.InitAPIConfig(); err != nil {
 		return err
 	}
 	ld.ConnectInvocationConfig = ciConfig
