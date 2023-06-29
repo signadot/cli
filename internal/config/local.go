@@ -2,10 +2,12 @@ package config
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"sigs.k8s.io/yaml"
 )
 
 type Local struct {
@@ -20,14 +22,17 @@ func (l *Local) InitLocalConfig() error {
 		return err
 	}
 
-	// TODO:
-	// viper fails to unmarshal the ConnectionConfig.Type
-
 	type Tmp struct {
 		Local *config.Config `json:"local"`
 	}
 	localConfig := &Tmp{}
-	viper.Unmarshal(localConfig)
+	d, e := os.ReadFile(viper.ConfigFileUsed())
+	if e != nil {
+		return e
+	}
+	if e := yaml.Unmarshal(d, localConfig); e != nil {
+		return e
+	}
 	if localConfig.Local == nil {
 		return fmt.Errorf("no local section in %s", viper.ConfigFileUsed())
 	}
