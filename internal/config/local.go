@@ -20,6 +20,9 @@ func (l *Local) InitLocalConfig() error {
 		return err
 	}
 
+	// TODO:
+	// viper fails to unmarshal the ConnectionConfig.Type
+
 	type Tmp struct {
 		Local *config.Config `json:"local"`
 	}

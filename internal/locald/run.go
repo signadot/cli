@@ -27,7 +27,10 @@ func RunAsRoot(cfg *config.LocalDaemon, args []string) error {
 		return fmt.Errorf("must run as root without --sandbox-manager=true")
 	}
 	ctx := context.Background()
-	rootMgr, err := rootmanager.NewRootManager(cfg, args)
+	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	rootMgr, err := rootmanager.NewRootManager(cfg, args, log)
 	if err != nil {
 		return err
 	}
