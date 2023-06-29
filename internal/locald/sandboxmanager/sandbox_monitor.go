@@ -39,7 +39,7 @@ func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Cli
 		locals:       make(map[string]*models.Local),
 		revtuns:      make(map[string]*rt),
 	}
-	res.monitor()
+	go res.monitor()
 	return res
 }
 
@@ -65,48 +65,56 @@ func (sbm *sbMonitor) monitor() {
 			continue
 		}
 		sbm.log.Debug("successfully got sandbox watch client")
-		for {
-			sbStatus, err := sbwClient.Recv()
-			if err == nil {
-				sbm.setStatus(sbStatus)
-				continue
-			}
-			var (
-				st *status.Status
-				ok bool
-			)
-			if st, ok = status.FromError(err); !ok {
-				sbm.log.Error("sandbox monitor grpc stream error: no status",
-					"error", err)
-				break
-			}
-			switch st.Code() {
-			case codes.OK:
-				sbm.setStatus(sbStatus)
-				continue
-			case codes.Internal:
-				sbm.log.Error("sandbox watch: internal grpc error",
-					"error", err)
-
-			case codes.NotFound:
-				sbm.log.Info("sandbox watch: sandbox not found")
-				break
-			default:
-				sbm.log.Error("sandbox watch error", "error", err)
-				break
-			}
-			sbm.log.Error("sandbox watch client error (non-grpc-status-error)",
-				"error", err)
-			// TODO deal with
-			// rpc error: code = Internal desc = stream terminated by RST_STREAM with error code: NO_ERROR
+		err = sbm.readStream(sbwClient)
+		if err == nil {
+			// NotFound
 			break
-
 		}
-		// we're done, clean up revtuns and parent delete func
-		sbm.delFn()
-		sbm.reconcileLocals(nil)
-		sbm.setStatus(&clapi.WatchSandboxStatus{})
 	}
+	// we're done, clean up revtuns and parent delete func
+	sbm.reconcileLocals(nil)
+	sbm.reconcileStatus(&clapi.WatchSandboxStatus{})
+	sbm.delFn()
+}
+
+func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) error {
+	var (
+		ok         bool
+		err        error
+		sbStatus   *clapi.WatchSandboxStatus
+		grpcStatus *status.Status
+	)
+	for {
+		sbStatus, err = sbwClient.Recv()
+		if err == nil {
+			sbm.reconcileStatus(sbStatus)
+			continue
+		}
+		if grpcStatus, ok = status.FromError(err); !ok {
+			sbm.log.Error("sandbox monitor grpc stream error: no status",
+				"error", err)
+			break
+		}
+		switch grpcStatus.Code() {
+		case codes.OK:
+			sbm.log.Debug("sandbox watch stream error code is ok")
+			sbm.reconcileStatus(sbStatus)
+			continue
+		case codes.Internal:
+			sbm.log.Error("sandbox watch: internal grpc error",
+				"error", err)
+		case codes.NotFound:
+			sbm.log.Info("sandbox watch: sandbox not found")
+			err = nil
+		default:
+			sbm.log.Error("sandbox watch error", "error", err)
+		}
+		// TODO deal with
+		// rpc error: code = Internal desc = stream terminated by RST_STREAM with error code: NO_ERROR
+		break
+
+	}
+	return err
 }
 
 func (sbm *sbMonitor) reconcileLocals(locals []*models.Local) {
@@ -132,17 +140,16 @@ func (sbm *sbMonitor) reconcileLocals(locals []*models.Local) {
 			continue
 		}
 		sbm.locals[localName] = local
-		// TODO create revtun
 		rt, err := newXWRevtun(sbm.log.With("local", localName),
 			sbm.revtunClient, localName, sbm.routingKey, local)
 		if err != nil {
+			panic(err)
 		}
 		sbm.revtuns[localName] = rt
-
 	}
 }
 
-func (sbm *sbMonitor) setStatus(st *clapi.WatchSandboxStatus) {
+func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 	sbm.Lock()
 	defer sbm.Unlock()
 	sbm.status = st
@@ -152,9 +159,23 @@ func (sbm *sbMonitor) setStatus(st *clapi.WatchSandboxStatus) {
 	for _, xw := range st.ExternalWorkloads {
 		statusXWs[xw.Name] = xw
 	}
+	sbm.log.Debug("sbm setting watch status", "status", st)
 	for xwName, sxw := range statusXWs {
-		_, has := sbm.revtuns[xwName]
+		rt, has := sbm.revtuns[xwName]
 		if has {
+			sbm.log.Debug("reconcile status: checking closed")
+			select {
+			case <-rt.rtClosed:
+				has = false
+				delete(sbm.revtuns, xwName)
+			case <-rt.rtToClose:
+				has = false
+				delete(sbm.revtuns, xwName)
+			default:
+			}
+		}
+		if has {
+			sbm.log.Debug("has and not closed, assuming healthy")
 			continue
 		}
 		local := sbm.locals[xwName]
@@ -179,6 +200,7 @@ func (sbm *sbMonitor) setStatus(st *clapi.WatchSandboxStatus) {
 		select {
 		case <-xw.rtToClose:
 		default:
+			sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
 			close(xw.rtToClose)
 		}
 	}

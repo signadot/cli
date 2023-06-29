@@ -61,7 +61,7 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 
 	grpcServer := grpc.NewServer()
 	sbMgr := &sandboxManager{
-		log:          log,
+		log:          log.With("locald-component", "sandbox-manager"),
 		apiPort:      cfg.ConnectInvocationConfig.APIPort,
 		proxyAddress: proxyAddress,
 		grpcServer:   grpcServer,

@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
@@ -24,7 +26,13 @@ func (l *Local) InitLocalConfig() error {
 		Local *config.Config `json:"local"`
 	}
 	localConfig := &Tmp{}
-	viper.Unmarshal(localConfig)
+	d, e := os.ReadFile(l.ConfigFile)
+	if e != nil {
+		return e
+	}
+	if e := json.Unmarshal(d, localConfig); e != nil {
+		return e
+	}
 	if localConfig.Local == nil {
 		return fmt.Errorf("no local section in %s", viper.ConfigFileUsed())
 	}

@@ -43,7 +43,7 @@ func NewRootManager(cfg *config.LocalDaemon, args []string) (*rootManager, error
 	}))
 
 	return &rootManager{
-		log:        log,
+		log:        log.With("locald-component", "root-manager"),
 		conf:       cfg.ConnectInvocationConfig,
 		userInfo:   userInfo,
 		grpcServer: grpcServer,
