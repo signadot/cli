@@ -2,8 +2,6 @@ package sandboxmanager
 
 import (
 	"context"
-	"errors"
-	"io"
 	"sync"
 	"time"
 
@@ -66,6 +64,7 @@ func (sbm *sbMonitor) monitor() {
 			<-time.After(3 * time.Second)
 			continue
 		}
+		sbm.log.Debug("successfully got sandbox watch client")
 		for {
 			sbStatus, err := sbwClient.Recv()
 			if err == nil {
@@ -78,7 +77,6 @@ func (sbm *sbMonitor) monitor() {
 			)
 			if st, ok = status.FromError(err); !ok {
 				sbm.log.Error("sandbox monitor grpc stream error: no status",
-					"routing-key", sbm.routingKey,
 					"error", err)
 				break
 			}
@@ -88,25 +86,23 @@ func (sbm *sbMonitor) monitor() {
 				continue
 			case codes.Internal:
 				sbm.log.Error("sandbox watch: internal grpc error",
-					"routing-key", sbm.routingKey,
 					"error", err)
 
 			case codes.NotFound:
-				sbm.log.Info("sandbox watch: sandbox not found", "routing-key", sbm.routingKey)
+				sbm.log.Info("sandbox watch: sandbox not found")
+				break
+			default:
+				sbm.log.Error("sandbox watch error", "error", err)
 				break
 			}
-
-			if errors.Is(err, io.EOF) {
-				sbm.log.Debug("sandbox monitor eof",
-					"routing-key", sbm.routingKey)
-				break
-			}
+			sbm.log.Error("sandbox watch client error (non-grpc-status-error)",
+				"error", err)
 			// TODO deal with
 			// rpc error: code = Internal desc = stream terminated by RST_STREAM with error code: NO_ERROR
 			break
 
 		}
-		// we're done, clean up revtuns
+		// we're done, clean up revtuns and parent delete func
 		sbm.delFn()
 		sbm.reconcileLocals(nil)
 		sbm.setStatus(&clapi.WatchSandboxStatus{})
@@ -137,7 +133,12 @@ func (sbm *sbMonitor) reconcileLocals(locals []*models.Local) {
 		}
 		sbm.locals[localName] = local
 		// TODO create revtun
-		sbm.revtuns[localName] = nil
+		rt, err := newXWRevtun(sbm.log.With("local", localName),
+			sbm.revtunClient, localName, sbm.routingKey, local)
+		if err != nil {
+		}
+		sbm.revtuns[localName] = rt
+
 	}
 }
 

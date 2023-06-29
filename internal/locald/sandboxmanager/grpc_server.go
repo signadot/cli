@@ -113,7 +113,7 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 		s.sbMu.Lock()
 		defer s.sbMu.Unlock()
 		delete(s.sbMonitors, sb.Name)
-	}, s.log)
+	}, s.log.With("sandbox-routing-key", sb.RoutingKey))
 	sbm.reconcileLocals(sb.Spec.Local)
 	s.sbMonitors[sb.Name] = sbm
 }

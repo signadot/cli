@@ -46,7 +46,7 @@ func newXWRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *mo
 		)
 	}
 	res := &rt{
-		log:       log.With("sandbox", rk, "local", name),
+		log:       log,
 		localName: name,
 		rtClient:  rtc,
 		rtConfig:  rtConfig,
@@ -84,7 +84,7 @@ func kindToRemoteURLTLD(kind *string) (string, error) {
 		return "svc", nil
 	}
 	switch *kind {
-	case "Deploy":
+	case "Deployment":
 		return "deploy", nil
 	case "Rollout":
 		return "rollout", nil
