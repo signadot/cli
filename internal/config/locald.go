@@ -49,12 +49,12 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 
 }
 
-// ConnectInvocationConfig is the config for locald as computed
-// by `signadot local connect` when `signadot local connect`
-// is called.  This prevents racy behavior when the config file
-// is edited and facilitates wrapping everything that needs to be
-// passed in a json so we can evolve what needs to be passed
-// without plumbing the command line
+// ConnectInvocationConfig is the config for locald as computed by `signadot
+// local connect` when `signadot local connect` is called.  This prevents racy
+// behavior when the config file is edited, allows config to be computed by
+// non-root user and used subsequently by root, and facilitates wrapping
+// everything that needs to be passed in a json so we can evolve what needs to
+// be passed without plumbing the command line
 type ConnectInvocationConfig struct {
 	Unpriveleged     bool                         `json:"unpriveleged"`
 	Cluster          string                       `json:"cluster"`
@@ -62,6 +62,8 @@ type ConnectInvocationConfig struct {
 	LocalNetPort     uint16                       `json:"localNetPort"`
 	SignadotDir      string                       `json:"signadotDir"`
 	UID              int                          `json:"uid"`
+	UIDHome          string                       `json:"uidHome"`
+	UIDPath          string                       `json:"uidPath"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	API              *API                         `json:"api"`
 }

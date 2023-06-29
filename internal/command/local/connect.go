@@ -60,6 +60,11 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 		return err
 	}
 
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
 	// Set KubeConfigPath if not defined
 	if connConfig.KubeConfigPath == nil {
 		kcp := connConfig.GetKubeConfigPath()
@@ -74,6 +79,8 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 		LocalNetPort:     6667,
 		Cluster:          cfg.Cluster,
 		UID:              os.Geteuid(),
+		UIDHome:          homeDir,
+		UIDPath:          os.Getenv("PATH"),
 		API:              cfg.API,
 		ConnectionConfig: connConfig,
 	}
@@ -111,11 +118,15 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 				)
 			} else {
 				cmdToRun = exec.Command(os.Args[0], "locald")
+				cmdToRun.Env = append(cmdToRun.Env,
+					fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
+					fmt.Sprintf("PATH=%s", ciConfig.UIDPath))
 			}
 			cmdToRun.SysProcAttr = &syscall.SysProcAttr{
 				Setsid: true,
 			}
-			cmdToRun.Env = append(cmdToRun.Env, fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)))
+			cmdToRun.Env = append(cmdToRun.Env,
+				fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)))
 			cmdToRun.Stderr = os.Stderr
 			cmdToRun.Stdout = os.Stdout
 			cmdToRun.Stdin = os.Stdin

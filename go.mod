@@ -10,7 +10,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/signadot/go-sdk v0.3.7
-	github.com/signadot/libconnect v0.1.1-0.20230627071419-87ef8ba7b32c
+	github.com/signadot/libconnect v0.1.1-0.20230628123132-63f40b39258f
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12

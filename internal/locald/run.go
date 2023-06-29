@@ -8,10 +8,14 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald/rootmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"golang.org/x/exp/slog"
 )
 
 func RunSandboxManager(cfg *config.LocalDaemon, args []string) error {
-	sbMgr, err := sbmgr.NewSandboxManager(cfg, args)
+	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log)
 	if err != nil {
 		return err
 	}
