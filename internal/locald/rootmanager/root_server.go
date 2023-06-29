@@ -17,6 +17,7 @@ type rootServer struct {
 	mu          sync.RWMutex
 	localnetSVC *localnet.Service
 	etcHostsSVC *etchosts.EtcHosts
+	shutdownCh  chan struct{}
 }
 
 var _ rootapi.RootManagerAPIServer = &rootServer{}
@@ -81,6 +82,15 @@ func (s *rootServer) Status(ctx context.Context, req *rootapi.StatusRequest) (*r
 		Hosts:    etcHostsSt,
 	}
 	return resp, nil
+}
+
+func (s *rootServer) Shutdown(ctx context.Context, req *rootapi.ShutdownRequest) (*rootapi.ShutdownResponse, error) {
+	select {
+	case <-s.shutdownCh:
+	default:
+		close(s.shutdownCh)
+	}
+	return &rootapi.ShutdownResponse{}, nil
 }
 
 func (s *rootServer) setLocalnetService(localnetSVC *localnet.Service) {

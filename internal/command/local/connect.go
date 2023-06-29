@@ -9,12 +9,16 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/signadot/cli/internal/config"
+	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slog"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func newConnect(localConfig *config.Local) *cobra.Command {
@@ -131,6 +135,32 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 			cmdToRun.Stdout = os.Stdout
 			cmdToRun.Stdin = os.Stdin
 			return cmdToRun
+		},
+		Shutdown: func(process *os.Process, runningCh chan struct{}) error {
+			// Establish a connection with root manager
+			grpcConn, err := grpc.Dial("127.0.0.1:6667", grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				return fmt.Errorf("couldn't connect root api, %v", err)
+			}
+			defer grpcConn.Close()
+
+			// Send the shutdown order
+			rootclient := rootapi.NewRootManagerAPIClient(grpcConn)
+			if _, err = rootclient.Shutdown(ctx, &rootapi.ShutdownRequest{}); err != nil {
+				return fmt.Errorf("error requesting shutdown in root api, %v", err)
+			}
+
+			// Wait until shutdown
+			select {
+			case <-runningCh:
+			case <-time.After(5 * time.Second):
+				// Kill the process and wait until it's gone
+				if err := process.Kill(); err != nil {
+					return fmt.Errorf("failed to kill process: %w ", err)
+				}
+				<-runningCh
+			}
+			return nil
 		},
 		PIDFile: pidFile,
 	})
