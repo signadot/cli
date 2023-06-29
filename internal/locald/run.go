@@ -15,7 +15,7 @@ func RunSandboxManager(cfg *config.LocalDaemon, args []string) error {
 	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
-	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log)
+	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log.With("locald-component", "sandbox-manager"))
 	if err != nil {
 		return err
 	}

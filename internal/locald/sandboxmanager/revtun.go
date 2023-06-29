@@ -37,9 +37,9 @@ func newXWRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *mo
 		rtConfig.Forwards = append(rtConfig.Forwards,
 			rtproto.Forward{
 				LocalURL: fmt.Sprintf("tcp://%s", pm.ToLocal),
-				RemoteURL: fmt.Sprintf("tcp://%s.%s.%s:%d",
-					local.From.Name,
-					local.From.Namespace,
+				RemoteURL: fmt.Sprintf("tcp://%s.%s.%s:%s",
+					*local.From.Name,
+					*local.From.Namespace,
 					kind,
 					pm.Port),
 			},
@@ -68,11 +68,12 @@ func (t *rt) monitor() {
 			<-time.After(time.Second)
 			continue
 		}
-		t.log.Info("reverse tunnel is setup")
+		t.log.Info("reverse tunnel is setup", "config", t.rtConfig)
 		select {
 		case <-t.rtClosed:
 			t.log.Info("closed, retrying")
 		case <-t.rtToClose:
+			t.log.Debug("closing reverse tunnel", "config", t.rtConfig)
 			t.rtCloser.Close()
 			return
 		}

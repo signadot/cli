@@ -58,8 +58,6 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandbox
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable create go-sdk sandbox spec: %s", err.Error())
 	}
-	s.log.Debug(fmt.Sprintf("req.SandboxSpec %v", req.SandboxSpec))
-	s.log.Debug(fmt.Sprintf("sbSpec %v", sbSpec))
 	sb := &models.Sandbox{
 		Spec: sbSpec,
 	}
