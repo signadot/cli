@@ -24,7 +24,7 @@ func RunSandboxManager(cfg *config.LocalDaemon, args []string) error {
 
 func RunAsRoot(cfg *config.LocalDaemon, args []string) error {
 	if os.Geteuid() != 0 {
-		return fmt.Errorf("must run as root without --sandbox-manager=true")
+		return fmt.Errorf("must run as root without --unpriveleged")
 	}
 	ctx := context.Background()
 	rootMgr, err := rootmanager.NewRootManager(cfg, args)

@@ -15,6 +15,9 @@ import (
 	clapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/portforward"
 	connectcfg "github.com/signadot/libconnect/config"
+	"github.com/signadot/libconnect/revtun"
+	"github.com/signadot/libconnect/revtun/sshrevtun"
+	"github.com/signadot/libconnect/revtun/xaprevtun"
 )
 
 type sandboxManager struct {
@@ -50,9 +53,17 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	}
 	log.Debug("got cluster api client")
 
-	sbmSrv := newSBMServer(portForward, cfg.ConnectInvocationConfig.ConnectionConfig.ProxyAddress,
-		cfg.API, clapiClient, log)
 	grpcServer := grpc.NewServer()
+	sbMgr := &sandboxManager{
+		log:          log,
+		apiPort:      cfg.ConnectInvocationConfig.APIPort,
+		grpcServer:   grpcServer,
+		connConfig:   connConfig,
+		localdConfig: cfg,
+	}
+
+	sbmSrv := newSandboxManagerGRPCServer(portForward, cfg.ConnectInvocationConfig.ConnectionConfig.ProxyAddress,
+		cfg.API, clapiClient, sbMgr.revtunClient, log)
 	sandboxmanager.RegisterSandboxManagerAPIServer(grpcServer, sbmSrv)
 
 	return &sandboxManager{
@@ -70,6 +81,26 @@ func (m *sandboxManager) Run() error {
 		return err
 	}
 	return m.grpcServer.Serve(ln)
+}
+
+func (m *sandboxManager) revtunClient() revtun.Client {
+	connConfig := m.localdConfig.ConnectInvocationConfig.ConnectionConfig
+	rtClientConfig := &revtun.ClientConfig{
+		User: connConfig.KubeContext,
+		ErrFunc: func(e error) {
+			m.log.Error("revtun.errfunc", "error", e)
+		},
+	}
+	switch connConfig.Inbound.Protocol {
+	case connectcfg.XAPInboundProtocol:
+		return xaprevtun.NewClient(rtClientConfig, "")
+	case connectcfg.SSHInboundProtocol:
+		return sshrevtun.NewClient(rtClientConfig, nil)
+	default:
+		// already validated
+		panic(fmt.Errorf("invalid inbound protocol: %s", connConfig.Inbound.Protocol))
+	}
+	return nil
 }
 
 func getClusterAPIClient(pf *portforward.PortForward, proxyAddress string) (clapiclient.Client, error) {

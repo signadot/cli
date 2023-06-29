@@ -3,18 +3,19 @@ module github.com/signadot/cli
 go 1.19
 
 require (
-	github.com/docker/go-units v0.4.0
-	github.com/go-openapi/runtime v0.25.0
-	github.com/go-openapi/strfmt v0.21.5
+	github.com/docker/go-units v0.5.0
+	github.com/go-openapi/runtime v0.26.0
+	github.com/go-openapi/strfmt v0.21.7
 	github.com/goccy/go-yaml v1.10.0
 	github.com/golang/protobuf v1.5.3
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
-	github.com/signadot/go-sdk v0.3.7
+	github.com/signadot/go-sdk v0.3.8-0.20230629093216-a080b761faca
 	github.com/signadot/libconnect v0.1.1-0.20230628123132-63f40b39258f
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
+	golang.org/x/net v0.10.0
 	golang.org/x/term v0.9.0
 	google.golang.org/grpc v1.56.0
 	google.golang.org/protobuf v1.30.0
@@ -28,15 +29,15 @@ require (
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
+	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
-	github.com/go-openapi/errors v0.20.3 // indirect
+	github.com/go-openapi/errors v0.20.4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/loads v0.21.2 // indirect
-	github.com/go-openapi/spec v0.20.8 // indirect
-	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-openapi/spec v0.20.9 // indirect
+	github.com/go-openapi/swag v0.22.4 // indirect
 	github.com/go-openapi/validate v0.22.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
@@ -70,10 +71,11 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
-	go.mongodb.org/mongo-driver v1.11.3 // indirect
-	go.opentelemetry.io/otel v1.14.0 // indirect
-	go.opentelemetry.io/otel/trace v1.14.0 // indirect
-	golang.org/x/net v0.10.0 // indirect
+	go.mongodb.org/mongo-driver v1.12.0 // indirect
+	go.opentelemetry.io/otel v1.16.0 // indirect
+	go.opentelemetry.io/otel/metric v1.16.0 // indirect
+	go.opentelemetry.io/otel/trace v1.16.0 // indirect
+	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/text v0.10.0 // indirect

@@ -12,12 +12,13 @@ import (
 	"github.com/signadot/go-sdk/models"
 	clapi "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/portforward"
+	"github.com/signadot/libconnect/revtun"
 	"golang.org/x/exp/slog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type sbmServer struct {
+type grpcServer struct {
 	sbmgrpc.UnimplementedSandboxManagerAPIServer
 
 	log *slog.Logger
@@ -31,26 +32,28 @@ type sbmServer struct {
 	clusterProxyAddr string
 
 	// sandboxes
-	sbMu        sync.Mutex
-	clAPIClient clapi.Client
-	sbMonitors  map[string]*sbMonitor
+	sbMu             sync.Mutex
+	clAPIClient      clapi.Client
+	sbMonitors       map[string]*sbMonitor
+	revtunClientFunc func() revtun.Client
 
 	// rootmanager statuses
 }
 
-func newSBMServer(pf *portforward.PortForward, clProxyAddr string, apiConfig *cliconfig.API, clAPIClient clapi.Client, log *slog.Logger) *sbmServer {
-	srv := &sbmServer{
+func newSandboxManagerGRPCServer(pf *portforward.PortForward, clProxyAddr string, apiConfig *cliconfig.API, clAPIClient clapi.Client, rtClientFunc func() revtun.Client, log *slog.Logger) *grpcServer {
+	srv := &grpcServer{
 		log:              log,
 		apiConfig:        apiConfig,
 		portForward:      pf,
 		clusterProxyAddr: clProxyAddr,
 		sbMonitors:       make(map[string]*sbMonitor),
 		clAPIClient:      clAPIClient,
+		revtunClientFunc: rtClientFunc,
 	}
 	return srv
 }
 
-func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandboxRequest) (*sbmgrpc.ApplySandboxResponse, error) {
+func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandboxRequest) (*sbmgrpc.ApplySandboxResponse, error) {
 	sbSpec, err := sbmgrpc.ToModelsSandboxSpec(req.SandboxSpec)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable create go-sdk sandbox spec: %s", err.Error())
@@ -95,31 +98,32 @@ func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandboxR
 	return resp, nil
 }
 
-func (s *sbmServer) registerSandbox(sb *models.Sandbox) {
+func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 	s.sbMu.Lock()
 	defer s.sbMu.Unlock()
-	_, present := s.sbMonitors[sb.Name]
+	sbm, present := s.sbMonitors[sb.Name]
 	if present {
+		// resolve locals
+		sbm.reconcileLocals(sb.Spec.Local)
 		return
 	}
-	sbm := newSBMonitor(sb.RoutingKey, s.clAPIClient, func() {
+	sbm = newSBMonitor(sb.RoutingKey, s.clAPIClient, s.revtunClientFunc, func() {
 		s.sbMu.Lock()
 		defer s.sbMu.Unlock()
 		delete(s.sbMonitors, sb.Name)
 	}, s.log)
+	sbm.reconcileLocals(sb.Spec.Local)
 	s.sbMonitors[sb.Name] = sbm
-	// TODO add local workloads to sbm so we know how to
-	// connect revtuns
 }
 
-func (s *sbmServer) Status(ctx context.Context, req *sbmgrpc.StatusRequest) (*sbmgrpc.StatusResponse, error) {
+func (s *grpcServer) Status(ctx context.Context, req *sbmgrpc.StatusRequest) (*sbmgrpc.StatusResponse, error) {
 	resp := &sbmgrpc.StatusResponse{}
 	resp.Portfoward = s.portforwardStatus()
 	resp.Sandboxes = s.sbStatuses()
 	return resp, nil
 }
 
-func (s *sbmServer) portforwardStatus() *commonapi.PortForwardStatus {
+func (s *grpcServer) portforwardStatus() *commonapi.PortForwardStatus {
 	grpcPFStatus := &commonapi.PortForwardStatus{}
 	if s.portForward == nil {
 		return grpcPFStatus
@@ -132,7 +136,7 @@ func (s *sbmServer) portforwardStatus() *commonapi.PortForwardStatus {
 	return grpcPFStatus
 }
 
-func (s *sbmServer) sbStatuses() []*commonapi.SandboxStatus {
+func (s *grpcServer) sbStatuses() []*commonapi.SandboxStatus {
 	s.sbMu.Lock()
 	defer s.sbMu.Unlock()
 	res := make([]*commonapi.SandboxStatus, 0, len(s.sbMonitors))
