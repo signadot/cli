@@ -13,14 +13,15 @@ import (
 )
 
 type rt struct {
-	log       *slog.Logger
-	localName string
-	rtClient  revtun.Client
-	rtConfig  *rtproto.Config
-	rtCloser  io.Closer
-	rtClosed  <-chan struct{}
-	rtToClose chan struct{}
-	rtErr     error
+	log                     *slog.Logger
+	localName               string
+	clusterNotConnectedTime *time.Time
+	rtClient                revtun.Client
+	rtConfig                *rtproto.Config
+	rtCloser                io.Closer
+	rtClosed                <-chan struct{}
+	rtToClose               chan struct{}
+	rtErr                   error
 }
 
 func newRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *models.Local) (*rt, error) {

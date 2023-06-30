@@ -175,6 +175,23 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 			}
 		}
 		if has {
+			if !sxw.Connected {
+				now := time.Now()
+				if rt.clusterNotConnectedTime == nil {
+					rt.clusterNotConnectedTime = &now
+				}
+				if time.Since(*rt.clusterNotConnectedTime) > 10*time.Second {
+					has = false
+					select {
+					case <-rt.rtToClose:
+					default:
+						close(rt.rtToClose)
+					}
+					delete(sbm.revtuns, xwName)
+				}
+			}
+		}
+		if has {
 			continue
 		}
 		local := sbm.locals[xwName]
