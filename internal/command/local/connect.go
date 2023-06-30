@@ -139,6 +139,11 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 			return cmdToRun
 		},
 		Shutdown: func(process *os.Process, runningCh chan struct{}) error {
+			if cfg.Unpriveleged {
+				return nil
+			}
+			log.Debug("local connect shutdown")
+
 			// Establish a connection with root manager
 			grpcConn, err := grpc.Dial("127.0.0.1:6667", grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if err != nil {
@@ -175,10 +180,5 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
 
-	if cfg.Unpriveleged {
-		return proc.Stop()
-	}
-	// else we don't have permissions, at least on Mac
-	// TODO ping shutdown endpoint
-	return nil
+	return proc.Stop()
 }
