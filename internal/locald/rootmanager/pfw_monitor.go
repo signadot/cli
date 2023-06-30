@@ -21,8 +21,7 @@ type pfwMonitor struct {
 	root           *rootManager
 	sbManagerAddr  string
 	portfowardAddr string
-	grpcConn       *grpc.ClientConn
-	sbclient       sbmanagerapi.SandboxManagerAPIClient
+	sbClient       sbmanagerapi.SandboxManagerAPIClient
 	closeCh        chan struct{}
 }
 
@@ -69,20 +68,19 @@ func (mon *pfwMonitor) run(ctx context.Context) {
 }
 
 func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
-	if mon.grpcConn == nil {
+	if mon.sbClient == nil {
 		// Establish the connection if needed
 		grpcConn, err := grpc.Dial(mon.sbManagerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			mon.log.Warn("couldn't connect with sandbox manager", "error", err)
 			return false
 		}
-		mon.grpcConn = grpcConn
-		mon.sbclient = sbmanagerapi.NewSandboxManagerAPIClient(grpcConn)
+		mon.sbClient = sbmanagerapi.NewSandboxManagerAPIClient(grpcConn)
 	}
 	mon.log.Debug("connected to sandbox manager")
 
 	// Get the sandbox manager status
-	status, err := mon.sbclient.Status(ctx, &sbmanagerapi.StatusRequest{})
+	status, err := mon.sbClient.Status(ctx, &sbmanagerapi.StatusRequest{})
 	if err != nil {
 		mon.log.Warn("couldn't get status from sandbox manager", "error", err)
 		return false
