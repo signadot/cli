@@ -13,8 +13,9 @@ import (
 )
 
 type rt struct {
-	log                     *slog.Logger
-	localName               string
+	log       *slog.Logger
+	localName string
+	// NB used exclusively by sanbox monitor => no races
 	clusterNotConnectedTime *time.Time
 	rtClient                revtun.Client
 	rtConfig                *rtproto.Config

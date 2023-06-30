@@ -4,22 +4,26 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	cliconfig "github.com/signadot/cli/internal/config"
 	commonapi "github.com/signadot/cli/internal/locald/api"
-	sbmgrpc "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
+	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	clapi "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/portforward"
 	"github.com/signadot/libconnect/revtun"
 	"golang.org/x/exp/slog"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
 type grpcServer struct {
-	sbmgrpc.UnimplementedSandboxManagerAPIServer
+	sbapi.UnimplementedSandboxManagerAPIServer
 
 	log *slog.Logger
 
@@ -38,6 +42,8 @@ type grpcServer struct {
 	revtunClientFunc func() revtun.Client
 
 	// rootmanager statuses
+	rootMu     sync.Mutex
+	rootClient rootapi.RootManagerAPIClient
 }
 
 func newSandboxManagerGRPCServer(pf *portforward.PortForward, clProxyAddr string, apiConfig *cliconfig.API, clAPIClient clapi.Client, rtClientFunc func() revtun.Client, log *slog.Logger) *grpcServer {
@@ -53,8 +59,8 @@ func newSandboxManagerGRPCServer(pf *portforward.PortForward, clProxyAddr string
 	return srv
 }
 
-func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandboxRequest) (*sbmgrpc.ApplySandboxResponse, error) {
-	sbSpec, err := sbmgrpc.ToModelsSandboxSpec(req.SandboxSpec)
+func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
+	sbSpec, err := sbapi.ToModelsSandboxSpec(req.SandboxSpec)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable create go-sdk sandbox spec: %s", err.Error())
 	}
@@ -90,11 +96,11 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandbox
 	s.registerSandbox(result.Payload)
 
 	// construct response
-	grpcSandbox, err := sbmgrpc.ToGRPCSandbox(result.Payload)
+	grpcSandbox, err := sbapi.ToGRPCSandbox(result.Payload)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create grpc sandbox: %s", err.Error())
 	}
-	resp := &sbmgrpc.ApplySandboxResponse{}
+	resp := &sbapi.ApplySandboxResponse{}
 	resp.Sandbox = grpcSandbox
 	return resp, nil
 }
@@ -117,11 +123,49 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 	s.sbMonitors[sb.Name] = sbm
 }
 
-func (s *grpcServer) Status(ctx context.Context, req *sbmgrpc.StatusRequest) (*sbmgrpc.StatusResponse, error) {
-	resp := &sbmgrpc.StatusResponse{}
+func (s *grpcServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
+	resp := &sbapi.StatusResponse{}
 	resp.Portfoward = s.portforwardStatus()
 	resp.Sandboxes = s.sbStatuses()
+	resp.Hosts, resp.Localnet = s.rootStatus()
 	return resp, nil
+}
+
+func (s *grpcServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
+	rootClient := s.getRootClient()
+	if rootClient == nil {
+		s.log.Debug("no root client available for rootStatus()")
+		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}
+	}
+	req := &rootapi.StatusRequest{}
+	ctx, cancel := context.WithTimeout(context.Background(),
+		3*time.Second)
+	defer cancel()
+	resp, err := rootClient.Status(ctx, req)
+	if err != nil {
+		s.log.Error("error getting status from root manager", "error", err)
+		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}
+	}
+	return resp.Hosts, resp.Localnet
+}
+
+func (s *grpcServer) getRootClient() rootapi.RootManagerAPIClient {
+	s.rootMu.Lock()
+	defer s.rootMu.Unlock()
+	if s.rootClient != nil {
+		return s.rootClient
+	}
+	grpcConn, err := grpc.Dial(
+		"127.0.0.1:6667",
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	if err != nil {
+		s.log.Debug("couldn't get root client", "error", err)
+		return nil
+	}
+	s.log.Debug("got root client")
+	s.rootClient = rootapi.NewRootManagerAPIClient(grpcConn)
+	return s.rootClient
 }
 
 func (s *grpcServer) portforwardStatus() *commonapi.PortForwardStatus {
