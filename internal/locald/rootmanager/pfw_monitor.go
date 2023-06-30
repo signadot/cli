@@ -79,6 +79,7 @@ func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
 		mon.grpcConn = grpcConn
 		mon.sbclient = sbmanagerapi.NewSandboxManagerAPIClient(grpcConn)
 	}
+	mon.log.Debug("connected to sandbox manager")
 
 	// Get the sandbox manager status
 	status, err := mon.sbclient.Status(ctx, &sbmanagerapi.StatusRequest{})

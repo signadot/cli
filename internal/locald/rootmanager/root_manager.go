@@ -164,7 +164,7 @@ func (m *rootManager) runLocalnetService(ctx context.Context, socks5Addr string)
 		Log:        m.log,
 		User:       user,
 		SOCKS5Addr: socks5Addr,
-		ListenAddr: ":2223",
+		ListenAddr: "127.0.0.1:2223",
 	}, m.conf.ConnectionConfig)
 
 	// Register the localnet service in root api
