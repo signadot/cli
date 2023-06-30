@@ -61,6 +61,7 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbmgrpc.ApplySandbox
 	sb := &models.Sandbox{
 		Spec: sbSpec,
 	}
+	s.log.Debug("api", "config", s.apiConfig)
 	params := sandboxes.NewApplySandboxParams().
 		WithOrgName(s.apiConfig.Org).WithSandboxName(req.Name).WithData(sb)
 	result, err := s.apiConfig.Client.Sandboxes.ApplySandbox(params, nil)

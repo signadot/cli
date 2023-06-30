@@ -87,9 +87,11 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 		UIDHome:          homeDir,
 		UIDPath:          os.Getenv("PATH"),
 		API:              cfg.API,
-		APIKey:           viper.Get("api_key").(string),
+		APIKey:           viper.GetString("api_key"),
 		ConnectionConfig: connConfig,
 	}
+	fmt.Printf("in local connect ciConfig, apikey is %s\n", ciConfig.APIKey)
+	fmt.Printf("in local connect ciConfig, api is %v\n", ciConfig.API)
 	ciBytes, err := json.Marshal(ciConfig)
 	if err != nil {
 		// should be impossible

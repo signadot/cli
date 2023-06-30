@@ -71,6 +71,7 @@ func (sbm *sbMonitor) monitor() {
 			break
 		}
 	}
+	sbm.log.Debug("cleaning up status and locals and parent")
 	// we're done, clean up revtuns and parent delete func
 	sbm.reconcileLocals(nil)
 	sbm.reconcileStatus(&clapi.WatchSandboxStatus{})
@@ -140,7 +141,7 @@ func (sbm *sbMonitor) reconcileLocals(locals []*models.Local) {
 			continue
 		}
 		sbm.locals[localName] = local
-		rt, err := newXWRevtun(sbm.log.With("local", localName),
+		rt, err := newRevtun(sbm.log.With("local", localName),
 			sbm.revtunClient, localName, sbm.routingKey, local)
 		if err != nil {
 			panic(err)
@@ -163,7 +164,6 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 	for xwName, sxw := range statusXWs {
 		rt, has := sbm.revtuns[xwName]
 		if has {
-			sbm.log.Debug("reconcile status: checking closed")
 			select {
 			case <-rt.rtClosed:
 				has = false
@@ -175,7 +175,6 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 			}
 		}
 		if has {
-			sbm.log.Debug("has and not closed, assuming healthy")
 			continue
 		}
 		local := sbm.locals[xwName]
@@ -184,7 +183,7 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 			continue
 		}
 		// create revtun
-		rt, err := newXWRevtun(sbm.log.With("local", sxw.Name),
+		rt, err := newRevtun(sbm.log.With("local", sxw.Name),
 			sbm.revtunClient, sxw.Name, sbm.routingKey, local)
 		if err != nil {
 			sbm.log.Error("error creating revtun", "error", err)

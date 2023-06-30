@@ -46,10 +46,12 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 	if err := json.Unmarshal(ciBytes, ciConfig); err != nil {
 		return err
 	}
+	fmt.Printf("before init locald api in ciConfig: %v\n", ciConfig.API)
 	viper.Set("api_key", ciConfig.APIKey)
-	if err := ciConfig.API.InitAPIConfig(); err != nil {
+	if err := ciConfig.API.InitAPITransport(ciConfig.APIKey); err != nil {
 		return err
 	}
+	fmt.Printf("after init locald api in ciConfig: %v\n", ciConfig.API)
 	ld.ConnectInvocationConfig = ciConfig
 	return nil
 

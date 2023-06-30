@@ -23,7 +23,7 @@ type rt struct {
 	rtErr     error
 }
 
-func newXWRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *models.Local) (*rt, error) {
+func newRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *models.Local) (*rt, error) {
 	rtConfig := &rtproto.Config{
 		SandboxRoutingKey: rk,
 		ExternalWorkload:  name,

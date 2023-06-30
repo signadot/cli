@@ -130,9 +130,9 @@ func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
 			cmdToRun.Stdout = os.Stdout
 			cmdToRun.Stdin = os.Stdin
 			// Prevent signaling the children
-			cmdToRun.SysProcAttr = &syscall.SysProcAttr{
-				Setpgid: true,
-			}
+			//cmdToRun.SysProcAttr = &syscall.SysProcAttr{
+			//	Setpgid: true,
+			//}
 			return cmdToRun
 		},
 		WritePID: func(pidFile string, pid int) error {
