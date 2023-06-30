@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/local"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
@@ -43,10 +45,18 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if err != nil {
 		return err
 	}
+	signadotDir, err := system.GetSignadotDir()
+	if err != nil {
+		return err
+	}
 
 	// TODO test if local is up
 	var resp *models.Sandbox
-	if true {
+	hasLocal, err := local.IsLocked(signadotDir)
+	if err != nil {
+		return err
+	}
+	if hasLocal {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		resp, err = sbmgr.Apply(ctx, cfg.Org, req.Name, req.Spec)

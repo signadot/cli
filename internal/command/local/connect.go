@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/local"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
@@ -45,7 +46,6 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 
 	// TODO:
 	// - define logging
-	// - check if another local connect is already running
 	// - non-interactive mode
 	// - interactive display
 
@@ -62,6 +62,20 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 	}
 	err = system.CreateDirIfNotExist(signadotDir)
 	if err != nil {
+		return err
+	}
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	for i := 0; i < 10; i++ {
+		err := local.Lock(signadotDir)
+		if err == nil {
+			defer func() { local.Unlock(signadotDir) }()
+			break
+		}
+		if cfg.Clobber {
+			local.Unlock(signadotDir)
+			continue
+		}
 		return err
 	}
 
@@ -176,8 +190,6 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 	}
 
 	// Wait until termination
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
 
 	return proc.Stop()

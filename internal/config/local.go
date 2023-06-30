@@ -79,6 +79,7 @@ type LocalConnect struct {
 
 	// Hidden Flags
 	Unpriveleged bool
+	Clobber      bool
 }
 
 func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
@@ -87,6 +88,9 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&c.Unpriveleged, "unpriveleged", false, "run without root priveleges")
 	cmd.Flags().MarkHidden("unpriveleged")
+
+	cmd.Flags().BoolVar(&c.Clobber, "clobber", false, "clobber lock file if needed")
+	cmd.Flags().MarkHidden("clobber")
 }
 
 type LocalDisconnect struct {
