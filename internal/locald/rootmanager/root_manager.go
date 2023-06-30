@@ -93,7 +93,9 @@ func (m *rootManager) Run(ctx context.Context) error {
 	// Clean up
 	m.log.Info("Shutting down")
 	var me *multierror.Error
-	m.pfwMonitor.Stop()
+	if m.pfwMonitor != nil {
+		m.pfwMonitor.Stop()
+	}
 	me = multierror.Append(me, m.stopLocalnetService())
 	me = multierror.Append(me, m.stopEtcHostsService())
 	me = multierror.Append(me, m.sbManager.Stop())
