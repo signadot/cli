@@ -114,6 +114,7 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 		sbm.reconcileLocals(sb.Spec.Local)
 		return
 	}
+	// start watching the sandbox in the cluster
 	sbm = newSBMonitor(sb.RoutingKey, s.clAPIClient, s.revtunClientFunc(), func() {
 		s.sbMu.Lock()
 		defer s.sbMu.Unlock()

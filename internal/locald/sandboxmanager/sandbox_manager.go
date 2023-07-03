@@ -53,7 +53,7 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	if err != nil {
 		return nil, err
 	}
-	clapiClient, err := clapiclient.NewClient(proxyAddress)
+	clapiClient, err := clapiclient.NewClient(proxyAddress, clapiclient.DefaultClientKeepaliveParams())
 	if err != nil {
 		return nil, err
 	}
@@ -106,16 +106,15 @@ func (m *sandboxManager) revtunClient() revtun.Client {
 	}
 	switch inboundProto {
 	case connectcfg.XAPInboundProtocol:
-		rtClientConfig.Addr = "tunnel-proxy.signadot.svc:7777"
+		rtClientConfig.Addr = "localhost:7777"
 		return xaprevtun.NewClient(rtClientConfig, "")
 	case connectcfg.SSHInboundProtocol:
-		rtClientConfig.Addr = "tunnel-proxy.signadot.svc:2222"
+		rtClientConfig.Addr = "localhost:2222"
 		return sshrevtun.NewClient(rtClientConfig, nil)
 	default:
 		// already validated
 		panic(fmt.Errorf("invalid inbound protocol: %s", connConfig.Inbound.Protocol))
 	}
-	return nil
 }
 
 func getProxyAddress(pf *portforward.PortForward, proxyAddress string) (string, error) {

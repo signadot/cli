@@ -67,9 +67,15 @@ func (t *rt) monitor() {
 		}()
 		if t.rtErr != nil {
 			t.log.Error("error setting up revtun", "error", t.rtErr)
-			<-time.After(time.Second)
-			continue
+			// wait until closed or retry in 1 sec
+			select {
+			case <-t.rtToClose:
+				return
+			case <-time.After(time.Second):
+				continue
+			}
 		}
+		// wait until closed and reconnect if tunnel goes down
 		t.log.Info("reverse tunnel is setup", "config", t.rtConfig.Key())
 		select {
 		case <-t.rtClosed:
@@ -92,6 +98,6 @@ func kindToRemoteURLTLD(kind *string) (string, error) {
 	case "Rollout":
 		return "rollout", nil
 	default:
-		return "", fmt.Errorf("invalid local.From kind: %q", kind)
+		return "", fmt.Errorf("invalid local.From kind: %q", *kind)
 	}
 }

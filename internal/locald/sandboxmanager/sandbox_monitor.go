@@ -14,18 +14,23 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	reconcilePeriod = 10 * time.Second
+)
+
 type sbMonitor struct {
 	sync.Mutex
 	routingKey   string
 	clapiClient  clapiclient.Client
 	revtunClient revtun.Client
 	// func called on delete
-	delFn   func()
-	log     *slog.Logger
-	done    chan struct{}
-	status  *clapi.WatchSandboxStatus
-	revtuns map[string]*rt
-	locals  map[string]*models.Local
+	delFn     func()
+	log       *slog.Logger
+	done      chan struct{}
+	reconcile chan struct{}
+	status    *clapi.WatchSandboxStatus
+	revtuns   map[string]*rt
+	locals    map[string]*models.Local
 }
 
 func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Client, delFn func(), log *slog.Logger) *sbMonitor {
@@ -36,6 +41,7 @@ func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Cli
 		delFn:        delFn,
 		log:          log,
 		done:         make(chan struct{}),
+		reconcile:    make(chan struct{}),
 		locals:       make(map[string]*models.Local),
 		revtuns:      make(map[string]*rt),
 	}
@@ -43,20 +49,51 @@ func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Cli
 	return res
 }
 
+func (sbm *sbMonitor) Stop() {
+	select {
+	case sbm.done <- struct{}{}:
+	default:
+	}
+}
+
 func (sbm *sbMonitor) monitor() {
-	var (
-		err       error
-		sbwClient clapi.TunnelAPI_WatchSandboxClient
-	)
 	// setup context for grp stream requests
 	ctx, cancel := context.WithCancel(context.Background())
-	go func() {
-		<-sbm.done
-		cancel()
-	}()
 
+	// watch the given sandbox
+	go sbm.watchSandbox(ctx)
+
+	// run the reconcile loop
+	ticker := time.NewTicker(reconcilePeriod)
+	defer ticker.Stop()
+reconcileLoop:
 	for {
-		sbwClient, err = sbm.clapiClient.WatchSandbox(ctx, &clapi.WatchSandboxRequest{
+		select {
+		case <-sbm.done:
+			// we are done, cancel the context
+			cancel()
+			break reconcileLoop
+		case <-sbm.reconcile:
+			// The status has changed
+			sbm.reconcileStatus()
+		case <-ticker.C:
+			// Reconcile ticker
+			sbm.reconcileStatus()
+		}
+	}
+
+	// we're done, clean up revtuns and parent delete func
+	sbm.log.Debug("cleaning up status and locals and parent")
+	sbm.updateSandboxStatus(&clapi.WatchSandboxStatus{})
+	sbm.reconcileLocals(nil)
+	sbm.reconcileStatus()
+	sbm.delFn()
+}
+
+func (sbm *sbMonitor) watchSandbox(ctx context.Context) {
+	// watch loop
+	for {
+		sbwClient, err := sbm.clapiClient.WatchSandbox(ctx, &clapi.WatchSandboxRequest{
 			RoutingKey: sbm.routingKey,
 		})
 		if err != nil {
@@ -71,11 +108,9 @@ func (sbm *sbMonitor) monitor() {
 			break
 		}
 	}
-	sbm.log.Debug("cleaning up status and locals and parent")
-	// we're done, clean up revtuns and parent delete func
-	sbm.reconcileLocals(nil)
-	sbm.reconcileStatus(&clapi.WatchSandboxStatus{})
-	sbm.delFn()
+
+	// There is no sandbox, stop the monitor
+	sbm.Stop()
 }
 
 func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) error {
@@ -88,7 +123,7 @@ func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) e
 	for {
 		sbStatus, err = sbwClient.Recv()
 		if err == nil {
-			sbm.reconcileStatus(sbStatus)
+			sbm.updateSandboxStatus(sbStatus)
 			continue
 		}
 		if grpcStatus, ok = status.FromError(err); !ok {
@@ -99,7 +134,7 @@ func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) e
 		switch grpcStatus.Code() {
 		case codes.OK:
 			sbm.log.Debug("sandbox watch stream error code is ok")
-			sbm.reconcileStatus(sbStatus)
+			sbm.updateSandboxStatus(sbStatus)
 			continue
 		case codes.Internal:
 			sbm.log.Error("sandbox watch: internal grpc error",
@@ -110,12 +145,27 @@ func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) e
 		default:
 			sbm.log.Error("sandbox watch error", "error", err)
 		}
-		// TODO deal with
-		// rpc error: code = Internal desc = stream terminated by RST_STREAM with error code: NO_ERROR
 		break
-
 	}
 	return err
+}
+
+func (sbm *sbMonitor) updateSandboxStatus(st *clapi.WatchSandboxStatus) {
+	sbm.Lock()
+	defer sbm.Unlock()
+
+	// update status
+	sbm.status = st
+	sbm.log.Debug("sbm setting watch status", "status", sbm.status)
+	// trigger a reconcile
+	sbm.triggerReconcile()
+}
+
+func (sbm *sbMonitor) triggerReconcile() {
+	select {
+	case sbm.reconcile <- struct{}{}:
+	default:
+	}
 }
 
 func (sbm *sbMonitor) reconcileLocals(locals []*models.Local) {
@@ -141,26 +191,26 @@ func (sbm *sbMonitor) reconcileLocals(locals []*models.Local) {
 			continue
 		}
 		sbm.locals[localName] = local
-		rt, err := newRevtun(sbm.log.With("local", localName),
-			sbm.revtunClient, localName, sbm.routingKey, local)
-		if err != nil {
-			panic(err)
-		}
-		sbm.revtuns[localName] = rt
 	}
+
+	// trigger a reconcile
+	sbm.triggerReconcile()
 }
 
-func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
+func (sbm *sbMonitor) reconcileStatus() {
 	sbm.Lock()
 	defer sbm.Unlock()
-	sbm.status = st
+	if sbm.status == nil {
+		return
+	}
+
 	// reconcile
-	statusXWs := make(map[string]*clapi.WatchSandboxStatus_ExternalWorkload, len(st.ExternalWorkloads))
+	statusXWs := make(map[string]*clapi.WatchSandboxStatus_ExternalWorkload, len(sbm.status.ExternalWorkloads))
 	// put the xwls in a map
-	for _, xw := range st.ExternalWorkloads {
+	for _, xw := range sbm.status.ExternalWorkloads {
 		statusXWs[xw.Name] = xw
 	}
-	sbm.log.Debug("sbm setting watch status", "status", st)
+
 	for xwName, sxw := range statusXWs {
 		rt, has := sbm.revtuns[xwName]
 		if has {
@@ -174,7 +224,9 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 			default:
 			}
 		}
+
 		if has {
+			// check connection issues
 			if !sxw.Connected {
 				now := time.Now()
 				if rt.clusterNotConnectedTime == nil {
@@ -189,16 +241,22 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 					}
 					delete(sbm.revtuns, xwName)
 				}
+			} else {
+				// reset this value
+				rt.clusterNotConnectedTime = nil
 			}
 		}
 		if has {
 			continue
 		}
+
+		// get local spec
 		local := sbm.locals[xwName]
 		if local == nil {
-			sbm.log.Error("no local found for clust extworkload status", "local", xwName)
+			sbm.log.Warn("no local found for cluster extworkload status", "local", xwName)
 			continue
 		}
+
 		// create revtun
 		rt, err := newRevtun(sbm.log.With("local", sxw.Name),
 			sbm.revtunClient, sxw.Name, sbm.routingKey, local)
@@ -208,6 +266,8 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 		}
 		sbm.revtuns[xwName] = rt
 	}
+
+	// delete unwanted tunnels
 	for xwName, xw := range sbm.revtuns {
 		_, desired := statusXWs[xwName]
 		if desired {
@@ -218,6 +278,7 @@ func (sbm *sbMonitor) reconcileStatus(st *clapi.WatchSandboxStatus) {
 		default:
 			sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
 			close(xw.rtToClose)
+			delete(sbm.revtuns, xwName)
 		}
 	}
 }
