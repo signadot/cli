@@ -85,7 +85,7 @@ reconcileLoop:
 	// we're done, clean up revtuns and parent delete func
 	sbm.log.Debug("cleaning up status and locals and parent")
 	sbm.updateSandboxStatus(&clapi.WatchSandboxStatus{})
-	sbm.reconcileLocals(nil)
+	sbm.updateLocalsSpec(nil)
 	sbm.reconcileStatus()
 	sbm.delFn()
 }
@@ -168,7 +168,7 @@ func (sbm *sbMonitor) triggerReconcile() {
 	}
 }
 
-func (sbm *sbMonitor) reconcileLocals(locals []*models.Local) {
+func (sbm *sbMonitor) updateLocalsSpec(locals []*models.Local) {
 	sbm.Lock()
 	defer sbm.Unlock()
 
