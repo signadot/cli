@@ -24,13 +24,13 @@ type sbMonitor struct {
 	clapiClient  clapiclient.Client
 	revtunClient revtun.Client
 	// func called on delete
-	delFn     func()
-	log       *slog.Logger
-	done      chan struct{}
-	reconcile chan struct{}
-	status    *clapi.WatchSandboxStatus
-	revtuns   map[string]*rt
-	locals    map[string]*models.Local
+	delFn       func()
+	log         *slog.Logger
+	doneCh      chan struct{}
+	reconcileCh chan struct{}
+	status      *clapi.WatchSandboxStatus
+	revtuns     map[string]*rt
+	locals      map[string]*models.Local
 }
 
 func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Client, delFn func(), log *slog.Logger) *sbMonitor {
@@ -40,8 +40,8 @@ func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Cli
 		revtunClient: rtClient,
 		delFn:        delFn,
 		log:          log,
-		done:         make(chan struct{}),
-		reconcile:    make(chan struct{}),
+		doneCh:       make(chan struct{}),
+		reconcileCh:  make(chan struct{}, 1),
 		locals:       make(map[string]*models.Local),
 		revtuns:      make(map[string]*rt),
 	}
@@ -49,9 +49,15 @@ func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Cli
 	return res
 }
 
-func (sbm *sbMonitor) Stop() {
+func (sbm *sbMonitor) getStatus() *clapi.WatchSandboxStatus {
+	sbm.Lock()
+	defer sbm.Unlock()
+	return sbm.status
+}
+
+func (sbm *sbMonitor) stop() {
 	select {
-	case sbm.done <- struct{}{}:
+	case sbm.doneCh <- struct{}{}:
 	default:
 	}
 }
@@ -69,16 +75,16 @@ func (sbm *sbMonitor) monitor() {
 reconcileLoop:
 	for {
 		select {
-		case <-sbm.done:
+		case <-sbm.doneCh:
 			// we are done, cancel the context
 			cancel()
 			break reconcileLoop
-		case <-sbm.reconcile:
+		case <-sbm.reconcileCh:
 			// The status has changed
-			sbm.reconcileStatus()
+			sbm.reconcile()
 		case <-ticker.C:
 			// Reconcile ticker
-			sbm.reconcileStatus()
+			sbm.reconcile()
 		}
 	}
 
@@ -86,7 +92,7 @@ reconcileLoop:
 	sbm.log.Debug("cleaning up status and locals and parent")
 	sbm.updateSandboxStatus(&clapi.WatchSandboxStatus{})
 	sbm.updateLocalsSpec(nil)
-	sbm.reconcileStatus()
+	sbm.reconcile()
 	sbm.delFn()
 }
 
@@ -110,7 +116,7 @@ func (sbm *sbMonitor) watchSandbox(ctx context.Context) {
 	}
 
 	// There is no sandbox, stop the monitor
-	sbm.Stop()
+	sbm.stop()
 }
 
 func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) error {
@@ -161,13 +167,6 @@ func (sbm *sbMonitor) updateSandboxStatus(st *clapi.WatchSandboxStatus) {
 	sbm.triggerReconcile()
 }
 
-func (sbm *sbMonitor) triggerReconcile() {
-	select {
-	case sbm.reconcile <- struct{}{}:
-	default:
-	}
-}
-
 func (sbm *sbMonitor) updateLocalsSpec(locals []*models.Local) {
 	sbm.Lock()
 	defer sbm.Unlock()
@@ -197,7 +196,14 @@ func (sbm *sbMonitor) updateLocalsSpec(locals []*models.Local) {
 	sbm.triggerReconcile()
 }
 
-func (sbm *sbMonitor) reconcileStatus() {
+func (sbm *sbMonitor) triggerReconcile() {
+	select {
+	case sbm.reconcileCh <- struct{}{}:
+	default:
+	}
+}
+
+func (sbm *sbMonitor) reconcile() {
 	sbm.Lock()
 	defer sbm.Unlock()
 	if sbm.status == nil {
@@ -205,6 +211,7 @@ func (sbm *sbMonitor) reconcileStatus() {
 	}
 
 	// reconcile
+	sbm.log.Debug("reconciling tunnels")
 	statusXWs := make(map[string]*clapi.WatchSandboxStatus_ExternalWorkload, len(sbm.status.ExternalWorkloads))
 	// put the xwls in a map
 	for _, xw := range sbm.status.ExternalWorkloads {
@@ -281,10 +288,4 @@ func (sbm *sbMonitor) reconcileStatus() {
 			delete(sbm.revtuns, xwName)
 		}
 	}
-}
-
-func (sbm *sbMonitor) getStatus() *clapi.WatchSandboxStatus {
-	sbm.Lock()
-	defer sbm.Unlock()
-	return sbm.status
 }

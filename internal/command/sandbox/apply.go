@@ -44,17 +44,17 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		return err
 	}
 
-	// TODO test if local is up
 	var resp *models.Sandbox
-	if true {
+	if len(req.Spec.Local) > 0 {
+		// Send the request to the sandbox manager
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		resp, err = sbmgr.Apply(ctx, cfg.Org, req.Name, req.Spec)
 		if err != nil {
 			return err
 		}
-
 	} else {
+		// Send the request directly to the SaaS
 		params := sandboxes.NewApplySandboxParams().
 			WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
 		result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)

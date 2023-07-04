@@ -21,6 +21,7 @@ type pfwMonitor struct {
 	root           *rootManager
 	sbManagerAddr  string
 	portfowardAddr string
+	starting       bool
 	sbClient       sbmanagerapi.SandboxManagerAPIClient
 	closeCh        chan struct{}
 }
@@ -30,6 +31,7 @@ func NewPortForwardMonitor(ctx context.Context, root *rootManager) *pfwMonitor {
 		log:           root.log,
 		sbManagerAddr: fmt.Sprintf("127.0.0.1:%d", root.conf.APIPort),
 		root:          root,
+		starting:      true,
 		closeCh:       make(chan struct{}),
 	}
 	go mon.run(ctx)
@@ -72,7 +74,11 @@ func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
 		// Establish the connection if needed
 		grpcConn, err := grpc.Dial(mon.sbManagerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
-			mon.log.Warn("couldn't connect with sandbox manager", "error", err)
+			if mon.starting {
+				mon.log.Debug("waiting for sandbox manager to be ready (not running yet)")
+			} else {
+				mon.log.Warn("couldn't connect with sandbox manager", "error", err)
+			}
 			return false
 		}
 		mon.sbClient = sbmanagerapi.NewSandboxManagerAPIClient(grpcConn)
@@ -82,7 +88,11 @@ func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
 	// Get the sandbox manager status
 	status, err := mon.sbClient.Status(ctx, &sbmanagerapi.StatusRequest{})
 	if err != nil {
-		mon.log.Warn("couldn't get status from sandbox manager", "error", err)
+		if mon.starting {
+			mon.log.Debug("waiting for sandbox manager to be ready (api not ready)")
+		} else {
+			mon.log.Warn("couldn't get status from sandbox manager", "error", err)
+		}
 		return false
 	}
 
@@ -103,5 +113,6 @@ func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
 		mon.root.stopEtcHostsService()
 		mon.root.runEtcHostsService(ctx, mon.portfowardAddr)
 	}
+	mon.starting = false
 	return true
 }
