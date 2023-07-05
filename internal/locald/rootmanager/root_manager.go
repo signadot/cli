@@ -12,10 +12,12 @@ import (
 	"runtime"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/signadot/cli/internal/config"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
+	sandboxmanagerapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/libconnect/common/processes"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/fwdtun/etchosts"
@@ -23,6 +25,7 @@ import (
 	"golang.org/x/exp/slog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -113,7 +116,7 @@ func (m *rootManager) runAPIServer(ctx context.Context) error {
 }
 
 func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
-	m.conf.Unpriveleged = true
+	m.conf.Unprivileged = true
 	ciBytes, err := json.Marshal(m.conf)
 	if err != nil {
 		// should be impossible
@@ -123,23 +126,24 @@ func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
 	m.sbManager, err = processes.NewRetryProcess(ctx, &processes.RetryProcessConf{
 		Log: m.log,
 		GetCmd: func() *exec.Cmd {
-			cmdToRun := exec.Command(
-				"sudo", "-n", "-u", fmt.Sprintf("#%d", m.conf.UID),
+			cmd := exec.Command(
+				"sudo",
+				"-n",
+				"-u", fmt.Sprintf("#%d", m.conf.UID),
 				"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-				os.Args[0], "locald",
+				os.Args[0],
+				"locald",
 			)
-			cmdToRun.Env = append(cmdToRun.Env, fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)))
-			cmdToRun.Stderr = os.Stderr
-			cmdToRun.Stdout = os.Stdout
-			cmdToRun.Stdin = os.Stdin
-			// Prevent signaling the children
-			cmdToRun.SysProcAttr = &syscall.SysProcAttr{
-				Setpgid: true,
-			}
-			cmdToRun.Env = append(cmdToRun.Env,
+			// TODO:
+			f, _ := os.OpenFile("/tmp/sandbox-manager.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+			cmd.Stderr = f
+			cmd.Stdout = f
+			cmd.Env = append(cmd.Env,
 				fmt.Sprintf("HOME=%s", m.conf.UIDHome),
-				fmt.Sprintf("PATH=%s", m.conf.UIDPath))
-			return cmdToRun
+				fmt.Sprintf("PATH=%s", m.conf.UIDPath),
+				fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)),
+			)
+			return cmd
 		},
 		WritePID: func(pidFile string, pid int) error {
 			// Write the pid
@@ -150,6 +154,34 @@ func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
 			gid, _ := strconv.Atoi(m.userInfo.Gid)
 			if err := os.Chown(pidFile, m.conf.UID, gid); err != nil {
 				m.log.Warn("couldn't change ownership of pidfile", "error", err)
+			}
+			return nil
+		},
+		Shutdown: func(process *os.Process, runningCh chan struct{}) error {
+			m.log.Debug("sandbox manager shutdown")
+
+			// Establish a connection with sandbox manager
+			grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if err != nil {
+				return fmt.Errorf("couldn't connect sandbox manager api, %v", err)
+			}
+			defer grpcConn.Close()
+
+			// Send the shutdown order
+			sbManagerclient := sandboxmanagerapi.NewSandboxManagerAPIClient(grpcConn)
+			if _, err = sbManagerclient.Shutdown(ctx, &sandboxmanagerapi.ShutdownRequest{}); err != nil {
+				return fmt.Errorf("error requesting shutdown in sandbox manager api, %v", err)
+			}
+
+			// Wait until shutdown
+			select {
+			case <-runningCh:
+			case <-time.After(5 * time.Second):
+				// Kill the process and wait until it's gone
+				if err := process.Kill(); err != nil {
+					return fmt.Errorf("failed to kill process: %w ", err)
+				}
+				<-runningCh
 			}
 			return nil
 		},

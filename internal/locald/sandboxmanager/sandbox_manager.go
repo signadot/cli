@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
@@ -28,6 +31,7 @@ type sandboxManager struct {
 	connConfig   *connectcfg.ConnectionConfig
 	grpcServer   *grpc.Server
 	portForward  *portforward.PortForward
+	shutdownCh   chan struct{}
 }
 
 func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*sandboxManager, error) {
@@ -59,36 +63,45 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	}
 	log.Debug("got cluster api client")
 
+	shutdownCh := make(chan struct{})
 	grpcServer := grpc.NewServer()
 	sbMgr := &sandboxManager{
-		log:          log.With("locald-component", "sandbox-manager"),
+		log:          log,
 		apiPort:      cfg.ConnectInvocationConfig.APIPort,
 		proxyAddress: proxyAddress,
 		grpcServer:   grpcServer,
 		connConfig:   connConfig,
 		portForward:  portForward,
 		localdConfig: cfg,
+		shutdownCh:   shutdownCh,
 	}
 
-	sbmSrv := newSandboxManagerGRPCServer(portForward, connConfig.ProxyAddress,
-		ciConfig.API, clapiClient, sbMgr.revtunClient, log)
+	sbmSrv := newSandboxManagerGRPCServer(portForward, ciConfig.API, clapiClient,
+		sbMgr.revtunClient, log, shutdownCh)
 	sandboxmanager.RegisterSandboxManagerAPIServer(grpcServer, sbmSrv)
-
-	return &sandboxManager{
-		log:          log,
-		apiPort:      cfg.ConnectInvocationConfig.APIPort,
-		grpcServer:   grpcServer,
-		connConfig:   connConfig,
-		localdConfig: cfg,
-	}, nil
+	return sbMgr, nil
 }
 
 func (m *sandboxManager) Run() error {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.apiPort))
 	if err != nil {
 		return err
 	}
-	return m.grpcServer.Serve(ln)
+	go m.grpcServer.Serve(ln)
+
+	// Wait until termination
+	select {
+	case <-sigs:
+	case <-m.shutdownCh:
+	}
+
+	// Clean up
+	m.log.Info("Shutting down")
+	m.grpcServer.GracefulStop()
+	return nil
 }
 
 func (m *sandboxManager) revtunClient() revtun.Client {

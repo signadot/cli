@@ -24,7 +24,7 @@ func RunSandboxManager(cfg *config.LocalDaemon, args []string) error {
 
 func RunAsRoot(cfg *config.LocalDaemon, args []string) error {
 	if os.Geteuid() != 0 {
-		return fmt.Errorf("must run as root without --unpriveleged")
+		return fmt.Errorf("must run as root without --unprivileged")
 	}
 	ctx := context.Background()
 	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{

@@ -32,8 +32,6 @@ type grpcServer struct {
 
 	// if nil, no portforward necessary
 	portForward *portforward.PortForward
-	// if pf nil, use this instead
-	clusterProxyAddr string
 
 	// sandboxes
 	sbMu             sync.Mutex
@@ -44,17 +42,22 @@ type grpcServer struct {
 	// rootmanager statuses
 	rootMu     sync.Mutex
 	rootClient rootapi.RootManagerAPIClient
+
+	// shutdown
+	shutdownCh chan struct{}
 }
 
-func newSandboxManagerGRPCServer(pf *portforward.PortForward, clProxyAddr string, apiConfig *cliconfig.API, clAPIClient clapi.Client, rtClientFunc func() revtun.Client, log *slog.Logger) *grpcServer {
+func newSandboxManagerGRPCServer(pf *portforward.PortForward, apiConfig *cliconfig.API,
+	clAPIClient clapi.Client, rtClientFunc func() revtun.Client,
+	log *slog.Logger, shutdownCh chan struct{}) *grpcServer {
 	srv := &grpcServer{
 		log:              log,
 		apiConfig:        apiConfig,
 		portForward:      pf,
-		clusterProxyAddr: clProxyAddr,
 		sbMonitors:       make(map[string]*sbMonitor),
 		clAPIClient:      clAPIClient,
 		revtunClientFunc: rtClientFunc,
+		shutdownCh:       shutdownCh,
 	}
 	return srv
 }
@@ -206,4 +209,13 @@ func (s *grpcServer) sbStatuses() []*commonapi.SandboxStatus {
 		res = append(res, grpcStatus)
 	}
 	return res
+}
+
+func (s *grpcServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (*sbapi.ShutdownResponse, error) {
+	select {
+	case <-s.shutdownCh:
+	default:
+		close(s.shutdownCh)
+	}
+	return &sbapi.ShutdownResponse{}, nil
 }

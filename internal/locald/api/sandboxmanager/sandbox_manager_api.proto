@@ -17,6 +17,9 @@ service SandboxManagerAPI {
 
   // This method returns the status of the local controller
   rpc Status(StatusRequest) returns (StatusResponse) {}
+
+  // This method requests the root controller to shutdown
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
 }
 
 // ApplySandbox
@@ -45,4 +48,13 @@ message StatusResponse {
   apicommon.HostsStatus hosts = 2;
   apicommon.PortForwardStatus portfoward = 3;
   repeated apicommon.SandboxStatus sandboxes = 4;
+}
+
+// Shutdown
+// ----------------------------------------------------------------------------
+
+message ShutdownRequest {
+}
+
+message ShutdownResponse {
 }

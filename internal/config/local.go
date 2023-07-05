@@ -86,7 +86,7 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "signadot cluster name")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root priveleges")
-	cmd.Flags().MarkHidden("unpriveleged")
+	cmd.Flags().MarkHidden("unprivileged")
 }
 
 type LocalDisconnect struct {

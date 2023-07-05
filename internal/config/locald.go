@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
@@ -20,6 +21,9 @@ type LocalDaemon struct {
 
 	// config sent from `signadot local connect` in $SIGNADOT_LOCAL_CONNECT_CONFIG
 	ConnectInvocationConfig *ConnectInvocationConfig
+
+	// Flags
+	DaemonRun bool
 
 	// Hidden Flags
 	ConnectInvocationConfigFile string
@@ -62,7 +66,7 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 // everything that needs to be passed in a json so we can evolve what needs to
 // be passed without plumbing the command line
 type ConnectInvocationConfig struct {
-	Unpriveleged     bool                         `json:"unpriveleged"`
+	Unprivileged     bool                         `json:"unprivileged"`
 	Cluster          string                       `json:"cluster"`
 	APIPort          uint16                       `json:"apiPort"`
 	LocalNetPort     uint16                       `json:"localNetPort"`
@@ -75,7 +79,16 @@ type ConnectInvocationConfig struct {
 	APIKey           string                       `json:"apiKey"`
 }
 
+func (ciConfig *ConnectInvocationConfig) GetPidfile() string {
+	if !ciConfig.Unprivileged {
+		return filepath.Join(ciConfig.SignadotDir, RootManagerPIDFile)
+	}
+	return filepath.Join(ciConfig.SignadotDir, SandboxManagerPIDFile)
+}
+
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&c.DaemonRun, "deamon", false, "run in background as daemon")
+
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "connect-invocation-config-file", "", "by-pass calling signadot local connect (hidden)")
 	cmd.Flags().MarkHidden("connect-invocation-config-file")
 }
