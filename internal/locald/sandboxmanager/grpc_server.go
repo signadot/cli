@@ -111,15 +111,16 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 	sbm, present := s.sbMonitors[sb.Name]
 	if present {
 		// resolve locals
-		sbm.reconcileLocals(sb.Spec.Local)
+		sbm.updateLocalsSpec(sb.Spec.Local)
 		return
 	}
+	// start watching the sandbox in the cluster
 	sbm = newSBMonitor(sb.RoutingKey, s.clAPIClient, s.revtunClientFunc(), func() {
 		s.sbMu.Lock()
 		defer s.sbMu.Unlock()
 		delete(s.sbMonitors, sb.Name)
 	}, s.log.With("sandbox-routing-key", sb.RoutingKey))
-	sbm.reconcileLocals(sb.Spec.Local)
+	sbm.updateLocalsSpec(sb.Spec.Local)
 	s.sbMonitors[sb.Name] = sbm
 }
 
