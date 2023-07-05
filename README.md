@@ -42,3 +42,5 @@ GITHUB_TOKEN=... make release
 ## See Also
 
 The CLI is built on top of the [Go SDK](https://github.com/signadot/go-sdk).
+
+The CLI is built using [libconnect](https://github.com/signadot/libconnect).
