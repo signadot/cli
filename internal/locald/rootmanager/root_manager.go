@@ -136,6 +136,9 @@ func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
 			cmdToRun.SysProcAttr = &syscall.SysProcAttr{
 				Setpgid: true,
 			}
+			cmdToRun.Env = append(cmdToRun.Env,
+				fmt.Sprintf("HOME=%s", m.conf.UIDHome),
+				fmt.Sprintf("PATH=%s", m.conf.UIDPath))
 			return cmdToRun
 		},
 		WritePID: func(pidFile string, pid int) error {

@@ -78,7 +78,7 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
-		Unpriveleged:     cfg.Unpriveleged,
+		Unpriveleged:     cfg.Unprivileged,
 		SignadotDir:      signadotDir,
 		APIPort:          6666,
 		LocalNetPort:     6667,
@@ -98,7 +98,7 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 
 	// Define the pid file name
 	var pidFile string
-	if !cfg.Unpriveleged {
+	if !cfg.Unprivileged {
 		pidFile = filepath.Join(signadotDir, config.RootManagerPIDFile)
 	} else {
 		pidFile = filepath.Join(signadotDir, config.SandboxManagerPIDFile)
@@ -114,7 +114,7 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 		Log: log,
 		GetCmd: func() *exec.Cmd {
 			var cmdToRun *exec.Cmd
-			if !cfg.Unpriveleged {
+			if !cfg.Unprivileged {
 				cmdToRun = exec.Command(
 					"sudo",
 					"-S",
@@ -139,7 +139,7 @@ func runConnect(cmd *cobra.Command, cfg *config.LocalConnect, args []string) err
 			return cmdToRun
 		},
 		Shutdown: func(process *os.Process, runningCh chan struct{}) error {
-			if cfg.Unpriveleged {
+			if cfg.Unprivileged {
 				return nil
 			}
 			log.Debug("local connect shutdown")

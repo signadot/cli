@@ -78,14 +78,14 @@ type LocalConnect struct {
 	Cluster        string
 
 	// Hidden Flags
-	Unpriveleged bool
+	Unprivileged bool
 }
 
 func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.NonInteractive, "non-interactive", false, "run in background")
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "signadot cluster name")
 
-	cmd.Flags().BoolVar(&c.Unpriveleged, "unpriveleged", false, "run without root priveleges")
+	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root priveleges")
 	cmd.Flags().MarkHidden("unpriveleged")
 }
 
