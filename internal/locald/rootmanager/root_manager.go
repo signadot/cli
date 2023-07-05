@@ -62,6 +62,9 @@ func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*
 }
 
 func (m *rootManager) Run(ctx context.Context) error {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
 	// Run the API server
 	if err := m.runAPIServer(ctx); err != nil {
 		return err
@@ -83,8 +86,6 @@ func (m *rootManager) Run(ctx context.Context) error {
 	}
 
 	// Wait until termination
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	select {
 	case <-sigs:
 	case <-m.shutdownCh:

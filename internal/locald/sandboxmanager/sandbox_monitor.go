@@ -57,8 +57,9 @@ func (sbm *sbMonitor) getStatus() *clapi.WatchSandboxStatus {
 
 func (sbm *sbMonitor) stop() {
 	select {
-	case sbm.doneCh <- struct{}{}:
+	case <-sbm.doneCh:
 	default:
+		close(sbm.doneCh)
 	}
 }
 
