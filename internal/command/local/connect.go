@@ -12,6 +12,7 @@ import (
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/exp/slog"
 )
 
 func newConnect(localConfig *config.Local) *cobra.Command {
@@ -83,101 +84,29 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		APIKey:           viper.GetString("api_key"),
 		Debug:            cfg.LocalConfig.Debug,
 	}
+	logger, err := getLogger(ciConfig)
+	if err != nil {
+		return err
+	}
 
 	if cfg.NonInteractive {
-		return runNonInteractiveConnect(log, cfg, ciConfig)
+		return runNonInteractiveConnect(logger, cfg, ciConfig)
 	}
 	return runInteractiveConnect(log, cfg, ciConfig)
-
-	// ctx := context.Background()
-
-	// log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-	// 	Level: slog.LevelDebug,
-	// }))
-
-	// proc, err := processes.NewRetryProcess(ctx, &processes.RetryProcessConf{
-	// 	Log: log,
-	// 	GetCmd: func() *exec.Cmd {
-	// 		var cmdToRun *exec.Cmd
-	// 		if !cfg.Unprivileged {
-	// 			cmdToRun = exec.Command(
-	// 				"sudo",
-	// 				"-S",
-	// 				"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-	// 				os.Args[0],
-	// 				"locald",
-	// 			)
-	// 			cmdToRun.SysProcAttr = &syscall.SysProcAttr{
-	// 				Setsid: true,
-	// 			}
-	// 		} else {
-	// 			cmdToRun = exec.Command(os.Args[0], "locald")
-	// 			cmdToRun.Env = append(cmdToRun.Env,
-	// 				fmt.Sprintf("HOME=%s", runConfig.UIDHome),
-	// 				fmt.Sprintf("PATH=%s", runConfig.UIDPath))
-	// 		}
-	// 		cmdToRun.Env = append(cmdToRun.Env,
-	// 			fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(runConfigBytes)))
-	// 		cmdToRun.Stderr = os.Stderr
-	// 		cmdToRun.Stdout = os.Stdout
-	// 		cmdToRun.Stdin = os.Stdin
-	// 		return cmdToRun
-	// 	},
-	// 	Shutdown: func(process *os.Process, runningCh chan struct{}) error {
-	// 		if cfg.Unprivileged {
-	// 			return nil
-	// 		}
-	// 		log.Debug("local connect shutdown")
-
-	// 		// Establish a connection with root manager
-	// 		grpcConn, err := grpc.Dial("127.0.0.1:6667", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	// 		if err != nil {
-	// 			return fmt.Errorf("couldn't connect root api, %v", err)
-	// 		}
-	// 		defer grpcConn.Close()
-
-	// 		// Send the shutdown order
-	// 		rootclient := rootapi.NewRootManagerAPIClient(grpcConn)
-	// 		if _, err = rootclient.Shutdown(ctx, &rootapi.ShutdownRequest{}); err != nil {
-	// 			return fmt.Errorf("error requesting shutdown in root api, %v", err)
-	// 		}
-
-	// 		// Wait until shutdown
-	// 		select {
-	// 		case <-runningCh:
-	// 		case <-time.After(5 * time.Second):
-	// 			// Kill the process and wait until it's gone
-	// 			if err := process.Kill(); err != nil {
-	// 				return fmt.Errorf("failed to kill process: %w ", err)
-	// 			}
-	// 			<-runningCh
-	// 		}
-	// 		return nil
-	// 	},
-	// 	PIDFile: pidFile,
-	// })
-	// if err != nil {
-	// 	return err
-	// }
-
-	// // Wait until termination
-	// sigs := make(chan os.Signal, 1)
-	// signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	// <-sigs
-
-	// return proc.Stop()
 }
 
-func runNonInteractiveConnect(log io.Writer, cfg *config.LocalConnect,
+func runNonInteractiveConnect(log *slog.Logger, cfg *config.LocalConnect,
 	ciConfig *config.ConnectInvocationConfig) error {
 	// Check if the corresponding manager is already running
-	isRunning, err := processes.IsDeamonRunning(ciConfig.GetPidfile())
+	// this gives fail fast response and is safe to return
+	// an error here, but the check is _not_ used to assume
+	// that we have the lock later on when starting.
+	isRunning, err := processes.IsDeamonRunning(ciConfig.GetPIDfile())
 	if err != nil {
 		return err
 	}
 	if isRunning {
-		fmt.Fprintf(log, "signadot is already connected")
-		return nil
+		return fmt.Errorf("signadot is already connected\n")
 	}
 
 	// Run signadot locald
@@ -194,10 +123,10 @@ func runNonInteractiveConnect(log io.Writer, cfg *config.LocalConnect,
 			"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
 			os.Args[0],
 			"locald",
-			"--deamon",
+			"--daemon",
 		)
 	} else {
-		cmd = exec.Command(os.Args[0], "locald", "--deamon")
+		cmd = exec.Command(os.Args[0], "locald", "--daemon")
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
 			fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
@@ -210,12 +139,33 @@ func runNonInteractiveConnect(log io.Writer, cfg *config.LocalConnect,
 	cmd.Stdin = os.Stdin
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("couldn't run signadot locald, %w", err)
+		return fmt.Errorf("couldn't run signadot locald: %w", err)
 	}
+
 	return nil
 }
 
 func runInteractiveConnect(log io.Writer, cfg *config.LocalConnect,
 	ciConfig *config.ConnectInvocationConfig) error {
 	return nil
+}
+
+func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {
+	logWriter, _, err := system.GetRollingLogWriter(
+		ciConfig.SignadotDir,
+		ciConfig.GetLogName(),
+		ciConfig.UID,
+		ciConfig.GID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't open logfile, %w", err)
+	}
+	logLevel := slog.LevelInfo
+	if ciConfig.Debug {
+		logLevel = slog.LevelDebug
+	}
+	log := slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+		Level: logLevel,
+	}))
+	return log, nil
 }

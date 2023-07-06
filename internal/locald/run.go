@@ -13,7 +13,9 @@ import (
 
 func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
 	ctx := context.Background()
-	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log.With("locald-component", "sandbox-manager"))
+	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log.With(
+		"locald-component", "sandbox-manager",
+		"pid", os.Getpid()))
 	if err != nil {
 		return err
 	}
