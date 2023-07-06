@@ -11,10 +11,7 @@ import (
 	"golang.org/x/exp/slog"
 )
 
-func RunSandboxManager(cfg *config.LocalDaemon, args []string) error {
-	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
 	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log.With("locald-component", "sandbox-manager"))
 	if err != nil {
 		return err
@@ -22,14 +19,11 @@ func RunSandboxManager(cfg *config.LocalDaemon, args []string) error {
 	return sbMgr.Run()
 }
 
-func RunAsRoot(cfg *config.LocalDaemon, args []string) error {
+func RunAsRoot(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("must run as root without --unprivileged")
 	}
 	ctx := context.Background()
-	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
 	rootMgr, err := rootmanager.NewRootManager(cfg, args, log)
 	if err != nil {
 		return err

@@ -51,7 +51,7 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	switch connConfig.Type {
 	case connectcfg.PortForwardLinkType:
 		portForward = portforward.NewPortForward(context.Background(),
-			restConfig, clientSet, slog.Default(), 0, "signadot", "tunnel-proxy", 1080)
+			restConfig, clientSet, log, 0, "signadot", "tunnel-proxy", 1080)
 	}
 	proxyAddress, err := getProxyAddress(portForward, connConfig.ProxyAddress)
 	if err != nil {

@@ -36,9 +36,7 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 	}
 
 	// TODO:
-	// - define logging
 	// - check if another local connect is already running
-	// - non-interactive mode
 	// - interactive display
 
 	// we will pass the connConfig to rootmanager and sandboxmanager
@@ -57,6 +55,7 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
+	// Get home dir
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -76,17 +75,19 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		LocalNetPort:     6667,
 		Cluster:          cfg.Cluster,
 		UID:              os.Geteuid(),
+		GID:              os.Getegid(),
 		UIDHome:          homeDir,
 		UIDPath:          os.Getenv("PATH"),
+		ConnectionConfig: connConfig,
 		API:              cfg.API,
 		APIKey:           viper.GetString("api_key"),
-		ConnectionConfig: connConfig,
+		Debug:            cfg.LocalConfig.Debug,
 	}
 
 	if cfg.NonInteractive {
 		return runNonInteractiveConnect(log, cfg, ciConfig)
 	}
-	return nil
+	return runInteractiveConnect(log, cfg, ciConfig)
 
 	// ctx := context.Background()
 
@@ -211,5 +212,10 @@ func runNonInteractiveConnect(log io.Writer, cfg *config.LocalConnect,
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("couldn't run signadot locald, %w", err)
 	}
+	return nil
+}
+
+func runInteractiveConnect(log io.Writer, cfg *config.LocalConnect,
+	ciConfig *config.ConnectInvocationConfig) error {
 	return nil
 }

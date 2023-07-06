@@ -7,10 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"os/user"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -32,7 +30,6 @@ import (
 type rootManager struct {
 	log        *slog.Logger
 	conf       *config.ConnectInvocationConfig
-	userInfo   *user.User
 	grpcServer *grpc.Server
 	root       *rootServer
 	sbManager  *processes.RetryProcess
@@ -41,12 +38,6 @@ type rootManager struct {
 }
 
 func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*rootManager, error) {
-	// Resolve the user info
-	userInfo, err := user.LookupId(fmt.Sprintf("%d", cfg.ConnectInvocationConfig.UID))
-	if err != nil {
-		return nil, fmt.Errorf("invalid UID=%d, %w", cfg.ConnectInvocationConfig.UID, err)
-	}
-
 	shutdownCh := make(chan struct{})
 	root := &rootServer{
 		shutdownCh: shutdownCh,
@@ -57,7 +48,6 @@ func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*
 	return &rootManager{
 		log:        log.With("locald-component", "root-manager"),
 		conf:       cfg.ConnectInvocationConfig,
-		userInfo:   userInfo,
 		grpcServer: grpcServer,
 		root:       root,
 		shutdownCh: shutdownCh,
@@ -134,10 +124,6 @@ func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
 				os.Args[0],
 				"locald",
 			)
-			// TODO:
-			f, _ := os.OpenFile("/tmp/sandbox-manager.log", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-			cmd.Stderr = f
-			cmd.Stdout = f
 			cmd.Env = append(cmd.Env,
 				fmt.Sprintf("HOME=%s", m.conf.UIDHome),
 				fmt.Sprintf("PATH=%s", m.conf.UIDPath),
@@ -151,8 +137,7 @@ func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
 				return err
 			}
 			// Set right ownership
-			gid, _ := strconv.Atoi(m.userInfo.Gid)
-			if err := os.Chown(pidFile, m.conf.UID, gid); err != nil {
+			if err := os.Chown(pidFile, m.conf.UID, m.conf.GID); err != nil {
 				m.log.Warn("couldn't change ownership of pidfile", "error", err)
 			}
 			return nil

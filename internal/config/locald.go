@@ -14,11 +14,12 @@ import (
 const (
 	RootManagerPIDFile    = "rootmanager.pid"
 	SandboxManagerPIDFile = "sandboxmanager.pid"
+
+	RootManagerLogFile    = "root-manager.log"
+	SandboxManagerLogFile = "sandbox-manager.log"
 )
 
 type LocalDaemon struct {
-	*Local
-
 	// config sent from `signadot local connect` in $SIGNADOT_LOCAL_CONNECT_CONFIG
 	ConnectInvocationConfig *ConnectInvocationConfig
 
@@ -72,11 +73,13 @@ type ConnectInvocationConfig struct {
 	LocalNetPort     uint16                       `json:"localNetPort"`
 	SignadotDir      string                       `json:"signadotDir"`
 	UID              int                          `json:"uid"`
+	GID              int                          `json:"gid"`
 	UIDHome          string                       `json:"uidHome"`
 	UIDPath          string                       `json:"uidPath"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	API              *API                         `json:"api"`
 	APIKey           string                       `json:"apiKey"`
+	Debug            bool                         `json:"debug"`
 }
 
 func (ciConfig *ConnectInvocationConfig) GetPidfile() string {
@@ -84,6 +87,13 @@ func (ciConfig *ConnectInvocationConfig) GetPidfile() string {
 		return filepath.Join(ciConfig.SignadotDir, RootManagerPIDFile)
 	}
 	return filepath.Join(ciConfig.SignadotDir, SandboxManagerPIDFile)
+}
+
+func (ciConfig *ConnectInvocationConfig) GetLogName() string {
+	if !ciConfig.Unprivileged {
+		return RootManagerLogFile
+	}
+	return SandboxManagerLogFile
 }
 
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
