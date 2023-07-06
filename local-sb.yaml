@@ -1,8 +1,11 @@
 name: local-hotrod-route
 spec:
   cluster: "@{cluster}"
+  labels:
+    feature: optimize
+    owner: route-team
   local:
-  - name: "l0"
+  - name: "local-route"
     from:
       kind: Deployment
       namespace: hotrod
@@ -11,4 +14,10 @@ spec:
       # why string?
     - port: "8083"
       toLocal: "localhost:8083"
+  defaultRouteGroup:
+    endpoints: 
+    - name: route-endpoint
+      target: http://route.hotrod.svc:8083
+    - name: frontend-endpoint
+      target: http://frontend.hotrod.svc:8080
 
