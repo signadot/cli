@@ -161,7 +161,7 @@ func (m *sandboxManager) getSBMonitor(routingKey string, delFn func()) *sbMonito
 }
 
 func (m *sandboxManager) setTunnelAPIClient(proxyAddress string) error {
-	tunAPIClient, err := tunapiclient.NewClient(m.connConfig.ProxyAddress, tunapiclient.DefaultClientKeepaliveParams())
+	tunAPIClient, err := tunapiclient.NewClient(proxyAddress, tunapiclient.DefaultClientKeepaliveParams())
 	if err != nil {
 		return err
 	}
