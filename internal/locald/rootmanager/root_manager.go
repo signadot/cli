@@ -80,6 +80,7 @@ func (m *rootManager) Run(ctx context.Context) error {
 
 	// Wait until termination
 	select {
+	case <-ctx.Done():
 	case <-sigs:
 	case <-m.shutdownCh:
 	}
@@ -151,6 +152,11 @@ func (m *rootManager) runSandboxManager(ctx context.Context) (err error) {
 				return fmt.Errorf("couldn't connect sandbox manager api, %v", err)
 			}
 			defer grpcConn.Close()
+
+			// Creating a new context here because the parent one may have
+			// already been cancelled (but we want to perform this call anyway)
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
 
 			// Send the shutdown order
 			sbManagerclient := sandboxmanagerapi.NewSandboxManagerAPIClient(grpcConn)

@@ -12,11 +12,12 @@ import (
 )
 
 func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
+	ctx := context.Background()
 	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log.With("locald-component", "sandbox-manager"))
 	if err != nil {
 		return err
 	}
-	return sbMgr.Run()
+	return sbMgr.Run(ctx)
 }
 
 func RunAsRoot(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
