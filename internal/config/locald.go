@@ -82,7 +82,7 @@ type ConnectInvocationConfig struct {
 	Debug            bool                         `json:"debug"`
 }
 
-func (ciConfig *ConnectInvocationConfig) GetPidfile() string {
+func (ciConfig *ConnectInvocationConfig) GetPIDfile() string {
 	if !ciConfig.Unprivileged {
 		return filepath.Join(ciConfig.SignadotDir, RootManagerPIDFile)
 	}
@@ -97,7 +97,7 @@ func (ciConfig *ConnectInvocationConfig) GetLogName() string {
 }
 
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&c.DaemonRun, "deamon", false, "run in background as daemon")
+	cmd.Flags().BoolVar(&c.DaemonRun, "daemon", false, "run in background as daemon")
 
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "connect-invocation-config-file", "", "by-pass calling signadot local connect (hidden)")
 	cmd.Flags().MarkHidden("connect-invocation-config-file")
