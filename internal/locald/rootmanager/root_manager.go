@@ -79,6 +79,7 @@ func (m *rootManager) Run(ctx context.Context) error {
 
 	// Wait until termination
 	select {
+	case <-ctx.Done():
 	case <-sigs:
 	case <-m.shutdownCh:
 	}
