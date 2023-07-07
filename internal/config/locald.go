@@ -51,6 +51,8 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 	if err := json.Unmarshal(ciBytes, ciConfig); err != nil {
 		return err
 	}
+
+	viper.Set("api_url", ciConfig.API.APIURL)
 	viper.Set("api_key", ciConfig.APIKey)
 	if err := ciConfig.API.InitAPITransport(ciConfig.APIKey); err != nil {
 		return err
