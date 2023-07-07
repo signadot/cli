@@ -39,13 +39,11 @@ func newSBMgrMonitor(ciConfig *config.ConnectInvocationConfig, log *slog.Logger)
 }
 
 func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConfig) *exec.Cmd {
-	mon.log.Debug("a")
 	ciBytes, err := json.Marshal(ciConfig)
 	if err != nil {
 		mon.log.Error("ciconfig json", "error", err)
 		panic(err)
 	}
-	mon.log.Debug("ci", "cfg", string(ciBytes))
 	cmd := exec.Command(
 		"sudo",
 		"-n",
@@ -55,13 +53,11 @@ func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConf
 		"locald",
 		"--daemon",
 	)
-	mon.log.Debug("c")
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
 		fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
 		fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)),
 	)
-	mon.log.Debug("d")
 	return cmd
 }
 
@@ -101,6 +97,14 @@ func (mon *sbmgrMonitor) run() {
 	tick:
 		select {
 		case <-ticker.C:
+			// avoid re-running when mon.done
+			// and ticker race
+			select {
+			case <-mon.done:
+				close(mon.doneAck)
+				return
+			default:
+			}
 		case <-mon.done:
 			close(mon.doneAck)
 			return
