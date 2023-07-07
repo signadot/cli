@@ -12,9 +12,7 @@ import (
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
-	clapi "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/portforward"
-	"github.com/signadot/libconnect/revtun"
 	"golang.org/x/exp/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -32,34 +30,40 @@ type grpcServer struct {
 
 	// if nil, no portforward necessary
 	portForward *portforward.PortForward
-	// if pf nil, use this instead
-	clusterProxyAddr string
 
 	// sandboxes
-	sbMu             sync.Mutex
-	clAPIClient      clapi.Client
-	sbMonitors       map[string]*sbMonitor
-	revtunClientFunc func() revtun.Client
+	isSBManagerReadyFunc func() bool
+	getSBMonitorFunc     func(routingKey string, delFn func()) *sbMonitor
+	sbMu                 sync.Mutex
+	sbMonitors           map[string]*sbMonitor
 
 	// rootmanager statuses
 	rootMu     sync.Mutex
 	rootClient rootapi.RootManagerAPIClient
+
+	// shutdown
+	shutdownCh chan struct{}
 }
 
-func newSandboxManagerGRPCServer(pf *portforward.PortForward, clProxyAddr string, apiConfig *cliconfig.API, clAPIClient clapi.Client, rtClientFunc func() revtun.Client, log *slog.Logger) *grpcServer {
+func newSandboxManagerGRPCServer(apiConfig *cliconfig.API, portForward *portforward.PortForward,
+	isSBManagerReadyFunc func() bool, getSBMonitorFunc func(string, func()) *sbMonitor,
+	log *slog.Logger, shutdownCh chan struct{}) *grpcServer {
 	srv := &grpcServer{
-		log:              log,
-		apiConfig:        apiConfig,
-		portForward:      pf,
-		clusterProxyAddr: clProxyAddr,
-		sbMonitors:       make(map[string]*sbMonitor),
-		clAPIClient:      clAPIClient,
-		revtunClientFunc: rtClientFunc,
+		log:                  log,
+		apiConfig:            apiConfig,
+		portForward:          portForward,
+		sbMonitors:           make(map[string]*sbMonitor),
+		isSBManagerReadyFunc: isSBManagerReadyFunc,
+		getSBMonitorFunc:     getSBMonitorFunc,
+		shutdownCh:           shutdownCh,
 	}
 	return srv
 }
 
 func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
+	if !s.isSBManagerReadyFunc() {
+		return nil, status.Errorf(codes.Unavailable, "sandboxmanager is still starting")
+	}
 	sbSpec, err := sbapi.ToModelsSandboxSpec(req.SandboxSpec)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable create go-sdk sandbox spec: %s", err.Error())
@@ -105,31 +109,49 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRe
 	return resp, nil
 }
 
-func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
-	s.sbMu.Lock()
-	defer s.sbMu.Unlock()
-	sbm, present := s.sbMonitors[sb.Name]
-	if present {
-		// resolve locals
-		sbm.updateLocalsSpec(sb.Spec.Local)
-		return
-	}
-	// start watching the sandbox in the cluster
-	sbm = newSBMonitor(sb.RoutingKey, s.clAPIClient, s.revtunClientFunc(), func() {
-		s.sbMu.Lock()
-		defer s.sbMu.Unlock()
-		delete(s.sbMonitors, sb.Name)
-	}, s.log.With("sandbox-routing-key", sb.RoutingKey))
-	sbm.updateLocalsSpec(sb.Spec.Local)
-	s.sbMonitors[sb.Name] = sbm
-}
-
 func (s *grpcServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
 	resp := &sbapi.StatusResponse{}
 	resp.Portfoward = s.portforwardStatus()
 	resp.Sandboxes = s.sbStatuses()
 	resp.Hosts, resp.Localnet = s.rootStatus()
 	return resp, nil
+}
+
+func (s *grpcServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (*sbapi.ShutdownResponse, error) {
+	select {
+	case <-s.shutdownCh:
+	default:
+		close(s.shutdownCh)
+	}
+	return &sbapi.ShutdownResponse{}, nil
+}
+
+func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
+	s.sbMu.Lock()
+	defer s.sbMu.Unlock()
+	sbm, present := s.sbMonitors[sb.Name]
+	if present {
+		// update the local spec
+		sbm.updateLocalsSpec(sb.Spec.Local)
+		return
+	}
+
+	// start watching the sandbox in the cluster
+	sbm = s.getSBMonitorFunc(sb.RoutingKey, func() {
+		s.sbMu.Lock()
+		defer s.sbMu.Unlock()
+		delete(s.sbMonitors, sb.Name)
+	})
+	if sbm == nil {
+		// this shouldn't happen because we check
+		// if sb manager is ready, which is
+		// monotonic
+		s.log.Error("invalid internal state: getSBMonitor while sb manager is not ready")
+		return
+	}
+	// update the local spec and keep a reference to the sandbox monitor
+	sbm.updateLocalsSpec(sb.Spec.Local)
+	s.sbMonitors[sb.Name] = sbm
 }
 
 func (s *grpcServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {

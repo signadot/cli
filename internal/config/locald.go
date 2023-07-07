@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
@@ -13,13 +14,17 @@ import (
 const (
 	RootManagerPIDFile    = "rootmanager.pid"
 	SandboxManagerPIDFile = "sandboxmanager.pid"
+
+	RootManagerLogFile    = "root-manager.log"
+	SandboxManagerLogFile = "sandbox-manager.log"
 )
 
 type LocalDaemon struct {
-	*Local
-
 	// config sent from `signadot local connect` in $SIGNADOT_LOCAL_CONNECT_CONFIG
 	ConnectInvocationConfig *ConnectInvocationConfig
+
+	// Flags
+	DaemonRun bool
 
 	// Hidden Flags
 	ConnectInvocationConfigFile string
@@ -62,20 +67,38 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 // everything that needs to be passed in a json so we can evolve what needs to
 // be passed without plumbing the command line
 type ConnectInvocationConfig struct {
-	Unpriveleged     bool                         `json:"unpriveleged"`
+	Unprivileged     bool                         `json:"unprivileged"`
 	Cluster          string                       `json:"cluster"`
 	APIPort          uint16                       `json:"apiPort"`
 	LocalNetPort     uint16                       `json:"localNetPort"`
 	SignadotDir      string                       `json:"signadotDir"`
 	UID              int                          `json:"uid"`
+	GID              int                          `json:"gid"`
 	UIDHome          string                       `json:"uidHome"`
 	UIDPath          string                       `json:"uidPath"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	API              *API                         `json:"api"`
 	APIKey           string                       `json:"apiKey"`
+	Debug            bool                         `json:"debug"`
+}
+
+func (ciConfig *ConnectInvocationConfig) GetPIDfile() string {
+	if !ciConfig.Unprivileged {
+		return filepath.Join(ciConfig.SignadotDir, RootManagerPIDFile)
+	}
+	return filepath.Join(ciConfig.SignadotDir, SandboxManagerPIDFile)
+}
+
+func (ciConfig *ConnectInvocationConfig) GetLogName() string {
+	if !ciConfig.Unprivileged {
+		return RootManagerLogFile
+	}
+	return SandboxManagerLogFile
 }
 
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&c.DaemonRun, "daemon", false, "run in background as daemon")
+
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "connect-invocation-config-file", "", "by-pass calling signadot local connect (hidden)")
 	cmd.Flags().MarkHidden("connect-invocation-config-file")
 }

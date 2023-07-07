@@ -70,6 +70,7 @@ func (mon *pfwMonitor) run(ctx context.Context) {
 }
 
 func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
+	mon.log.Debug("checking port-forward")
 	if mon.sbClient == nil {
 		// Establish the connection if needed
 		grpcConn, err := grpc.Dial(mon.sbManagerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
