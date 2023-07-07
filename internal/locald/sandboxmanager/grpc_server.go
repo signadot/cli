@@ -143,7 +143,10 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 		delete(s.sbMonitors, sb.Name)
 	})
 	if sbm == nil {
-		// this shouldn't happen
+		// this shouldn't happen because we check
+		// if sb manager is ready, which is
+		// monotonic
+		s.log.Error("invalid internal state: getSBMonitor while sb manager is not ready")
 		return
 	}
 	// update the local spec and keep a reference to the sandbox monitor

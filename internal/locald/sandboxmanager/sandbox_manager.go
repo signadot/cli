@@ -148,7 +148,10 @@ func (m *sandboxManager) getSBMonitor(routingKey string, delFn func()) *sbMonito
 	m.tunMu.Lock()
 	defer m.tunMu.Unlock()
 	if m.tunAPIClient == nil {
-		// this shouldn't happen
+		// this shouldn't happen because we check
+		// if sb manager is ready, which is
+		// monotonic
+		m.log.Error("invalid internal state: getSBMonitor while sb manager is not ready")
 		return nil
 	}
 	return newSBMonitor(
