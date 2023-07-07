@@ -59,7 +59,7 @@ func (l *Local) GetConnectionConfig(cluster string) (*config.ConnectionConfig, e
 		if len(conns) == 1 {
 			return &conns[0], nil
 		}
-		return nil, fmt.Errorf("must specify cluster (one of %v)", clusters)
+		return nil, fmt.Errorf("must specify --cluster=... (one of %v)", clusters)
 	}
 	for i := range conns {
 		connConfig := &conns[i]
