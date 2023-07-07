@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/signadot/go-sdk v0.3.8-0.20230629093216-a080b761faca
-	github.com/signadot/libconnect v0.1.1-0.20230703222241-d7dc532b8c0e
+	github.com/signadot/libconnect v0.1.1-0.20230707142131-ffcf148fc365
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
@@ -85,6 +85,7 @@ require (
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.26.3 // indirect
