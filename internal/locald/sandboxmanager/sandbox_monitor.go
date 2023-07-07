@@ -146,6 +146,7 @@ func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) e
 		case codes.Internal:
 			sbm.log.Error("sandbox watch: internal grpc error",
 				"error", err)
+			<-time.After(3 * time.Second)
 		case codes.NotFound:
 			sbm.log.Info("sandbox watch: sandbox not found")
 			err = nil

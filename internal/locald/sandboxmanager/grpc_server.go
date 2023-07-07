@@ -62,7 +62,7 @@ func newSandboxManagerGRPCServer(apiConfig *cliconfig.API, portForward *portforw
 
 func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
 	if !s.isSBManagerReadyFunc() {
-		return nil, status.Errorf(codes.Unavailable, "sandboxmanager is still starting")
+		return nil, status.Errorf(codes.FailedPrecondition, "sandboxmanager is still starting")
 	}
 	sbSpec, err := sbapi.ToModelsSandboxSpec(req.SandboxSpec)
 	if err != nil {
