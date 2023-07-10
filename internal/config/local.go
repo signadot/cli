@@ -79,6 +79,7 @@ type LocalConnect struct {
 
 	// Hidden Flags
 	Unprivileged bool
+	DumpCIConfig bool
 }
 
 func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
@@ -87,6 +88,8 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root priveleges")
 	cmd.Flags().MarkHidden("unprivileged")
+	cmd.Flags().BoolVar(&c.DumpCIConfig, "dump-ci-config", false, "dump connect invocation config")
+	cmd.Flags().MarkHidden("dump-ci-config")
 }
 
 type LocalDisconnect struct {
