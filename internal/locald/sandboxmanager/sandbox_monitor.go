@@ -28,7 +28,7 @@ type sbMonitor struct {
 	log         *slog.Logger
 	doneCh      chan struct{}
 	reconcileCh chan struct{}
-	status      *clapi.WatchSandboxStatus
+	status      *clapi.WatchSandboxResponse
 	revtuns     map[string]*rt
 	locals      map[string]*models.Local
 }
@@ -49,7 +49,7 @@ func newSBMonitor(rk string, clapiClient clapiclient.Client, rtClient revtun.Cli
 	return res
 }
 
-func (sbm *sbMonitor) getStatus() *clapi.WatchSandboxStatus {
+func (sbm *sbMonitor) getStatus() *clapi.WatchSandboxResponse {
 	sbm.Lock()
 	defer sbm.Unlock()
 	return sbm.status
@@ -91,7 +91,7 @@ reconcileLoop:
 
 	// we're done, clean up revtuns and parent delete func
 	sbm.log.Debug("cleaning up status and locals and parent")
-	sbm.updateSandboxStatus(&clapi.WatchSandboxStatus{})
+	sbm.updateSandboxStatus(&clapi.WatchSandboxResponse{})
 	sbm.updateLocalsSpec(nil)
 	sbm.reconcile()
 	sbm.delFn()
@@ -124,7 +124,7 @@ func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) e
 	var (
 		ok         bool
 		err        error
-		sbStatus   *clapi.WatchSandboxStatus
+		sbStatus   *clapi.WatchSandboxResponse
 		grpcStatus *status.Status
 	)
 	for {
@@ -158,7 +158,7 @@ func (sbm *sbMonitor) readStream(sbwClient clapi.TunnelAPI_WatchSandboxClient) e
 	return err
 }
 
-func (sbm *sbMonitor) updateSandboxStatus(st *clapi.WatchSandboxStatus) {
+func (sbm *sbMonitor) updateSandboxStatus(st *clapi.WatchSandboxResponse) {
 	sbm.Lock()
 	defer sbm.Unlock()
 
@@ -214,7 +214,7 @@ func (sbm *sbMonitor) reconcile() {
 
 	// reconcile
 	sbm.log.Debug("reconciling tunnels")
-	statusXWs := make(map[string]*clapi.WatchSandboxStatus_ExternalWorkload, len(sbm.status.ExternalWorkloads))
+	statusXWs := make(map[string]*clapi.WatchSandboxResponse_ExternalWorkload, len(sbm.status.ExternalWorkloads))
 	// put the xwls in a map
 	for _, xw := range sbm.status.ExternalWorkloads {
 		statusXWs[xw.Name] = xw
