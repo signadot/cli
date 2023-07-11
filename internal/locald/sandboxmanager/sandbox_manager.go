@@ -19,6 +19,7 @@ import (
 	"github.com/signadot/libconnect/common/portforward"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/revtun"
+	"github.com/signadot/libconnect/revtun/protocol"
 	"github.com/signadot/libconnect/revtun/sshrevtun"
 	"github.com/signadot/libconnect/revtun/xaprevtun"
 )
@@ -28,6 +29,7 @@ type sandboxManager struct {
 	localdConfig *config.LocalDaemon
 	connConfig   *connectcfg.ConnectionConfig
 	apiPort      uint16
+	hostname     string
 	grpcServer   *grpc.Server
 	portForward  *portforward.PortForward
 	shutdownCh   chan struct{}
@@ -42,11 +44,18 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	shutdownCh := make(chan struct{})
 	grpcServer := grpc.NewServer()
 
+	// Resolve the hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+
 	return &sandboxManager{
 		log:          log,
 		localdConfig: cfg,
 		connConfig:   cfg.ConnectInvocationConfig.ConnectionConfig,
 		apiPort:      cfg.ConnectInvocationConfig.APIPort,
+		hostname:     hostname,
 		grpcServer:   grpcServer,
 		shutdownCh:   shutdownCh,
 	}, nil
@@ -179,7 +188,10 @@ func (m *sandboxManager) setTunnelAPIClient(proxyAddress string) error {
 func (m *sandboxManager) revtunClient() revtun.Client {
 	connConfig := m.localdConfig.ConnectInvocationConfig.ConnectionConfig
 	rtClientConfig := &revtun.ClientConfig{
-		User:       connConfig.KubeContext,
+		Labels: map[string]string{
+			protocol.RevTunnelUserLabel:     connConfig.KubeContext,
+			protocol.RevTunnelHostnameLabel: m.hostname,
+		},
 		Socks5Addr: m.proxyAddress,
 		ErrFunc: func(e error) {
 			m.log.Error("revtun.errfunc", "error", e)
