@@ -1,6 +1,7 @@
 name: local-hotrod-route
 spec:
   cluster: "@{cluster}"
+  description: "route local sandbox"
   labels:
     feature: optimize
     owner: route-team
@@ -11,7 +12,6 @@ spec:
       namespace: hotrod
       name: route
     mappings:
-      # why string?
     - port: "8083"
       toLocal: "localhost:8083"
   defaultRouteGroup:
