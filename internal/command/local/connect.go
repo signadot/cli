@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/utils/system"
@@ -13,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
+	"sigs.k8s.io/yaml"
 )
 
 func newConnect(localConfig *config.Local) *cobra.Command {
@@ -74,7 +76,6 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		SignadotDir:      signadotDir,
 		APIPort:          6666,
 		LocalNetPort:     6667,
-		Cluster:          cfg.Cluster,
 		UID:              os.Geteuid(),
 		GID:              os.Getegid(),
 		UIDHome:          homeDir,
@@ -83,6 +84,13 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		API:              cfg.API,
 		APIKey:           viper.GetString("api_key"),
 		Debug:            cfg.LocalConfig.Debug,
+	}
+	if cfg.DumpCIConfig {
+		d, _ := yaml.Marshal(ciConfig)
+		err := os.WriteFile(filepath.Join(signadotDir, "ci-config.yaml"), d, 0644)
+		if err != nil {
+			return err
+		}
 	}
 	logger, err := getLogger(ciConfig)
 	if err != nil {
