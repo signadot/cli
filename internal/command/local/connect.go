@@ -122,9 +122,7 @@ func runConnectImpl(log *slog.Logger, cfg *config.LocalConnect,
 		if os.Geteuid() != 0 {
 			fmt.Printf("signadot local connect needs root priveleges for:\n\t" +
 				"- updating /etc/hosts with cluster service names\n\t" +
-				"- configuring networking to direct cluster traffic to the cluster\n" +
-				"If you would prefer to run without root priveleges, please type Control-C\n" +
-				"and run `signadot local connect --unprivileged`\n")
+				"- configuring networking to direct cluster traffic to the cluster\n")
 		}
 		cmd = exec.Command(
 			"sudo",
