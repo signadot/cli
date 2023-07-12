@@ -38,10 +38,6 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	// TODO:
-	// - check if another local connect is already running
-	// - interactive display
-
 	// we will pass the connConfig to rootmanager and sandboxmanager
 	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
 	if err != nil {
@@ -97,13 +93,10 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	if cfg.NonInteractive {
-		return runNonInteractiveConnect(logger, cfg, ciConfig)
-	}
-	return runInteractiveConnect(log, cfg, ciConfig)
+	return runConnectImpl(logger, cfg, ciConfig)
 }
 
-func runNonInteractiveConnect(log *slog.Logger, cfg *config.LocalConnect,
+func runConnectImpl(log *slog.Logger, cfg *config.LocalConnect,
 	ciConfig *config.ConnectInvocationConfig) error {
 	// Check if the corresponding manager is already running
 	// this gives fail fast response and is safe to return
@@ -126,6 +119,11 @@ func runNonInteractiveConnect(log *slog.Logger, cfg *config.LocalConnect,
 
 	var cmd *exec.Cmd
 	if !cfg.Unprivileged {
+		if os.Geteuid() != 0 {
+			fmt.Printf("signadot local connect needs root priveleges for:\n\t" +
+				"- updating /etc/hosts with cluster service names\n\t" +
+				"- configuring networking to direct cluster traffic to the cluster\n")
+		}
 		cmd = exec.Command(
 			"sudo",
 			"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
@@ -150,11 +148,6 @@ func runNonInteractiveConnect(log *slog.Logger, cfg *config.LocalConnect,
 		return fmt.Errorf("couldn't run signadot locald: %w", err)
 	}
 
-	return nil
-}
-
-func runInteractiveConnect(log io.Writer, cfg *config.LocalConnect,
-	ciConfig *config.ConnectInvocationConfig) error {
 	return nil
 }
 
