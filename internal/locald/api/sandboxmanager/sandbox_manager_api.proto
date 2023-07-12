@@ -44,10 +44,13 @@ message StatusRequest {
 }
 
 message StatusResponse {
-  apicommon.LocalNetStatus localnet = 1;
-  apicommon.HostsStatus hosts = 2;
-  apicommon.PortForwardStatus portfoward = 3;
-  repeated apicommon.SandboxStatus sandboxes = 4;
+  // connect invocation config
+  // (instance of internal/config/locald.ConnectInvocationConfig)
+  google.protobuf.Struct ci_config = 1;
+  apicommon.LocalNetStatus localnet = 2;
+  apicommon.HostsStatus hosts = 3;
+  apicommon.PortForwardStatus portforward = 4;
+  repeated apicommon.SandboxStatus sandboxes = 5;
 }
 
 // Shutdown

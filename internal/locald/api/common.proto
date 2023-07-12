@@ -38,10 +38,28 @@ message PortForwardStatus {
 
 // Sandbox status (produced by local controller)
 message SandboxStatus {
+  message Baseline {
+    string apiVersion = 1;
+    string kind = 2;
+    string namespace = 3;
+    string name = 4;
+  }
+
+  message BaselineToLocal {
+    int32  baseline_port = 1;
+    string local_address = 2;
+  }
+
   message LocalWorkload {
+    // The workload name
     string name = 1;
-    ServiceHealth tunnel_health = 2;
-    string in_cluster_url = 3;
+    // "fork target"
+    Baseline baseline = 2;
+    // associative map from baseline ports to local address 
+    // destinations in the tunnel
+    repeated BaselineToLocal workloadPortMapping = 3;
+    // tunnel health
+    ServiceHealth tunnel_health = 4;
   }
 
   string name = 1;

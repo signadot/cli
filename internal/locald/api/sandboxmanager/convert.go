@@ -3,6 +3,7 @@ package sandboxmanager
 import (
 	"encoding/json"
 
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/models"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -48,4 +49,25 @@ func ToModelsSandbox(grpcSandbox *structpb.Struct) (*models.Sandbox, error) {
 		return nil, err
 	}
 	return sb, nil
+}
+
+func ToGRPCCIConfig(ciConfig *config.ConnectInvocationConfig) (*structpb.Struct, error) {
+	d, _ := json.Marshal(ciConfig)
+	un := map[string]any{}
+	if err := json.Unmarshal(d, &un); err != nil {
+		return nil, err
+	}
+	return structpb.NewStruct(un)
+}
+
+func ToCIConfig(grpcSpec *structpb.Struct) (*config.ConnectInvocationConfig, error) {
+	d, e := grpcSpec.MarshalJSON()
+	if e != nil {
+		return nil, e
+	}
+	ciConfig := &config.ConnectInvocationConfig{}
+	if err := json.Unmarshal(d, ciConfig); err != nil {
+		return nil, err
+	}
+	return ciConfig, nil
 }

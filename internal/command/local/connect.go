@@ -72,6 +72,7 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
+		WithRootManager:  !cfg.Unprivileged,
 		Unprivileged:     cfg.Unprivileged,
 		SignadotDir:      signadotDir,
 		APIPort:          6666,

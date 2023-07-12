@@ -69,6 +69,7 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 // everything that needs to be passed in a json so we can evolve what needs to
 // be passed without plumbing the command line
 type ConnectInvocationConfig struct {
+	WithRootManager  bool                         `json:"withRootManager"`
 	Unprivileged     bool                         `json:"unprivileged"`
 	APIPort          uint16                       `json:"apiPort"`
 	LocalNetPort     uint16                       `json:"localNetPort"`
