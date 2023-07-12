@@ -74,20 +74,17 @@ type LocalConnect struct {
 	*Local
 
 	// Flags
-	NonInteractive bool
-	Cluster        string
+	Cluster      string
+	Unprivileged bool
 
 	// Hidden Flags
-	Unprivileged bool
 	DumpCIConfig bool
 }
 
 func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&c.NonInteractive, "non-interactive", false, "run in background")
-	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "signadot cluster name")
+	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root priveleges")
-	cmd.Flags().MarkHidden("unprivileged")
 	cmd.Flags().BoolVar(&c.DumpCIConfig, "dump-ci-config", false, "dump connect invocation config")
 	cmd.Flags().MarkHidden("dump-ci-config")
 }
