@@ -69,9 +69,9 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	case config.OutputFormatDefault:
 		return printLocalStatus(cfg, out, status)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, status)
+		return printRawStatus(out, print.RawJSON, status)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, status)
+		return printRawStatus(out, print.RawYAML, status)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}

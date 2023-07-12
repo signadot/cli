@@ -112,7 +112,11 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRe
 }
 
 func (s *grpcServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
-	grpcCIConfig, err := sbapi.ToGRPCCIConfig(s.ciConfig)
+	// make a local copy
+	sbConfig := *s.ciConfig
+	sbConfig.APIKey = sbConfig.APIKey[:6] + "..."
+
+	grpcCIConfig, err := sbapi.ToGRPCCIConfig(&sbConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to create grpc ci-config: %s", err.Error())
 	}
