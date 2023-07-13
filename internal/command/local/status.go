@@ -18,7 +18,6 @@ import (
 
 func newStatus(localConfig *config.Local) *cobra.Command {
 	cfg := &config.LocalStatus{Local: localConfig}
-	_ = cfg
 
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -43,7 +42,7 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 
 	// Make sure the sandbox manager is running
 	pidfile := filepath.Join(signadotDir, config.SandboxManagerPIDFile)
-	isRunning, err := processes.IsDeamonRunning(pidfile)
+	isRunning, err := processes.IsDaemonRunning(pidfile)
 	if err != nil {
 		return err
 	}
@@ -54,7 +53,7 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	// Get a sandbox manager API client
 	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		return fmt.Errorf("couldn't connect sandbox manager api, %v", err)
+		return fmt.Errorf("couldn't connect sandbox manager api: %w", err)
 	}
 	defer grpcConn.Close()
 
@@ -62,7 +61,7 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
 	status, err := sbManagerClient.Status(context.Background(), &sbmapi.StatusRequest{})
 	if err != nil {
-		return fmt.Errorf("couldn't get status from sandbox manager api, %v", err)
+		return fmt.Errorf("couldn't get status from sandbox manager api: %w", err)
 	}
 
 	switch cfg.OutputFormat {
