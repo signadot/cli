@@ -102,5 +102,5 @@ func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.DaemonRun, "daemon", false, "run in background as daemon")
 
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "ci-config-file", "", "by-pass calling signadot local connect (hidden)")
-	cmd.Flags().MarkHidden("connect-invocation-config-file")
+	cmd.Flags().MarkHidden("ci-config-file")
 }

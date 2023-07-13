@@ -17,16 +17,41 @@ func printRawStatus(out io.Writer, printer func(out io.Writer, v any) error, sta
 		return fmt.Errorf("couldn't unmarshal ci-config from sandbox manager status, %v", err)
 	}
 
+	type PrintableCiConfig struct {
+		WithRootManager  bool
+		APIPort          uint16
+		LocalNetPort     uint16
+		SignadotDir      string
+		UID              int
+		GID              int
+		UIDHome          string
+		ConnectionConfig *connectcfg.ConnectionConfig
+		API              *config.API
+		Debug            bool
+	}
+	ciConfigForPrint := &PrintableCiConfig{
+		WithRootManager:  ciConfig.WithRootManager,
+		APIPort:          ciConfig.APIPort,
+		LocalNetPort:     ciConfig.LocalNetPort,
+		SignadotDir:      ciConfig.SignadotDir,
+		UID:              ciConfig.UID,
+		GID:              ciConfig.GID,
+		UIDHome:          ciConfig.UIDHome,
+		ConnectionConfig: ciConfig.ConnectionConfig,
+		API:              ciConfig.API,
+		Debug:            ciConfig.Debug,
+	}
+
 	type rawStatus struct {
-		CiConfig    *config.ConnectInvocationConfig `json:"ciConfig,omitempty"`
-		Localnet    *commonapi.LocalNetStatus       `json:"localnet,omitempty"`
-		Hosts       *commonapi.HostsStatus          `json:"hosts,omitempty"`
-		Portforward *commonapi.PortForwardStatus    `json:"portforward,omitempty"`
-		Sandboxes   []*commonapi.SandboxStatus      `json:"sandboxes,omitempty"`
+		CiConfig    *PrintableCiConfig           `json:"ciConfig,omitempty"`
+		Localnet    *commonapi.LocalNetStatus    `json:"localnet,omitempty"`
+		Hosts       *commonapi.HostsStatus       `json:"hosts,omitempty"`
+		Portforward *commonapi.PortForwardStatus `json:"portforward,omitempty"`
+		Sandboxes   []*commonapi.SandboxStatus   `json:"sandboxes,omitempty"`
 	}
 
 	rawSt := rawStatus{
-		CiConfig:    ciConfig,
+		CiConfig:    ciConfigForPrint,
 		Localnet:    status.Localnet,
 		Hosts:       status.Hosts,
 		Portforward: status.Portforward,
@@ -43,35 +68,33 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 
 	errorLines := []string{}
 	healthyLines := []string{}
+
+	// check port forward status
 	if ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
-		if !status.Portforward.Health.Healthy {
-			msg := "failed to establish port-forward"
-			if status.Portforward.Health.LastErrorReason != "" {
-				msg += fmt.Sprintf(" (%q)", status.Portforward.Health.LastErrorReason)
-			}
-			errorLines = append(errorLines, msg)
+		msg, ok := checkPortforwardStatus(status.Portforward)
+		if ok {
+			healthyLines = append(healthyLines, msg)
 		} else {
-			healthyLines = append(healthyLines,
-				fmt.Sprintf("port-forward listening at %q", status.Portforward.LocalAddress))
+			errorLines = append(errorLines, msg)
 		}
 	}
+
+	// check root manager (if running)
 	if ciConfig.WithRootManager {
-		if !status.Localnet.Health.Healthy {
-			msg := "failed to setup localnet"
-			if status.Localnet.Health.LastErrorReason != "" {
-				msg += fmt.Sprintf(" (%q)", status.Localnet.Health.LastErrorReason)
-			}
+		// check localnet service
+		msg, ok := checkLocalNetStatus(status.Localnet)
+		if ok {
+			healthyLines = append(healthyLines, msg)
+		} else {
 			errorLines = append(errorLines, msg)
 		}
-		if !status.Hosts.Health.Healthy {
-			msg := "failed to setup hosts in /etc/hosts"
-			if status.Hosts.Health.LastErrorReason != "" {
-				msg += fmt.Sprintf(" (%q)", status.Hosts.Health.LastErrorReason)
-			}
-			errorLines = append(errorLines, msg)
+
+		// check hosts service
+		msg, ok = checkHostsStatus(status.Hosts)
+		if ok {
+			healthyLines = append(healthyLines, msg)
 		} else {
-			healthyLines = append(healthyLines,
-				fmt.Sprintf("%d hosts accessible via /etc/hosts", status.Hosts.NumHosts))
+			errorLines = append(errorLines, msg)
 		}
 	}
 
@@ -115,6 +138,51 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 		}
 	}
 	return nil
+}
+
+func checkPortforwardStatus(portforward *commonapi.PortForwardStatus) (string, bool) {
+	errorMsg := "failed to establish port-forward"
+	if portforward != nil {
+		if portforward.Health != nil {
+			if portforward.Health.Healthy {
+				return fmt.Sprintf("port-forward listening at %q", portforward.LocalAddress), true
+			}
+			if portforward.Health.LastErrorReason != "" {
+				errorMsg += fmt.Sprintf(" (%q)", portforward.Health.LastErrorReason)
+			}
+		}
+	}
+	return errorMsg, false
+}
+
+func checkLocalNetStatus(localnet *commonapi.LocalNetStatus) (string, bool) {
+	errorMsg := "failed to setup localnet"
+	if localnet != nil {
+		if localnet.Health != nil {
+			if localnet.Health.Healthy {
+				return "localnet has been configured", true
+			}
+			if localnet.Health.LastErrorReason != "" {
+				errorMsg += fmt.Sprintf(" (%q)", localnet.Health.LastErrorReason)
+			}
+		}
+	}
+	return errorMsg, false
+}
+
+func checkHostsStatus(hosts *commonapi.HostsStatus) (string, bool) {
+	errorMsg := "failed to configure hosts in /etc/hosts"
+	if hosts != nil {
+		if hosts.Health != nil {
+			if hosts.Health.Healthy {
+				return fmt.Sprintf("%d hosts accessible via /etc/hosts", hosts.NumHosts), true
+			}
+			if hosts.Health.LastErrorReason != "" {
+				errorMsg += fmt.Sprintf(" (%q)", hosts.Health.LastErrorReason)
+			}
+		}
+	}
+	return errorMsg, false
 }
 
 func printLine(out io.Writer, idents int, line, prefix string) {
