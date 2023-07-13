@@ -104,7 +104,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 	// this gives fail fast response and is safe to return
 	// an error here, but the check is _not_ used to assume
 	// that we have the lock later on when starting.
-	isRunning, err := processes.IsDeamonRunning(ciConfig.GetPIDfile())
+	isRunning, err := processes.IsDaemonRunning(ciConfig.GetPIDfile())
 	if err != nil {
 		return err
 	}
