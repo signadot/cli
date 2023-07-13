@@ -16,6 +16,7 @@ func New(api *config.API) *cobra.Command {
 	// Subcommands
 	cmd.AddCommand(
 		newConnect(cfg),
+		newStatus(cfg),
 		newDisconnect(cfg),
 	)
 

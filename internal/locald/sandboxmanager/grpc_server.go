@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	cliconfig "github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/config"
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
@@ -25,8 +25,8 @@ type grpcServer struct {
 
 	log *slog.Logger
 
-	// api config for apply sandbox
-	apiConfig *cliconfig.API
+	// runtime config
+	ciConfig *config.ConnectInvocationConfig
 
 	// if nil, no portforward necessary
 	portForward *portforward.PortForward
@@ -45,12 +45,12 @@ type grpcServer struct {
 	shutdownCh chan struct{}
 }
 
-func newSandboxManagerGRPCServer(apiConfig *cliconfig.API, portForward *portforward.PortForward,
+func newSandboxManagerGRPCServer(ciConfig *config.ConnectInvocationConfig, portForward *portforward.PortForward,
 	isSBManagerReadyFunc func() bool, getSBMonitorFunc func(string, func()) *sbMonitor,
 	log *slog.Logger, shutdownCh chan struct{}) *grpcServer {
 	srv := &grpcServer{
 		log:                  log,
-		apiConfig:            apiConfig,
+		ciConfig:             ciConfig,
 		portForward:          portForward,
 		sbMonitors:           make(map[string]*sbMonitor),
 		isSBManagerReadyFunc: isSBManagerReadyFunc,
@@ -71,10 +71,12 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRe
 	sb := &models.Sandbox{
 		Spec: sbSpec,
 	}
-	s.log.Debug("api", "config", s.apiConfig)
+
+	apiConfig := s.ciConfig.API
+	s.log.Debug("api", "config", apiConfig)
 	params := sandboxes.NewApplySandboxParams().
-		WithOrgName(s.apiConfig.Org).WithSandboxName(req.Name).WithData(sb)
-	result, err := s.apiConfig.Client.Sandboxes.ApplySandbox(params, nil)
+		WithOrgName(apiConfig.Org).WithSandboxName(req.Name).WithData(sb)
+	result, err := apiConfig.Client.Sandboxes.ApplySandbox(params, nil)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "error applying sandbox to signadot api: %s", err.Error())
 	}
@@ -110,9 +112,20 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRe
 }
 
 func (s *grpcServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
-	resp := &sbapi.StatusResponse{}
-	resp.Portfoward = s.portforwardStatus()
-	resp.Sandboxes = s.sbStatuses()
+	// make a local copy
+	sbConfig := *s.ciConfig
+	sbConfig.APIKey = sbConfig.APIKey[:6] + "..."
+
+	grpcCIConfig, err := sbapi.ToGRPCCIConfig(&sbConfig)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create grpc ci-config: %s", err.Error())
+	}
+
+	resp := &sbapi.StatusResponse{
+		CiConfig:    grpcCIConfig,
+		Portforward: s.portForwardStatus(),
+		Sandboxes:   s.sbStatuses(),
+	}
 	resp.Hosts, resp.Localnet = s.rootStatus()
 	return resp, nil
 }
@@ -155,6 +168,11 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 }
 
 func (s *grpcServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
+	if !s.ciConfig.WithRootManager {
+		// We are running without a root manager
+		return nil, nil
+	}
+
 	rootClient := s.getRootClient()
 	if rootClient == nil {
 		s.log.Debug("no root client available for rootStatus()")
@@ -191,7 +209,7 @@ func (s *grpcServer) getRootClient() rootapi.RootManagerAPIClient {
 	return s.rootClient
 }
 
-func (s *grpcServer) portforwardStatus() *commonapi.PortForwardStatus {
+func (s *grpcServer) portForwardStatus() *commonapi.PortForwardStatus {
 	grpcPFStatus := &commonapi.PortForwardStatus{}
 	if s.portForward == nil {
 		return grpcPFStatus
@@ -216,8 +234,23 @@ func (s *grpcServer) sbStatuses() []*commonapi.SandboxStatus {
 			LocalWorkloads: make([]*commonapi.SandboxStatus_LocalWorkload, len(sbmStatus.ExternalWorkloads)),
 		}
 		for i, xw := range sbmStatus.ExternalWorkloads {
+			portMapping := []*commonapi.SandboxStatus_BaselineToLocal{}
+			for _, pm := range xw.WorkloadPortMapping {
+				portMapping = append(portMapping, &commonapi.SandboxStatus_BaselineToLocal{
+					BaselinePort: pm.BaselinePort,
+					LocalAddress: pm.LocalAddress,
+				})
+			}
+
 			lwStatus := &commonapi.SandboxStatus_LocalWorkload{
 				Name: xw.Name,
+				Baseline: &commonapi.SandboxStatus_Baseline{
+					ApiVersion: xw.Baseline.ApiVersion,
+					Kind:       xw.Baseline.Kind,
+					Namespace:  xw.Baseline.Namespace,
+					Name:       xw.Baseline.Name,
+				},
+				WorkloadPortMapping: portMapping,
 				TunnelHealth: &commonapi.ServiceHealth{
 					Healthy: xw.Connected,
 					// TODO plumb health into commonapi

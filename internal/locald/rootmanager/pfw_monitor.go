@@ -17,13 +17,13 @@ const (
 )
 
 type pfwMonitor struct {
-	log            *slog.Logger
-	root           *rootManager
-	sbManagerAddr  string
-	portfowardAddr string
-	starting       bool
-	sbClient       sbmanagerapi.SandboxManagerAPIClient
-	closeCh        chan struct{}
+	log             *slog.Logger
+	root            *rootManager
+	sbManagerAddr   string
+	portforwardAddr string
+	starting        bool
+	sbClient        sbmanagerapi.SandboxManagerAPIClient
+	closeCh         chan struct{}
 }
 
 func NewPortForwardMonitor(ctx context.Context, root *rootManager) *pfwMonitor {
@@ -98,21 +98,21 @@ func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
 	}
 
 	// Check the status
-	if status.Portfoward == nil || status.Portfoward.Health == nil || !status.Portfoward.Health.Healthy {
+	if status.Portforward == nil || status.Portforward.Health == nil || !status.Portforward.Health.Healthy {
 		mon.log.Debug("port forward not ready in sandbox manager")
 		return false
 	}
-	if status.Portfoward.LocalAddress != mon.portfowardAddr {
-		mon.portfowardAddr = status.Portfoward.LocalAddress
-		mon.log.Info("port forward is ready", "addr", mon.portfowardAddr)
+	if status.Portforward.LocalAddress != mon.portforwardAddr {
+		mon.portforwardAddr = status.Portforward.LocalAddress
+		mon.log.Info("port forward is ready", "addr", mon.portforwardAddr)
 
 		// Restart localnet
 		mon.root.stopLocalnetService()
-		mon.root.runLocalnetService(ctx, mon.portfowardAddr)
+		mon.root.runLocalnetService(ctx, mon.portforwardAddr)
 
 		// Restart etc hosts
 		mon.root.stopEtcHostsService()
-		mon.root.runEtcHostsService(ctx, mon.portfowardAddr)
+		mon.root.runEtcHostsService(ctx, mon.portforwardAddr)
 	}
 	mon.starting = false
 	return true

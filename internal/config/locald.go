@@ -69,6 +69,7 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 // everything that needs to be passed in a json so we can evolve what needs to
 // be passed without plumbing the command line
 type ConnectInvocationConfig struct {
+	WithRootManager  bool                         `json:"withRootManager"`
 	Unprivileged     bool                         `json:"unprivileged"`
 	APIPort          uint16                       `json:"apiPort"`
 	LocalNetPort     uint16                       `json:"localNetPort"`
@@ -101,5 +102,5 @@ func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.DaemonRun, "daemon", false, "run in background as daemon")
 
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "ci-config-file", "", "by-pass calling signadot local connect (hidden)")
-	cmd.Flags().MarkHidden("connect-invocation-config-file")
+	cmd.Flags().MarkHidden("ci-config-file")
 }

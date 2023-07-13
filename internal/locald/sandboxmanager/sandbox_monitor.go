@@ -224,9 +224,6 @@ func (sbm *sbMonitor) reconcile() {
 		rt, has := sbm.revtuns[xwName]
 		if has {
 			select {
-			case <-rt.rtClosed:
-				has = false
-				delete(sbm.revtuns, xwName)
 			case <-rt.rtToClose:
 				has = false
 				delete(sbm.revtuns, xwName)

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
@@ -25,7 +26,7 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 		Use:   "connect",
 		Short: "connect with sandboxes",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConnect(cmd, cmd.ErrOrStderr(), cfg, args)
+			return runConnect(cmd, cmd.OutOrStdout(), cfg, args)
 		},
 	}
 	cfg.AddFlags(cmd)
@@ -33,7 +34,7 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 	return cmd
 }
 
-func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, args []string) error {
+func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, args []string) error {
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
 	}
@@ -68,6 +69,7 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
+		WithRootManager:  !cfg.Unprivileged,
 		Unprivileged:     cfg.Unprivileged,
 		SignadotDir:      signadotDir,
 		APIPort:          6666,
@@ -93,10 +95,10 @@ func runConnect(cmd *cobra.Command, log io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	return runConnectImpl(logger, cfg, ciConfig)
+	return runConnectImpl(out, logger, cfg, ciConfig)
 }
 
-func runConnectImpl(log *slog.Logger, cfg *config.LocalConnect,
+func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 	ciConfig *config.ConnectInvocationConfig) error {
 	// Check if the corresponding manager is already running
 	// this gives fail fast response and is safe to return
@@ -120,8 +122,8 @@ func runConnectImpl(log *slog.Logger, cfg *config.LocalConnect,
 	var cmd *exec.Cmd
 	if !cfg.Unprivileged {
 		if os.Geteuid() != 0 {
-			fmt.Printf("signadot local connect needs root priveleges for:\n\t" +
-				"- updating /etc/hosts with cluster service names\n\t" +
+			fmt.Fprintf(out, "signadot local connect needs root priveleges for:\n\t"+
+				"- updating /etc/hosts with cluster service names\n\t"+
 				"- configuring networking to direct cluster traffic to the cluster\n")
 		}
 		cmd = exec.Command(
@@ -148,6 +150,10 @@ func runConnectImpl(log *slog.Logger, cfg *config.LocalConnect,
 		return fmt.Errorf("couldn't run signadot locald: %w", err)
 	}
 
+	green := color.New(color.FgGreen).SprintFunc()
+	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
+	fmt.Fprintf(out, "\nsignadot local connect has been started %s\n", green("✓"))
+	fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
 	return nil
 }
 

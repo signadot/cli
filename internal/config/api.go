@@ -12,6 +12,7 @@ import (
 	"github.com/signadot/cli/internal/hack"
 	"github.com/signadot/go-sdk/client"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v2"
 )
 
 type API struct {
@@ -29,6 +30,14 @@ type API struct {
 // for error reporting, we select the config that
 // the user controls.
 func (a *API) MarshalJSON() ([]byte, error) {
+	return a.marshal(json.Marshal)
+}
+
+func (a *API) MarshalYAML() ([]byte, error) {
+	return a.marshal(yaml.Marshal)
+}
+
+func (a *API) marshal(marshaller func(interface{}) ([]byte, error)) ([]byte, error) {
 	type T struct {
 		Debug        bool
 		ConfigFile   string
@@ -43,7 +52,7 @@ func (a *API) MarshalJSON() ([]byte, error) {
 		MaskedAPIKey: a.MaskedAPIKey,
 		APIURL:       a.APIURL,
 	}
-	return json.Marshal(t)
+	return marshaller(t)
 }
 
 func (a *API) InitAPIConfig() error {

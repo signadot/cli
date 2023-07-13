@@ -99,7 +99,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	}
 
 	// Register our service in gRPC server
-	sbmSrv := newSandboxManagerGRPCServer(m.localdConfig.ConnectInvocationConfig.API,
+	sbmSrv := newSandboxManagerGRPCServer(m.localdConfig.ConnectInvocationConfig,
 		m.portForward, m.isSBManagerReady, m.getSBMonitor, m.log, m.shutdownCh)
 	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, sbmSrv)
 
