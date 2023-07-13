@@ -1,7 +1,6 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,45 +98,9 @@ func (ciConfig *ConnectInvocationConfig) GetLogName() string {
 	return SandboxManagerLogFile
 }
 
-func (ciConfig *ConnectInvocationConfig) MarshalJSON() ([]byte, error) {
-	return ciConfig.marshal(json.Marshal)
-}
-
-func (ciConfig *ConnectInvocationConfig) MarshalYAML() ([]byte, error) {
-	return ciConfig.marshal(yaml.Marshal)
-}
-
-func (ciConfig *ConnectInvocationConfig) marshal(marshaller func(interface{}) ([]byte, error)) ([]byte, error) {
-	type T struct {
-		WithRootManager  bool
-		APIPort          uint16
-		LocalNetPort     uint16
-		SignadotDir      string
-		UID              int
-		GID              int
-		UIDHome          string
-		ConnectionConfig *connectcfg.ConnectionConfig
-		API              *API
-		Debug            bool
-	}
-	t := &T{
-		WithRootManager:  ciConfig.WithRootManager,
-		APIPort:          ciConfig.APIPort,
-		LocalNetPort:     ciConfig.LocalNetPort,
-		SignadotDir:      ciConfig.SignadotDir,
-		UID:              ciConfig.UID,
-		GID:              ciConfig.GID,
-		UIDHome:          ciConfig.UIDHome,
-		ConnectionConfig: ciConfig.ConnectionConfig,
-		API:              ciConfig.API,
-		Debug:            ciConfig.Debug,
-	}
-	return marshaller(t)
-}
-
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.DaemonRun, "daemon", false, "run in background as daemon")
 
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "ci-config-file", "", "by-pass calling signadot local connect (hidden)")
-	cmd.Flags().MarkHidden("connect-invocation-config-file")
+	cmd.Flags().MarkHidden("ci-config-file")
 }

@@ -17,16 +17,41 @@ func printRawStatus(out io.Writer, printer func(out io.Writer, v any) error, sta
 		return fmt.Errorf("couldn't unmarshal ci-config from sandbox manager status, %v", err)
 	}
 
+	type PrintableCiConfig struct {
+		WithRootManager  bool
+		APIPort          uint16
+		LocalNetPort     uint16
+		SignadotDir      string
+		UID              int
+		GID              int
+		UIDHome          string
+		ConnectionConfig *connectcfg.ConnectionConfig
+		API              *config.API
+		Debug            bool
+	}
+	ciConfigForPrint := &PrintableCiConfig{
+		WithRootManager:  ciConfig.WithRootManager,
+		APIPort:          ciConfig.APIPort,
+		LocalNetPort:     ciConfig.LocalNetPort,
+		SignadotDir:      ciConfig.SignadotDir,
+		UID:              ciConfig.UID,
+		GID:              ciConfig.GID,
+		UIDHome:          ciConfig.UIDHome,
+		ConnectionConfig: ciConfig.ConnectionConfig,
+		API:              ciConfig.API,
+		Debug:            ciConfig.Debug,
+	}
+
 	type rawStatus struct {
-		CiConfig    *config.ConnectInvocationConfig `json:"ciConfig,omitempty"`
-		Localnet    *commonapi.LocalNetStatus       `json:"localnet,omitempty"`
-		Hosts       *commonapi.HostsStatus          `json:"hosts,omitempty"`
-		Portforward *commonapi.PortForwardStatus    `json:"portforward,omitempty"`
-		Sandboxes   []*commonapi.SandboxStatus      `json:"sandboxes,omitempty"`
+		CiConfig    *PrintableCiConfig           `json:"ciConfig,omitempty"`
+		Localnet    *commonapi.LocalNetStatus    `json:"localnet,omitempty"`
+		Hosts       *commonapi.HostsStatus       `json:"hosts,omitempty"`
+		Portforward *commonapi.PortForwardStatus `json:"portforward,omitempty"`
+		Sandboxes   []*commonapi.SandboxStatus   `json:"sandboxes,omitempty"`
 	}
 
 	rawSt := rawStatus{
-		CiConfig:    ciConfig,
+		CiConfig:    ciConfigForPrint,
 		Localnet:    status.Localnet,
 		Hosts:       status.Hosts,
 		Portforward: status.Portforward,
