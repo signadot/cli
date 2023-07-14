@@ -104,6 +104,13 @@ func (sbm *sbMonitor) watchSandbox(ctx context.Context) {
 			RoutingKey: sbm.routingKey,
 		})
 		if err != nil {
+			// don't retry if the context has been cancelled
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			sbm.log.Error("error getting sb watch stream, retrying", "error", err)
 			<-time.After(3 * time.Second)
 			continue
@@ -198,6 +205,30 @@ func (sbm *sbMonitor) updateLocalsSpec(locals []*models.Local) {
 	sbm.triggerReconcile()
 }
 
+func (sbm *sbMonitor) closeRevTunnels() {
+	sbm.Lock()
+	defer sbm.Unlock()
+
+	for xwName := range sbm.revtuns {
+		sbm.closeRevTunnel(xwName)
+	}
+}
+
+func (sbm *sbMonitor) closeRevTunnel(xwName string) {
+	revtun := sbm.revtuns[xwName]
+	if revtun == nil {
+		return
+	}
+
+	select {
+	case <-revtun.rtToClose:
+	default:
+		sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
+		close(revtun.rtToClose)
+		delete(sbm.revtuns, xwName)
+	}
+}
+
 func (sbm *sbMonitor) triggerReconcile() {
 	select {
 	case sbm.reconcileCh <- struct{}{}:
@@ -274,17 +305,11 @@ func (sbm *sbMonitor) reconcile() {
 	}
 
 	// delete unwanted tunnels
-	for xwName, xw := range sbm.revtuns {
+	for xwName := range sbm.revtuns {
 		_, desired := statusXWs[xwName]
 		if desired {
 			continue
 		}
-		select {
-		case <-xw.rtToClose:
-		default:
-			sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
-			close(xw.rtToClose)
-			delete(sbm.revtuns, xwName)
-		}
+		sbm.closeRevTunnel(xwName)
 	}
 }

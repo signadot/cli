@@ -144,6 +144,10 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 	defer s.sbMu.Unlock()
 	sbm, present := s.sbMonitors[sb.Name]
 	if present {
+		// Close all current rev tunnels. When applying the sandbox in the SaaS,
+		// it will update the SDS in the target cluster, causing current tunnels
+		// to disconnect. By closing them before hand, we are more reactive.
+		sbm.closeRevTunnels()
 		// update the local spec
 		sbm.updateLocalsSpec(sb.Spec.Local)
 		return
@@ -261,4 +265,24 @@ func (s *grpcServer) sbStatuses() []*commonapi.SandboxStatus {
 		res = append(res, grpcStatus)
 	}
 	return res
+}
+
+func (s *grpcServer) stop() {
+	var wg sync.WaitGroup
+
+	// stop all sbx monitors
+	s.sbMu.Lock()
+	for _, sbMon := range s.sbMonitors {
+		wg.Add(1)
+		// overwrite the delete function
+		sbMon.delFn = func() {
+			defer wg.Done()
+		}
+		// stop the sbx monitor
+		sbMon.stop()
+	}
+	s.sbMu.Unlock()
+
+	// wait until all sbx monitor has stopped
+	wg.Wait()
 }
