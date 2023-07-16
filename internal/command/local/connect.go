@@ -151,8 +151,6 @@ func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 
-	fmt.Printf("binary is %q\n", binary)
-
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("couldn't run signadot locald: %w", err)
 	}
