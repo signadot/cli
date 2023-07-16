@@ -10,6 +10,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
@@ -118,6 +119,10 @@ func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 		// should be impossible
 		return err
 	}
+	binary, err := utils.GetFullArgv0()
+	if err != nil {
+		return fmt.Errorf("unable to resolve symlinks on %q: %w", os.Args[0], err)
+	}
 
 	var cmd *exec.Cmd
 	if !cfg.Unprivileged {
@@ -129,12 +134,12 @@ func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 		cmd = exec.Command(
 			"sudo",
 			"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-			os.Args[0],
+			binary,
 			"locald",
 			"--daemon",
 		)
 	} else {
-		cmd = exec.Command(os.Args[0], "locald", "--daemon")
+		cmd = exec.Command(binary, "locald", "--daemon")
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
 			fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
@@ -145,6 +150,8 @@ func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
+
+	fmt.Printf("binary is %q\n", binary)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("couldn't run signadot locald: %w", err)

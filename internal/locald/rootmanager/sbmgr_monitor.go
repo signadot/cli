@@ -11,6 +11,7 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/libconnect/common/processes"
 	"golang.org/x/exp/slog"
 	"google.golang.org/grpc"
@@ -44,12 +45,18 @@ func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConf
 		mon.log.Error("ciconfig json", "error", err)
 		panic(err)
 	}
+	binary, err := utils.GetFullArgv0()
+	if err != nil {
+		mon.log.Error("error evaluating symlinks", "file", os.Args[0], "error", err)
+		// it was executed, so presumably EvalSymlinks will work
+		panic(err)
+	}
 	cmd := exec.Command(
 		"sudo",
 		"-n",
 		"-u", fmt.Sprintf("#%d", ciConfig.UID),
 		"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-		os.Args[0],
+		binary,
 		"locald",
 		"--daemon",
 	)

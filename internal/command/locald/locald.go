@@ -8,6 +8,7 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
@@ -41,7 +42,11 @@ func run(cfg *config.LocalDaemon, args []string) error {
 
 	if cfg.DaemonRun {
 		// we should spawn a background process
-		cmd := exec.Command(os.Args[0], "locald")
+		binary, err := utils.GetFullArgv0()
+		if err != nil {
+			return err
+		}
+		cmd := exec.Command(binary, "locald")
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
 			fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
