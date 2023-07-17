@@ -24,7 +24,9 @@ type LocalDaemon struct {
 	ConnectInvocationConfig *ConnectInvocationConfig
 
 	// Flags
-	DaemonRun bool
+	DaemonRun      bool
+	RootManager    bool
+	SandboxManager bool
 
 	// Hidden Flags
 	ConnectInvocationConfigFile string
@@ -70,7 +72,6 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 // be passed without plumbing the command line
 type ConnectInvocationConfig struct {
 	WithRootManager  bool                         `json:"withRootManager"`
-	Unprivileged     bool                         `json:"unprivileged"`
 	APIPort          uint16                       `json:"apiPort"`
 	LocalNetPort     uint16                       `json:"localNetPort"`
 	SignadotDir      string                       `json:"signadotDir"`
@@ -84,15 +85,15 @@ type ConnectInvocationConfig struct {
 	Debug            bool                         `json:"debug"`
 }
 
-func (ciConfig *ConnectInvocationConfig) GetPIDfile() string {
-	if !ciConfig.Unprivileged {
+func (ciConfig *ConnectInvocationConfig) GetPIDfile(isRootManager bool) string {
+	if isRootManager {
 		return filepath.Join(ciConfig.SignadotDir, RootManagerPIDFile)
 	}
 	return filepath.Join(ciConfig.SignadotDir, SandboxManagerPIDFile)
 }
 
-func (ciConfig *ConnectInvocationConfig) GetLogName() string {
-	if !ciConfig.Unprivileged {
+func (ciConfig *ConnectInvocationConfig) GetLogName(isRootManager bool) string {
+	if isRootManager {
 		return RootManagerLogFile
 	}
 	return SandboxManagerLogFile
@@ -100,6 +101,8 @@ func (ciConfig *ConnectInvocationConfig) GetLogName() string {
 
 func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.DaemonRun, "daemon", false, "run in background as daemon")
+	cmd.Flags().BoolVar(&c.RootManager, "root-manager", false, "run the root-manager (privileged daemon)")
+	cmd.Flags().BoolVar(&c.SandboxManager, "sandbox-manager", false, "run the sandbox-manager (unprivileged daemon)")
 
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "ci-config-file", "", "by-pass calling signadot local connect (hidden)")
 	cmd.Flags().MarkHidden("ci-config-file")
