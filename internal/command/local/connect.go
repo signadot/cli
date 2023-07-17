@@ -24,7 +24,7 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "connect",
-		Short: "connect with sandboxes",
+		Short: "connect local machine to Kubernetes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConnect(cmd, cmd.OutOrStdout(), cfg, args)
 		},
