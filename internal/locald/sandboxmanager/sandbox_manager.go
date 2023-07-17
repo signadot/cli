@@ -31,7 +31,7 @@ type sandboxManager struct {
 	apiPort      uint16
 	hostname     string
 	grpcServer   *grpc.Server
-	sbmServer    *grpcServer
+	sbmServer    *sbmServer
 	portForward  *portforward.PortForward
 	shutdownCh   chan struct{}
 
