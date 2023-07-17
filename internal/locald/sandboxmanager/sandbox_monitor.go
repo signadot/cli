@@ -1,6 +1,7 @@
 package sandboxmanager
 
 import (
+	"bytes"
 	"context"
 	"sync"
 	"time"
@@ -104,6 +105,13 @@ func (sbm *sbMonitor) watchSandbox(ctx context.Context) {
 			RoutingKey: sbm.routingKey,
 		})
 		if err != nil {
+			// don't retry if the context has been cancelled
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			sbm.log.Error("error getting sb watch stream, retrying", "error", err)
 			<-time.After(3 * time.Second)
 			continue
@@ -173,29 +181,60 @@ func (sbm *sbMonitor) updateLocalsSpec(locals []*models.Local) {
 	sbm.Lock()
 	defer sbm.Unlock()
 
-	localMap := make(map[string]*models.Local, len(locals))
+	desLocals := make(map[string]*models.Local, len(locals))
 	for _, localSpec := range locals {
-		localMap[localSpec.Name] = localSpec
+		desLocals[localSpec.Name] = localSpec
 	}
 	for localName := range sbm.locals {
-		_, desired := localMap[localName]
+		_, desired := desLocals[localName]
 		if !desired {
 			delete(sbm.locals, localName)
 			continue
 		}
 	}
-	for localName, local := range localMap {
-		_, has := sbm.locals[localName]
-		if has {
-			// TODO check if local def changed, if so, close
-			// old revtun and create new one
+	for localName, des := range desLocals {
+		obs, has := sbm.locals[localName]
+		if !has {
+			sbm.locals[localName] = des
 			continue
 		}
-		sbm.locals[localName] = local
+		if !sbm.localsEqual(des, obs) {
+			sbm.log.Debug("not equal", "des", des, "obs", obs)
+			sbm.closeRevTunnel(localName)
+		}
+		sbm.locals[localName] = des
 	}
 
 	// trigger a reconcile
 	sbm.triggerReconcile()
+}
+
+func (sbm *sbMonitor) closeRevTunnel(xwName string) {
+	revtun := sbm.revtuns[xwName]
+	if revtun == nil {
+		return
+	}
+
+	select {
+	case <-revtun.rtToClose:
+	default:
+		sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
+		close(revtun.rtToClose)
+	}
+}
+
+func (sbm *sbMonitor) localsEqual(a, b *models.Local) bool {
+	da, err := a.MarshalBinary()
+	if err != nil {
+		sbm.log.Error("error marshalling local", "error", err)
+		return false
+	}
+	db, err := b.MarshalBinary()
+	if err != nil {
+		sbm.log.Error("error marshalling local", "error", err)
+		return false
+	}
+	return bytes.Equal(da, db)
 }
 
 func (sbm *sbMonitor) triggerReconcile() {
@@ -225,6 +264,7 @@ func (sbm *sbMonitor) reconcile() {
 		if has {
 			select {
 			case <-rt.rtToClose:
+				// delete the revtun if it has been closed
 				has = false
 				delete(sbm.revtuns, xwName)
 			default:
@@ -239,12 +279,10 @@ func (sbm *sbMonitor) reconcile() {
 					rt.clusterNotConnectedTime = &now
 				}
 				if time.Since(*rt.clusterNotConnectedTime) > 10*time.Second {
+					// this revtun has been down for more than 10 secs
+					// close and delete the current revtune
 					has = false
-					select {
-					case <-rt.rtToClose:
-					default:
-						close(rt.rtToClose)
-					}
+					sbm.closeRevTunnel(xwName)
 					delete(sbm.revtuns, xwName)
 				}
 			} else {
@@ -274,17 +312,13 @@ func (sbm *sbMonitor) reconcile() {
 	}
 
 	// delete unwanted tunnels
-	for xwName, xw := range sbm.revtuns {
+	for xwName := range sbm.revtuns {
 		_, desired := statusXWs[xwName]
 		if desired {
 			continue
 		}
-		select {
-		case <-xw.rtToClose:
-		default:
-			sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
-			close(xw.rtToClose)
-			delete(sbm.revtuns, xwName)
-		}
+		// close and delete the current revtune
+		sbm.closeRevTunnel(xwName)
+		delete(sbm.revtuns, xwName)
 	}
 }

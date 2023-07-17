@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-type grpcServer struct {
+type sbmServer struct {
 	sbapi.UnimplementedSandboxManagerAPIServer
 
 	log *slog.Logger
@@ -47,8 +47,8 @@ type grpcServer struct {
 
 func newSandboxManagerGRPCServer(ciConfig *config.ConnectInvocationConfig, portForward *portforward.PortForward,
 	isSBManagerReadyFunc func() bool, getSBMonitorFunc func(string, func()) *sbMonitor,
-	log *slog.Logger, shutdownCh chan struct{}) *grpcServer {
-	srv := &grpcServer{
+	log *slog.Logger, shutdownCh chan struct{}) *sbmServer {
+	srv := &sbmServer{
 		log:                  log,
 		ciConfig:             ciConfig,
 		portForward:          portForward,
@@ -60,7 +60,7 @@ func newSandboxManagerGRPCServer(ciConfig *config.ConnectInvocationConfig, portF
 	return srv
 }
 
-func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
+func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
 	if !s.isSBManagerReadyFunc() {
 		return nil, status.Errorf(codes.FailedPrecondition, "sandboxmanager is still starting")
 	}
@@ -111,7 +111,7 @@ func (s *grpcServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRe
 	return resp, nil
 }
 
-func (s *grpcServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
+func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
 	// make a local copy
 	sbConfig := *s.ciConfig
 	sbConfig.APIKey = sbConfig.APIKey[:6] + "..."
@@ -130,7 +130,7 @@ func (s *grpcServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sba
 	return resp, nil
 }
 
-func (s *grpcServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (*sbapi.ShutdownResponse, error) {
+func (s *sbmServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (*sbapi.ShutdownResponse, error) {
 	select {
 	case <-s.shutdownCh:
 	default:
@@ -139,7 +139,7 @@ func (s *grpcServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (
 	return &sbapi.ShutdownResponse{}, nil
 }
 
-func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
+func (s *sbmServer) registerSandbox(sb *models.Sandbox) {
 	s.sbMu.Lock()
 	defer s.sbMu.Unlock()
 	sbm, present := s.sbMonitors[sb.Name]
@@ -167,7 +167,7 @@ func (s *grpcServer) registerSandbox(sb *models.Sandbox) {
 	s.sbMonitors[sb.Name] = sbm
 }
 
-func (s *grpcServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
+func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
 	if !s.ciConfig.WithRootManager {
 		// We are running without a root manager
 		return nil, nil
@@ -190,7 +190,7 @@ func (s *grpcServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetSt
 	return resp.Hosts, resp.Localnet
 }
 
-func (s *grpcServer) getRootClient() rootapi.RootManagerAPIClient {
+func (s *sbmServer) getRootClient() rootapi.RootManagerAPIClient {
 	s.rootMu.Lock()
 	defer s.rootMu.Unlock()
 	if s.rootClient != nil {
@@ -209,7 +209,7 @@ func (s *grpcServer) getRootClient() rootapi.RootManagerAPIClient {
 	return s.rootClient
 }
 
-func (s *grpcServer) portForwardStatus() *commonapi.PortForwardStatus {
+func (s *sbmServer) portForwardStatus() *commonapi.PortForwardStatus {
 	grpcPFStatus := &commonapi.PortForwardStatus{}
 	if s.portForward == nil {
 		return grpcPFStatus
@@ -222,7 +222,7 @@ func (s *grpcServer) portForwardStatus() *commonapi.PortForwardStatus {
 	return grpcPFStatus
 }
 
-func (s *grpcServer) sbStatuses() []*commonapi.SandboxStatus {
+func (s *sbmServer) sbStatuses() []*commonapi.SandboxStatus {
 	s.sbMu.Lock()
 	defer s.sbMu.Unlock()
 	res := make([]*commonapi.SandboxStatus, 0, len(s.sbMonitors))
@@ -261,4 +261,24 @@ func (s *grpcServer) sbStatuses() []*commonapi.SandboxStatus {
 		res = append(res, grpcStatus)
 	}
 	return res
+}
+
+func (s *sbmServer) stop() {
+	var wg sync.WaitGroup
+
+	// stop all sbx monitors
+	s.sbMu.Lock()
+	for _, sbMon := range s.sbMonitors {
+		wg.Add(1)
+		// overwrite the delete function
+		sbMon.delFn = func() {
+			defer wg.Done()
+		}
+		// stop the sbx monitor
+		sbMon.stop()
+	}
+	s.sbMu.Unlock()
+
+	// wait until all sbx monitor has stopped
+	wg.Wait()
 }
