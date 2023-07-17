@@ -39,10 +39,6 @@ func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*
 	rootapi.RegisterRootManagerAPIServer(grpcServer, root)
 
 	ciConfig := cfg.ConnectInvocationConfig
-	// make a local copy
-	sbConfig := *ciConfig
-	sbConfig.Unprivileged = true
-
 	log = log.With("locald-component", "root-manager")
 
 	return &rootManager{
@@ -50,7 +46,7 @@ func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*
 		conf:       cfg.ConnectInvocationConfig,
 		grpcServer: grpcServer,
 		root:       root,
-		sbmMonitor: newSBMgrMonitor(&sbConfig, log),
+		sbmMonitor: newSBMgrMonitor(ciConfig, log),
 		shutdownCh: shutdownCh,
 	}, nil
 }

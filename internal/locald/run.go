@@ -22,7 +22,7 @@ func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string)
 	return sbMgr.Run(ctx)
 }
 
-func RunAsRoot(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
+func RunRootManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("must run as root without --unprivileged")
 	}

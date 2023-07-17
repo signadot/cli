@@ -34,14 +34,20 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		return err
 	}
 	ciConfig := cfg.ConnectInvocationConfig
-	log, err := getLogger(ciConfig)
+	log, err := getLogger(ciConfig, cfg.RootManager)
 	if err != nil {
 		return err
 	}
+	pidFile := ciConfig.GetPIDfile(cfg.RootManager)
 
 	if cfg.DaemonRun {
 		// we should spawn a background process
-		cmd := exec.Command(os.Args[0], "locald")
+		var cmd *exec.Cmd
+		if cfg.RootManager {
+			cmd = exec.Command(os.Args[0], "locald", "--root-manager")
+		} else {
+			cmd = exec.Command(os.Args[0], "locald", "--sandbox-manager")
+		}
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
 			fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
@@ -52,11 +58,10 @@ func run(cfg *config.LocalDaemon, args []string) error {
 			return err
 		}
 		// and check to see that it succeeded
-		return processes.WaitReady(ciConfig.GetPIDfile(), time.Second, cmd.Process, log)
+		return processes.WaitReady(pidFile, time.Second, cmd.Process, log)
 	}
 
 	// write our pidfile
-	pidFile := ciConfig.GetPIDfile()
 	if err := processes.WritePIDFile(pidFile); err != nil {
 		return err
 	}
@@ -69,16 +74,16 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	}()
 
 	// run the corresponding manager
-	if ciConfig.Unprivileged {
-		return locald.RunSandboxManager(cfg, log, args)
+	if cfg.RootManager {
+		return locald.RunRootManager(cfg, log, args)
 	}
-	return locald.RunAsRoot(cfg, log, args)
+	return locald.RunSandboxManager(cfg, log, args)
 }
 
-func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {
+func getLogger(ciConfig *config.ConnectInvocationConfig, isRootManager bool) (*slog.Logger, error) {
 	logWriter, _, err := system.GetRollingLogWriter(
 		ciConfig.SignadotDir,
-		ciConfig.GetLogName(),
+		ciConfig.GetLogName(isRootManager),
 		ciConfig.UID,
 		ciConfig.GID,
 	)
