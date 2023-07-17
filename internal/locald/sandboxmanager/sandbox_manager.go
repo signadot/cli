@@ -31,6 +31,7 @@ type sandboxManager struct {
 	apiPort      uint16
 	hostname     string
 	grpcServer   *grpc.Server
+	sbmServer    *sbmServer
 	portForward  *portforward.PortForward
 	shutdownCh   chan struct{}
 
@@ -99,9 +100,9 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	}
 
 	// Register our service in gRPC server
-	sbmSrv := newSandboxManagerGRPCServer(m.localdConfig.ConnectInvocationConfig,
+	m.sbmServer = newSandboxManagerGRPCServer(m.localdConfig.ConnectInvocationConfig,
 		m.portForward, m.isSBManagerReady, m.getSBMonitor, m.log, m.shutdownCh)
-	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, sbmSrv)
+	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, m.sbmServer)
 
 	// Run the gRPC server
 	if err := m.runAPIServer(); err != nil {
@@ -132,6 +133,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	// Clean up
 	m.log.Info("Shutting down")
 	m.grpcServer.GracefulStop()
+	m.sbmServer.stop()
 	if m.portForward != nil {
 		m.portForward.Close()
 	}

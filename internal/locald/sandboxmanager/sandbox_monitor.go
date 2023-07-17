@@ -105,6 +105,13 @@ func (sbm *sbMonitor) watchSandbox(ctx context.Context) {
 			RoutingKey: sbm.routingKey,
 		})
 		if err != nil {
+			// don't retry if the context has been cancelled
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
 			sbm.log.Error("error getting sb watch stream, retrying", "error", err)
 			<-time.After(3 * time.Second)
 			continue
@@ -193,21 +200,27 @@ func (sbm *sbMonitor) updateLocalsSpec(locals []*models.Local) {
 		}
 		if !sbm.localsEqual(des, obs) {
 			sbm.log.Debug("not equal", "des", des, "obs", obs)
-			rt := sbm.revtuns[localName]
-			if rt != nil {
-				select {
-				case <-rt.rtToClose:
-				default:
-					close(rt.rtToClose)
-				}
-			}
-
+			sbm.closeRevTunnel(localName)
 		}
 		sbm.locals[localName] = des
 	}
 
 	// trigger a reconcile
 	sbm.triggerReconcile()
+}
+
+func (sbm *sbMonitor) closeRevTunnel(xwName string) {
+	revtun := sbm.revtuns[xwName]
+	if revtun == nil {
+		return
+	}
+
+	select {
+	case <-revtun.rtToClose:
+	default:
+		sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
+		close(revtun.rtToClose)
+	}
 }
 
 func (sbm *sbMonitor) localsEqual(a, b *models.Local) bool {
@@ -251,6 +264,7 @@ func (sbm *sbMonitor) reconcile() {
 		if has {
 			select {
 			case <-rt.rtToClose:
+				// delete the revtun if it has been closed
 				has = false
 				delete(sbm.revtuns, xwName)
 			default:
@@ -265,12 +279,10 @@ func (sbm *sbMonitor) reconcile() {
 					rt.clusterNotConnectedTime = &now
 				}
 				if time.Since(*rt.clusterNotConnectedTime) > 10*time.Second {
+					// this revtun has been down for more than 10 secs
+					// close and delete the current revtune
 					has = false
-					select {
-					case <-rt.rtToClose:
-					default:
-						close(rt.rtToClose)
-					}
+					sbm.closeRevTunnel(xwName)
 					delete(sbm.revtuns, xwName)
 				}
 			} else {
@@ -300,18 +312,13 @@ func (sbm *sbMonitor) reconcile() {
 	}
 
 	// delete unwanted tunnels
-	for xwName, xw := range sbm.revtuns {
+	for xwName := range sbm.revtuns {
 		_, desired := statusXWs[xwName]
 		if desired {
 			continue
 		}
-		select {
-		case <-xw.rtToClose:
-		default:
-			sbm.log.Debug("sandbox monitor closing revtun", "local", xwName)
-			close(xw.rtToClose)
-			delete(sbm.revtuns, xwName)
-		}
+		// close and delete the current revtune
+		sbm.closeRevTunnel(xwName)
+		delete(sbm.revtuns, xwName)
 	}
-
 }
