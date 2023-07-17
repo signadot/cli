@@ -71,7 +71,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
 		WithRootManager:  !cfg.Unprivileged,
-		Unprivileged:     cfg.Unprivileged,
 		SignadotDir:      signadotDir,
 		APIPort:          6666,
 		LocalNetPort:     6667,
@@ -96,16 +95,16 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	return runConnectImpl(out, logger, cfg, ciConfig)
+	return runConnectImpl(out, logger, ciConfig)
 }
 
-func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
-	ciConfig *config.ConnectInvocationConfig) error {
+func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInvocationConfig) error {
 	// Check if the corresponding manager is already running
 	// this gives fail fast response and is safe to return
 	// an error here, but the check is _not_ used to assume
 	// that we have the lock later on when starting.
-	isRunning, err := processes.IsDaemonRunning(ciConfig.GetPIDfile())
+	pidFile := ciConfig.GetPIDfile(ciConfig.WithRootManager)
+	isRunning, err := processes.IsDaemonRunning(pidFile)
 	if err != nil {
 		return err
 	}
@@ -125,21 +124,28 @@ func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 	}
 
 	var cmd *exec.Cmd
-	if !cfg.Unprivileged {
+	if ciConfig.WithRootManager {
 		if os.Geteuid() != 0 {
 			fmt.Fprintf(out, "signadot local connect needs root privileges for:\n\t"+
 				"- updating /etc/hosts with cluster service names\n\t"+
 				"- configuring networking to direct cluster traffic to the cluster\n")
 		}
+		// run the root-manager
 		cmd = exec.Command(
 			"sudo",
 			"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
 			binary,
 			"locald",
 			"--daemon",
+			"--root-manager",
 		)
 	} else {
-		cmd = exec.Command(binary, "locald", "--daemon")
+		// run the sandbox-manager
+		cmd = exec.Command(
+			binary, "locald",
+			"--daemon",
+			"--sandbox-manager",
+		)
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
 			fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
@@ -165,7 +171,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, cfg *config.LocalConnect,
 func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {
 	logWriter, _, err := system.GetRollingLogWriter(
 		ciConfig.SignadotDir,
-		ciConfig.GetLogName(),
+		ciConfig.GetLogName(ciConfig.WithRootManager),
 		ciConfig.UID,
 		ciConfig.GID,
 	)

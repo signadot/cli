@@ -32,7 +32,7 @@ func newSBMgrMonitor(ciConfig *config.ConnectInvocationConfig, log *slog.Logger)
 	res := &sbmgrMonitor{
 		ciConfig: ciConfig,
 		log:      log,
-		pidFile:  ciConfig.GetPIDfile(),
+		pidFile:  ciConfig.GetPIDfile(false),
 		done:     make(chan struct{}),
 		doneAck:  make(chan struct{}),
 	}
@@ -59,6 +59,7 @@ func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConf
 		binary,
 		"locald",
 		"--daemon",
+		"--sandbox-manager",
 	)
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
