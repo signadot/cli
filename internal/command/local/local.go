@@ -10,7 +10,7 @@ func New(api *config.API) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "local",
-		Short: "connect local machine with Kubernetes",
+		Short: "connect local machine with cluster",
 	}
 
 	// Subcommands
