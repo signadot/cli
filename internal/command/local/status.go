@@ -26,6 +26,7 @@ func newStatus(localConfig *config.Local) *cobra.Command {
 			return runStatus(cfg, cmd.OutOrStdout(), args)
 		},
 	}
+	cfg.AddFlags(cmd)
 
 	return cmd
 }
@@ -68,9 +69,9 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	case config.OutputFormatDefault:
 		return printLocalStatus(cfg, out, status)
 	case config.OutputFormatJSON:
-		return printRawStatus(out, print.RawJSON, status)
+		return printRawStatus(cfg, out, print.RawJSON, status)
 	case config.OutputFormatYAML:
-		return printRawStatus(out, print.RawYAML, status)
+		return printRawStatus(cfg, out, print.RawYAML, status)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
