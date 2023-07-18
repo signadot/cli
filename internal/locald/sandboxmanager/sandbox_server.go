@@ -62,20 +62,25 @@ func newSandboxManagerGRPCServer(ciConfig *config.ConnectInvocationConfig, portF
 
 func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
 	if !s.isSBManagerReadyFunc() {
-		return nil, status.Errorf(codes.FailedPrecondition, "sandboxmanager is still starting")
+		return sbapi.APIErrorResponse(
+			fmt.Errorf("sandboxmanager is still starting")), nil
 	}
 	sbSpec, err := sbapi.ToModelsSandboxSpec(req.SandboxSpec)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to create go-sdk sandbox spec: %w", err)
+		return sbapi.APIErrorResponse(
+			fmt.Errorf("unable to create go-sdk sandbox spec: %w", err)), nil
 	}
 	sb := &models.Sandbox{
 		Spec: sbSpec,
 	}
 	if sbSpec.Cluster == nil {
-		return nil, status.Errorf(codes.Internal, "sandbox spec must specify cluster")
+		return sbapi.APIErrorResponse(
+			fmt.Errorf("sandbox spec must specify cluster")), nil
 	}
 	if *sbSpec.Cluster != s.ciConfig.ConnectionConfig.Cluster {
-		return nil, status.Errorf(codes.Internal, "sandbox spec cluster %q does not match connected cluster (%q)", *sbSpec.Cluster, s.ciConfig.ConnectionConfig.Cluster)
+		return sbapi.APIErrorResponse(
+			fmt.Errorf("sandbox spec cluster %q does not match connected cluster (%q)",
+				*sbSpec.Cluster, s.ciConfig.ConnectionConfig.Cluster)), nil
 	}
 
 	apiConfig := s.ciConfig.API
