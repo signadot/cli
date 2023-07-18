@@ -17,26 +17,35 @@ func printRawStatus(out io.Writer, printer func(out io.Writer, v any) error, sta
 		return fmt.Errorf("couldn't unmarshal ci-config from sandbox manager status, %v", err)
 	}
 
+	type PrintableUser struct {
+		UID      int
+		GID      int
+		Username string
+		UIDHome  string
+	}
+
 	type PrintableCiConfig struct {
 		WithRootManager  bool
 		APIPort          uint16
 		LocalNetPort     uint16
 		SignadotDir      string
-		UID              int
-		GID              int
-		UIDHome          string
+		User             *PrintableUser
 		ConnectionConfig *connectcfg.ConnectionConfig
 		API              *config.API
 		Debug            bool
 	}
+
 	ciConfigForPrint := &PrintableCiConfig{
-		WithRootManager:  ciConfig.WithRootManager,
-		APIPort:          ciConfig.APIPort,
-		LocalNetPort:     ciConfig.LocalNetPort,
-		SignadotDir:      ciConfig.SignadotDir,
-		UID:              ciConfig.UID,
-		GID:              ciConfig.GID,
-		UIDHome:          ciConfig.UIDHome,
+		WithRootManager: ciConfig.WithRootManager,
+		APIPort:         ciConfig.APIPort,
+		LocalNetPort:    ciConfig.LocalNetPort,
+		SignadotDir:     ciConfig.SignadotDir,
+		User: &PrintableUser{
+			UID:      ciConfig.User.UID,
+			GID:      ciConfig.User.GID,
+			Username: ciConfig.User.Username,
+			UIDHome:  ciConfig.User.UIDHome,
+		},
 		ConnectionConfig: ciConfig.ConnectionConfig,
 		API:              ciConfig.API,
 		Debug:            ciConfig.Debug,

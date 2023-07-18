@@ -17,12 +17,11 @@ import (
 	"golang.org/x/exp/slog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 type rootManager struct {
 	log        *slog.Logger
-	conf       *config.ConnectInvocationConfig
+	ciConfig   *config.ConnectInvocationConfig
 	grpcServer *grpc.Server
 	root       *rootServer
 	sbmMonitor *sbmgrMonitor
@@ -43,7 +42,7 @@ func NewRootManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*
 
 	return &rootManager{
 		log:        log,
-		conf:       cfg.ConnectInvocationConfig,
+		ciConfig:   ciConfig,
 		grpcServer: grpcServer,
 		root:       root,
 		sbmMonitor: newSBMgrMonitor(ciConfig, log),
@@ -63,10 +62,10 @@ func (m *rootManager) Run(ctx context.Context) error {
 	// Run the sandbox manager
 	go m.sbmMonitor.run()
 
-	if m.conf.ConnectionConfig.Type == connectcfg.ProxyAddressLinkType {
+	if m.ciConfig.ConnectionConfig.Type == connectcfg.ProxyAddressLinkType {
 		// Start localnet and etchost services
-		m.runLocalnetService(ctx, m.conf.ConnectionConfig.ProxyAddress)
-		m.runEtcHostsService(ctx, m.conf.ConnectionConfig.ProxyAddress)
+		m.runLocalnetService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress)
+		m.runEtcHostsService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress)
 	} else {
 		// Start the port-forward monitor, who will be in charge of
 		// starting/restarting the localnet and etchost services
@@ -93,7 +92,7 @@ func (m *rootManager) Run(ctx context.Context) error {
 }
 
 func (m *rootManager) runAPIServer(ctx context.Context) error {
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.conf.LocalNetPort))
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.ciConfig.LocalNetPort))
 	if err != nil {
 		return err
 	}
@@ -102,17 +101,13 @@ func (m *rootManager) runAPIServer(ctx context.Context) error {
 }
 
 func (m *rootManager) runLocalnetService(ctx context.Context, socks5Addr string) {
-	// Get the user from kubeconfig
-	user := m.getK8SUser()
-	m.log.Debug("current k8s user is", "user", user)
-
 	// Start the localnet service
 	localnetSVC := localnet.NewService(ctx, &localnet.ClientConfig{
 		Log:        m.log,
-		User:       user,
+		User:       m.ciConfig.User.Username,
 		SOCKS5Addr: socks5Addr,
 		ListenAddr: "127.0.0.1:2223",
-	}, m.conf.ConnectionConfig)
+	}, m.ciConfig.ConnectionConfig)
 
 	// Register the localnet service in root api
 	m.root.setLocalnetService(localnetSVC)
@@ -140,18 +135,6 @@ func (m *rootManager) stopEtcHostsService() error {
 		return etcHostsSVC.Close()
 	}
 	return nil
-}
-
-func (m *rootManager) getK8SUser() string {
-	kubeConfig, err := clientcmd.LoadFromFile(m.conf.ConnectionConfig.GetKubeConfigPath())
-	if err != nil {
-		m.log.Error("couldn't load kubeconfig", "error", err)
-		return ""
-	}
-	if k8sCtx, ok := kubeConfig.Contexts[m.conf.ConnectionConfig.KubeContext]; ok {
-		return k8sCtx.AuthInfo
-	}
-	return ""
 }
 
 func (m *rootManager) getHostsFile() string {

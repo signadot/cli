@@ -49,8 +49,8 @@ func run(cfg *config.LocalDaemon, args []string) error {
 			cmd = exec.Command(os.Args[0], "locald", "--sandbox-manager")
 		}
 		cmd.Env = append(cmd.Env,
-			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
-			fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
+			fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
+			fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
 			fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s",
 				os.Getenv("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG")),
 		)
@@ -66,7 +66,7 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		return err
 	}
 	// make sure pidfile perms are correct
-	if err := os.Chown(pidFile, ciConfig.UID, ciConfig.GID); err != nil {
+	if err := os.Chown(pidFile, ciConfig.User.UID, ciConfig.User.GID); err != nil {
 		log.Warn("couldn't change ownership of pidfile", "error", err)
 	}
 	defer func() {
@@ -84,8 +84,8 @@ func getLogger(ciConfig *config.ConnectInvocationConfig, isRootManager bool) (*s
 	logWriter, _, err := system.GetRollingLogWriter(
 		ciConfig.SignadotDir,
 		ciConfig.GetLogName(isRootManager),
-		ciConfig.UID,
-		ciConfig.GID,
+		ciConfig.User.UID,
+		ciConfig.User.GID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open logfile, %w", err)

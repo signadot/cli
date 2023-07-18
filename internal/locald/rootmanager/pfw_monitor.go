@@ -29,7 +29,7 @@ type pfwMonitor struct {
 func NewPortForwardMonitor(ctx context.Context, root *rootManager) *pfwMonitor {
 	mon := &pfwMonitor{
 		log:           root.log,
-		sbManagerAddr: fmt.Sprintf("127.0.0.1:%d", root.conf.APIPort),
+		sbManagerAddr: fmt.Sprintf("127.0.0.1:%d", root.ciConfig.APIPort),
 		root:          root,
 		starting:      true,
 		closeCh:       make(chan struct{}),
