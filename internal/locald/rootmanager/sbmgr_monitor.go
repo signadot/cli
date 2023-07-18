@@ -38,18 +38,23 @@ func newSBMgrMonitor(ciConfig *config.ConnectInvocationConfig, log *slog.Logger)
 	return res
 }
 
-func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConfig) *exec.Cmd {
+// returns non-nil error only on fatal error
+func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConfig) (*exec.Cmd, error) {
 	ciBytes, err := json.Marshal(ciConfig)
 	if err != nil {
-		mon.log.Error("ciconfig json", "error", err)
-		panic(err)
+		return nil, fmt.Errorf("could not marshal ciConfig: %w", err)
+	}
+	binary, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		// the command was  was executed, so presumably EvalSymlinks will work
+		return nil, fmt.Errorf("could not resolve program name %q: %w", os.Args[0], err)
 	}
 	cmd := exec.Command(
 		"sudo",
 		"-n",
 		"-u", fmt.Sprintf("#%d", ciConfig.UID),
 		"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-		os.Args[0],
+		binary,
 		"locald",
 		"--daemon",
 		"--sandbox-manager",
@@ -59,7 +64,7 @@ func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConf
 		fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
 		fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)),
 	)
-	return cmd
+	return cmd, nil
 }
 
 func (mon *sbmgrMonitor) run() {
@@ -73,7 +78,12 @@ func (mon *sbmgrMonitor) run() {
 	defer ticker.Stop()
 	for {
 		mon.log.Debug("sbmgr monitor: starting sandbox-manager cmd")
-		cmd = mon.getRunSandboxCmd(mon.ciConfig)
+		cmd, err = mon.getRunSandboxCmd(mon.ciConfig)
+		if err != nil {
+			mon.log.Error("could not formulate command to run sandboxmanager, exiting", "error", err)
+			return
+		}
+
 		err = cmd.Run()
 		if err != nil {
 			mon.log.Error("error launching sandboxmanager", "error", err)

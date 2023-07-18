@@ -20,7 +20,6 @@ import (
 
 func newConnect(localConfig *config.Local) *cobra.Command {
 	cfg := &config.LocalConnect{Local: localConfig}
-	_ = cfg
 
 	cmd := &cobra.Command{
 		Use:   "connect",
@@ -117,6 +116,12 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 		// should be impossible
 		return err
 	}
+	// find the path to the current named program, so when we call
+	// it is is independent of PATH.
+	binary, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return fmt.Errorf("unable to find executable %q: %w", os.Args[0], err)
+	}
 
 	var cmd *exec.Cmd
 	if ciConfig.WithRootManager {
@@ -129,7 +134,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 		cmd = exec.Command(
 			"sudo",
 			"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
-			os.Args[0],
+			binary,
 			"locald",
 			"--daemon",
 			"--root-manager",
@@ -137,7 +142,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 	} else {
 		// run the sandbox-manager
 		cmd = exec.Command(
-			os.Args[0], "locald",
+			binary, "locald",
 			"--daemon",
 			"--sandbox-manager",
 		)

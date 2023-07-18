@@ -41,12 +41,17 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	pidFile := ciConfig.GetPIDfile(cfg.RootManager)
 
 	if cfg.DaemonRun {
-		// we should spawn a background process
+		// find the path to the current named program, so when we call
+		// it is is independent of PATH.
+		binary, err := exec.LookPath(os.Args[0])
+		if err != nil {
+			return err
+		}
 		var cmd *exec.Cmd
 		if cfg.RootManager {
-			cmd = exec.Command(os.Args[0], "locald", "--root-manager")
+			cmd = exec.Command(binary, "locald", "--root-manager")
 		} else {
-			cmd = exec.Command(os.Args[0], "locald", "--sandbox-manager")
+			cmd = exec.Command(binary, "locald", "--sandbox-manager")
 		}
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
