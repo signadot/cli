@@ -20,7 +20,6 @@ import (
 
 func newConnect(localConfig *config.Local) *cobra.Command {
 	cfg := &config.LocalConnect{Local: localConfig}
-	_ = cfg
 
 	cmd := &cobra.Command{
 		Use:   "connect",
