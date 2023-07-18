@@ -10,7 +10,7 @@ func New(api *config.API) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "local",
-		Short: "connect with sandboxes locally",
+		Short: "connect local machine with cluster",
 	}
 
 	// Subcommands

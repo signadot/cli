@@ -22,7 +22,7 @@ func newDisconnect(localConfig *config.Local) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "disconnect",
-		Short: "disconnect local development with sandboxes",
+		Short: "disconnect local machine from cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runDisconnect(cfg, args)
 		},
