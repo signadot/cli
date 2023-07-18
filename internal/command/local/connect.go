@@ -10,7 +10,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
@@ -118,9 +117,11 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 		// should be impossible
 		return err
 	}
-	binary, err := utils.GetFullArgv0()
+	// find the path to the current named program, so when we call
+	// it is is independent of PATH.
+	binary, err := exec.LookPath(os.Args[0])
 	if err != nil {
-		return fmt.Errorf("unable to resolve symlinks on %q: %w", os.Args[0], err)
+		return fmt.Errorf("unable to find executable %q: %w", os.Args[0], err)
 	}
 
 	var cmd *exec.Cmd

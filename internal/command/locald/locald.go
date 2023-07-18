@@ -8,7 +8,6 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald"
-	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
@@ -42,8 +41,9 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	pidFile := ciConfig.GetPIDfile(cfg.RootManager)
 
 	if cfg.DaemonRun {
-		// we should spawn a background process
-		binary, err := utils.GetFullArgv0()
+		// find the path to the current named program, so when we call
+		// it is is independent of PATH.
+		binary, err := exec.LookPath(os.Args[0])
 		if err != nil {
 			return err
 		}
