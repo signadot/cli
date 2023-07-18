@@ -33,8 +33,12 @@ message ApplySandboxRequest {
 }
 
 message ApplySandboxResponse {
-  // sandbox (instance of github.com/signadot/go-sdk/models.Sandbox)
-  google.protobuf.Struct sandbox = 1;
+  oneof it {
+	  // sandbox (instance of github.com/signadot/go-sdk/models.Sandbox)
+	  google.protobuf.Struct sandbox = 1;
+          
+          string apiError = 2;
+  }
 }
 
 // Status

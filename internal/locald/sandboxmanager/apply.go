@@ -2,6 +2,7 @@ package sandboxmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	sbmgrapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
@@ -40,5 +41,12 @@ func Apply(ctx context.Context, org, name string, spec *models.SandboxSpec) (*mo
 		}
 		return nil, fmt.Errorf("unable to apply sandbox in sandboxmanager: %w", err)
 	}
-	return sbmgrapi.ToModelsSandbox(grpcResp.Sandbox)
+	switch it := grpcResp.It.(type) {
+	case *sbmgrapi.ApplySandboxResponse_ApiError:
+		return nil, errors.New(it.ApiError)
+	case *sbmgrapi.ApplySandboxResponse_Sandbox:
+		return sbmgrapi.ToModelsSandbox(it.Sandbox)
+	default:
+		return nil, fmt.Errorf("internal error: unexpected type of `It`")
+	}
 }
