@@ -11,53 +11,230 @@ import (
 	connectcfg "github.com/signadot/libconnect/config"
 )
 
-func printRawStatus(out io.Writer, printer func(out io.Writer, v any) error, status *sbmapi.StatusResponse) error {
+func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.Writer, v any) error,
+	status *sbmapi.StatusResponse) error {
+	// unmarshal the ci config
 	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
 	if err != nil {
 		return fmt.Errorf("couldn't unmarshal ci-config from sandbox manager status, %v", err)
 	}
 
-	type PrintableCiConfig struct {
-		WithRootManager  bool
-		APIPort          uint16
-		LocalNetPort     uint16
-		SignadotDir      string
-		UID              int
-		GID              int
-		UIDHome          string
-		ConnectionConfig *connectcfg.ConnectionConfig
-		API              *config.API
-		Debug            bool
-	}
-	ciConfigForPrint := &PrintableCiConfig{
-		WithRootManager:  ciConfig.WithRootManager,
-		APIPort:          ciConfig.APIPort,
-		LocalNetPort:     ciConfig.LocalNetPort,
-		SignadotDir:      ciConfig.SignadotDir,
-		UID:              ciConfig.UID,
-		GID:              ciConfig.GID,
-		UIDHome:          ciConfig.UIDHome,
-		ConnectionConfig: ciConfig.ConnectionConfig,
-		API:              ciConfig.API,
-		Debug:            ciConfig.Debug,
+	// convert the status into a map (useful to convert snake-case fields to camel-case,
+	// format dates, etc)
+	statusMap, err := sbmapi.StatusToMap(status)
+	if err != nil {
+		return err
 	}
 
 	type rawStatus struct {
-		CiConfig    *PrintableCiConfig           `json:"ciConfig,omitempty"`
-		Localnet    *commonapi.LocalNetStatus    `json:"localnet,omitempty"`
-		Hosts       *commonapi.HostsStatus       `json:"hosts,omitempty"`
-		Portforward *commonapi.PortForwardStatus `json:"portforward,omitempty"`
-		Sandboxes   []*commonapi.SandboxStatus   `json:"sandboxes,omitempty"`
+		RuntimeConfig any `json:"runtimeConfig,omitempty"`
+		Localnet      any `json:"localnet,omitempty"`
+		Hosts         any `json:"hosts,omitempty"`
+		Portforward   any `json:"portforward,omitempty"`
+		Sandboxes     any `json:"sandboxes,omitempty"`
 	}
 
 	rawSt := rawStatus{
-		CiConfig:    ciConfigForPrint,
-		Localnet:    status.Localnet,
-		Hosts:       status.Hosts,
-		Portforward: status.Portforward,
-		Sandboxes:   status.Sandboxes,
+		RuntimeConfig: getRawRuntimeConfig(cfg, ciConfig),
+		Localnet:      getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
+		Hosts:         getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
+		Portforward:   getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
+		Sandboxes:     statusMap["sandboxes"],
 	}
+
 	return printer(out, rawSt)
+}
+
+func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig) any {
+	var runtimeConfig any
+
+	if cfg.Details {
+		// Details view
+		type PrintableUser struct {
+			UID      int    `json:"uid"`
+			GID      int    `json:"gid"`
+			Username string `json:"username"`
+			UIDHome  string `json:"uidHome"`
+		}
+
+		type PrintableAPI struct {
+			ConfigFile   string `json:"configFile"`
+			Org          string `json:"org"`
+			MaskedAPIKey string `json:"maskedAPIKey"`
+			APIURL       string `json:"apiURL"`
+		}
+
+		type PrintableRuntimeConfig struct {
+			RootDaemon       bool                         `json:"rootDaemon"`
+			APIPort          uint16                       `json:"apiPort"`
+			LocalNetPort     uint16                       `json:"localNetPort"`
+			ConfigDir        string                       `json:"configDir"`
+			User             *PrintableUser               `json:"user"`
+			ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
+			API              *PrintableAPI                `json:"api"`
+			Debug            bool                         `json:"debug"`
+		}
+
+		runtimeConfig = &PrintableRuntimeConfig{
+			RootDaemon:   ciConfig.WithRootManager,
+			APIPort:      ciConfig.APIPort,
+			LocalNetPort: ciConfig.LocalNetPort,
+			ConfigDir:    ciConfig.SignadotDir,
+			User: &PrintableUser{
+				UID:      ciConfig.User.UID,
+				GID:      ciConfig.User.GID,
+				Username: ciConfig.User.Username,
+				UIDHome:  ciConfig.User.UIDHome,
+			},
+			ConnectionConfig: ciConfig.ConnectionConfig,
+			API: &PrintableAPI{
+				ConfigFile:   ciConfig.API.ConfigFile,
+				Org:          ciConfig.API.Org,
+				MaskedAPIKey: ciConfig.API.MaskedAPIKey,
+				APIURL:       ciConfig.API.APIURL,
+			},
+			Debug: ciConfig.Debug,
+		}
+	} else {
+		// Standard view
+		type PrintableRuntimeConfig struct {
+			RootDaemon       bool                         `json:"rootDaemon"`
+			ConfigDir        string                       `json:"configDir"`
+			ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
+		}
+
+		runtimeConfig = &PrintableRuntimeConfig{
+			RootDaemon:       ciConfig.WithRootManager,
+			ConfigDir:        ciConfig.SignadotDir,
+			ConnectionConfig: ciConfig.ConnectionConfig,
+		}
+	}
+
+	return runtimeConfig
+}
+
+func getRawLocalnet(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
+	localnet *commonapi.LocalNetStatus, statusMap map[string]any) any {
+	var result any
+
+	if !ciConfig.WithRootManager {
+		return localnet
+	}
+
+	if cfg.Details {
+		// Details view
+		result = statusMap["localnet"]
+	} else {
+		// Standard view
+		type PrintableLocalnet struct {
+			Healthy         bool   `json:"healthy"`
+			LastErrorReason string `json:"lastErrorReason,omitempty"`
+		}
+
+		result = &PrintableLocalnet{
+			Healthy: false,
+		}
+
+		if localnet != nil {
+			if localnet.Health != nil {
+				if localnet.Health.Healthy {
+					result = &PrintableLocalnet{
+						Healthy: true,
+					}
+				} else {
+					result = &PrintableLocalnet{
+						Healthy:         false,
+						LastErrorReason: localnet.Health.LastErrorReason,
+					}
+				}
+			}
+		}
+	}
+	return result
+}
+
+func getRawHosts(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
+	hosts *commonapi.HostsStatus, statusMap map[string]any) any {
+	var result any
+
+	if !ciConfig.WithRootManager {
+		return hosts
+	}
+
+	if cfg.Details {
+		// Details view
+		result = statusMap["hosts"]
+	} else {
+		// Standard view
+		type PrintableHosts struct {
+			Healthy         bool   `json:"healthy"`
+			NumHosts        uint32 `json:"numHosts"`
+			LastErrorReason string `json:"lastErrorReason,omitempty"`
+		}
+
+		result = &PrintableHosts{
+			Healthy: false,
+		}
+
+		if hosts != nil {
+			if hosts.Health != nil {
+				if hosts.Health.Healthy {
+					result = &PrintableHosts{
+						Healthy:  true,
+						NumHosts: hosts.NumHosts,
+					}
+				} else {
+					result = &PrintableHosts{
+						Healthy:         false,
+						LastErrorReason: hosts.Health.LastErrorReason,
+					}
+				}
+			}
+		}
+	}
+	return result
+}
+
+func getRawPortforward(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
+	portforward *commonapi.PortForwardStatus, statusMap map[string]any) any {
+	var result any
+
+	if ciConfig.ConnectionConfig.Type != connectcfg.PortForwardLinkType {
+		return portforward
+	}
+
+	if cfg.Details {
+		// Details view
+		result = statusMap["portforward"]
+	} else {
+		// Standard view
+		type PrintablePortforward struct {
+			Healthy         bool   `json:"healthy"`
+			LocalAddress    string `json:"localAddress"`
+			LastErrorReason string `json:"lastErrorReason,omitempty"`
+		}
+
+		result = &PrintablePortforward{
+			Healthy: false,
+		}
+
+		if portforward != nil {
+			if portforward.Health != nil {
+				if portforward.Health.Healthy {
+					result = &PrintablePortforward{
+						Healthy:      true,
+						LocalAddress: portforward.LocalAddress,
+					}
+				} else {
+					result = &PrintablePortforward{
+						Healthy:         false,
+						LastErrorReason: portforward.Health.LastErrorReason,
+					}
+				}
+			}
+		}
+	}
+	return result
 }
 
 func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.StatusResponse) error {
@@ -65,127 +242,195 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 	if err != nil {
 		return fmt.Errorf("couldn't unmarshal ci-config from sandbox manager status, %v", err)
 	}
-
 	errorLines := []string{}
-	healthyLines := []string{}
 
 	// check port forward status
 	if ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
-		msg, ok := checkPortforwardStatus(status.Portforward)
-		if ok {
-			healthyLines = append(healthyLines, msg)
-		} else {
-			errorLines = append(errorLines, msg)
+		err := checkPortforwardStatus(status.Portforward)
+		if err != nil {
+			errorLines = append(errorLines, err.Error())
 		}
 	}
-
 	// check root manager (if running)
 	if ciConfig.WithRootManager {
 		// check localnet service
-		msg, ok := checkLocalNetStatus(status.Localnet)
-		if ok {
-			healthyLines = append(healthyLines, msg)
-		} else {
-			errorLines = append(errorLines, msg)
+		err := checkLocalNetStatus(status.Localnet)
+		if err != nil {
+			errorLines = append(errorLines, err.Error())
 		}
-
 		// check hosts service
-		msg, ok = checkHostsStatus(status.Hosts)
-		if ok {
-			healthyLines = append(healthyLines, msg)
-		} else {
-			errorLines = append(errorLines, msg)
+		err = checkHostsStatus(status.Hosts)
+		if err != nil {
+			errorLines = append(errorLines, err.Error())
 		}
 	}
 
-	green := color.New(color.FgGreen).SprintFunc()
-	red := color.New(color.FgRed).SprintFunc()
-	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
-
+	// create a printer
+	printer := statusPrinter{
+		cfg:      cfg,
+		status:   status,
+		ciConfig: ciConfig,
+		out:      out,
+		green:    color.New(color.FgGreen).SprintFunc(),
+		red:      color.New(color.FgRed).SprintFunc(),
+		white:    color.New(color.FgHiWhite, color.Bold).SprintFunc(),
+	}
+	// runtime config
+	printer.printRuntimeConfig()
+	// print status
 	if len(errorLines) == 0 {
-		printLine(out, 0, fmt.Sprintf("connection healthy! %s", green("✓")), "*")
-		for _, line := range healthyLines {
-			printLine(out, 0, line, "*")
-		}
-		printLine(out, 0, "Local Sandboxes:", "*")
-		if len(status.Sandboxes) == 0 {
-			printLine(out, 1, "No active sandbox", "-")
-		} else {
-			for _, sandbox := range status.Sandboxes {
-				printLine(out, 1, white(sandbox.Name), "-")
-				printLine(out, 2, fmt.Sprintf("Routing Key: %s", sandbox.RoutingKey), "*")
-				printLine(out, 2, "Local Workloads:", "*")
-				for _, localwl := range sandbox.LocalWorkloads {
-					printLine(out, 3, white(localwl.Name), "-")
-					printLine(out, 4, fmt.Sprintf("%s/%s in namespace %q",
-						localwl.Baseline.Kind, localwl.Baseline.Name, localwl.Baseline.Namespace), "*")
-					for _, portMap := range localwl.WorkloadPortMapping {
-						printLine(out, 5, fmt.Sprintf("port %d -> %s",
-							portMap.BaselinePort, portMap.LocalAddress), "*")
-					}
-					if localwl.TunnelHealth.Healthy {
-						printLine(out, 4, fmt.Sprintf("workload connected! %s", green("✓")), "*")
-					} else {
-						printLine(out, 4, fmt.Sprintf("workload not yet connected! %s", red("✗")), "*")
-					}
-				}
-			}
-		}
+		printer.printSuccess()
 	} else {
-		printLine(out, 0, fmt.Sprintf("connection not healthy! %s", red("✗")), "*")
-		for _, line := range errorLines {
-			printLine(out, 0, line, "*")
-		}
+		printer.printErrors(errorLines)
 	}
 	return nil
 }
 
-func checkPortforwardStatus(portforward *commonapi.PortForwardStatus) (string, bool) {
+func checkPortforwardStatus(portforward *commonapi.PortForwardStatus) error {
 	errorMsg := "failed to establish port-forward"
 	if portforward != nil {
 		if portforward.Health != nil {
 			if portforward.Health.Healthy {
-				return fmt.Sprintf("port-forward listening at %q", portforward.LocalAddress), true
+				return nil
 			}
 			if portforward.Health.LastErrorReason != "" {
 				errorMsg += fmt.Sprintf(" (%q)", portforward.Health.LastErrorReason)
 			}
 		}
 	}
-	return errorMsg, false
+	return fmt.Errorf(errorMsg)
 }
 
-func checkLocalNetStatus(localnet *commonapi.LocalNetStatus) (string, bool) {
+func checkLocalNetStatus(localnet *commonapi.LocalNetStatus) error {
 	errorMsg := "failed to setup localnet"
 	if localnet != nil {
 		if localnet.Health != nil {
 			if localnet.Health.Healthy {
-				return "localnet has been configured", true
+				return nil
 			}
 			if localnet.Health.LastErrorReason != "" {
 				errorMsg += fmt.Sprintf(" (%q)", localnet.Health.LastErrorReason)
 			}
 		}
 	}
-	return errorMsg, false
+	return fmt.Errorf(errorMsg)
 }
 
-func checkHostsStatus(hosts *commonapi.HostsStatus) (string, bool) {
+func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 	errorMsg := "failed to configure hosts in /etc/hosts"
 	if hosts != nil {
 		if hosts.Health != nil {
 			if hosts.Health.Healthy {
-				return fmt.Sprintf("%d hosts accessible via /etc/hosts", hosts.NumHosts), true
+				return nil
 			}
 			if hosts.Health.LastErrorReason != "" {
 				errorMsg += fmt.Sprintf(" (%q)", hosts.Health.LastErrorReason)
 			}
 		}
 	}
-	return errorMsg, false
+	return fmt.Errorf(errorMsg)
 }
 
-func printLine(out io.Writer, idents int, line, prefix string) {
+type statusPrinter struct {
+	cfg      *config.LocalStatus
+	status   *sbmapi.StatusResponse
+	ciConfig *config.ConnectInvocationConfig
+	out      io.Writer
+	green    func(a ...any) string
+	red      func(a ...any) string
+	white    func(a ...any) string
+}
+
+func (p *statusPrinter) printRuntimeConfig() {
+	var runtimeConfig string
+	if p.ciConfig.WithRootManager {
+		runtimeConfig = fmt.Sprintf("runtime config: cluster %s, running with root-daemon",
+			p.white(p.ciConfig.ConnectionConfig.Cluster))
+	} else {
+		runtimeConfig = fmt.Sprintf("runtime config: cluster %s, running without root-daemon",
+			p.white(p.ciConfig.ConnectionConfig.Cluster))
+	}
+	if p.cfg.Details {
+		runtimeConfig += fmt.Sprintf(" (config-dir: %s)", p.ciConfig.SignadotDir)
+	}
+	p.printLine(p.out, 0, runtimeConfig, "*")
+}
+
+func (p *statusPrinter) printErrors(errorLines []string) {
+	p.printLine(p.out, 0, fmt.Sprintf("connection not healthy! %s", p.red("✗")), "*")
+	for _, line := range errorLines {
+		p.printLine(p.out, 0, line, "*")
+	}
+}
+
+func (p *statusPrinter) printSuccess() {
+	p.printLine(p.out, 0, fmt.Sprintf("connection healthy! %s", p.green("✓")), "*")
+	if p.ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
+		p.printPortforwardStatus()
+	}
+	if p.ciConfig.WithRootManager {
+		p.printLocalnetStatus()
+		p.printHostsStatus()
+	}
+	p.printSandboxStatus()
+}
+
+func (p *statusPrinter) printPortforwardStatus() {
+	p.printLine(p.out, 0, fmt.Sprintf("port-forward listening at %q", p.status.Portforward.LocalAddress), "*")
+}
+
+func (p *statusPrinter) printLocalnetStatus() {
+	if p.cfg.Details {
+		p.printLine(p.out, 0, "localnet has been configured", "*")
+		if len(p.status.Localnet.Cidrs) > 0 {
+			p.printLine(p.out, 1, "CIDRs:", "*")
+			for _, cidr := range p.status.Localnet.Cidrs {
+				p.printLine(p.out, 2, cidr, "-")
+			}
+		}
+		if len(p.status.Localnet.ExcludedCidrs) > 0 {
+			p.printLine(p.out, 1, "Excluded CIDRs:", "*")
+			for _, cidr := range p.status.Localnet.ExcludedCidrs {
+				p.printLine(p.out, 2, cidr, "-")
+			}
+		}
+	} else {
+		p.printLine(p.out, 0, "localnet has been configured", "*")
+	}
+}
+
+func (p *statusPrinter) printHostsStatus() {
+	p.printLine(p.out, 0, fmt.Sprintf("%d hosts accessible via /etc/hosts", p.status.Hosts.NumHosts), "*")
+}
+
+func (p *statusPrinter) printSandboxStatus() {
+	p.printLine(p.out, 0, "Local Sandboxes:", "*")
+	if len(p.status.Sandboxes) == 0 {
+		p.printLine(p.out, 1, "No active sandbox", "-")
+	} else {
+		for _, sandbox := range p.status.Sandboxes {
+			p.printLine(p.out, 1, p.white(sandbox.Name), "-")
+			p.printLine(p.out, 2, fmt.Sprintf("Routing Key: %s", sandbox.RoutingKey), "*")
+			p.printLine(p.out, 2, "Local Workloads:", "*")
+			for _, localwl := range sandbox.LocalWorkloads {
+				p.printLine(p.out, 3, p.white(localwl.Name), "-")
+				p.printLine(p.out, 4, fmt.Sprintf("%s/%s in namespace %q",
+					localwl.Baseline.Kind, localwl.Baseline.Name, localwl.Baseline.Namespace), "*")
+				for _, portMap := range localwl.WorkloadPortMapping {
+					p.printLine(p.out, 5, fmt.Sprintf("port %d -> %s",
+						portMap.BaselinePort, portMap.LocalAddress), "*")
+				}
+				if localwl.TunnelHealth.Healthy {
+					p.printLine(p.out, 4, fmt.Sprintf("workload connected! %s", p.green("✓")), "*")
+				} else {
+					p.printLine(p.out, 4, fmt.Sprintf("workload not yet connected! %s", p.red("✗")), "*")
+				}
+			}
+		}
+	}
+}
+
+func (p *statusPrinter) printLine(out io.Writer, idents int, line, prefix string) {
 	for i := 0; i < idents; i++ {
 		fmt.Fprintf(out, "    ")
 	}

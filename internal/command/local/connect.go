@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 
 	"github.com/fatih/color"
@@ -54,8 +55,8 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	// Get home dir
-	homeDir, err := os.UserHomeDir()
+	// Resolve the user
+	user, err := user.Current()
 	if err != nil {
 		return err
 	}
@@ -68,14 +69,17 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
-		WithRootManager:  !cfg.Unprivileged,
-		SignadotDir:      signadotDir,
-		APIPort:          6666,
-		LocalNetPort:     6667,
-		UID:              os.Geteuid(),
-		GID:              os.Getegid(),
-		UIDHome:          homeDir,
-		UIDPath:          os.Getenv("PATH"),
+		WithRootManager: !cfg.Unprivileged,
+		SignadotDir:     signadotDir,
+		APIPort:         6666,
+		LocalNetPort:    6667,
+		User: &config.ConnectInvocationUser{
+			UID:      os.Geteuid(),
+			GID:      os.Getegid(),
+			UIDHome:  user.HomeDir,
+			UIDPath:  os.Getenv("PATH"),
+			Username: user.Username,
+		},
 		ConnectionConfig: connConfig,
 		API:              cfg.API,
 		APIKey:           viper.GetString("api_key"),
@@ -147,8 +151,8 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 			"--sandbox-manager",
 		)
 		cmd.Env = append(cmd.Env,
-			fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
-			fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
+			fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
+			fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
 		)
 	}
 	cmd.Env = append(cmd.Env,
@@ -172,8 +176,8 @@ func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {
 	logWriter, _, err := system.GetRollingLogWriter(
 		ciConfig.SignadotDir,
 		ciConfig.GetLogName(ciConfig.WithRootManager),
-		ciConfig.UID,
-		ciConfig.GID,
+		ciConfig.User.UID,
+		ciConfig.User.GID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't open logfile, %w", err)

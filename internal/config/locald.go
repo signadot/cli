@@ -75,14 +75,19 @@ type ConnectInvocationConfig struct {
 	APIPort          uint16                       `json:"apiPort"`
 	LocalNetPort     uint16                       `json:"localNetPort"`
 	SignadotDir      string                       `json:"signadotDir"`
-	UID              int                          `json:"uid"`
-	GID              int                          `json:"gid"`
-	UIDHome          string                       `json:"uidHome"`
-	UIDPath          string                       `json:"uidPath"`
+	User             *ConnectInvocationUser       `json:"user"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	API              *API                         `json:"api"`
 	APIKey           string                       `json:"apiKey"`
 	Debug            bool                         `json:"debug"`
+}
+
+type ConnectInvocationUser struct {
+	UID      int    `json:"uid"`
+	GID      int    `json:"gid"`
+	UIDHome  string `json:"uidHome"`
+	UIDPath  string `json:"uidPath"`
+	Username string `json:"username"`
 }
 
 func (ciConfig *ConnectInvocationConfig) GetPIDfile(isRootManager bool) string {

@@ -1,10 +1,13 @@
 package sandboxmanager
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/models"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -70,4 +73,18 @@ func ToCIConfig(grpcSpec *structpb.Struct) (*config.ConnectInvocationConfig, err
 		return nil, err
 	}
 	return ciConfig, nil
+}
+
+func StatusToMap(status *StatusResponse) (map[string]any, error) {
+	statusBytes, err := (protojson.MarshalOptions{}).Marshal(status)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't marshal status, %v", err)
+	}
+	d := json.NewDecoder(bytes.NewReader(statusBytes))
+	d.UseNumber()
+	var statusMap map[string]any
+	if err := d.Decode(&statusMap); err != nil {
+		return nil, fmt.Errorf("couldn't unmarshal status, %v", err)
+	}
+	return statusMap, nil
 }

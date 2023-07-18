@@ -95,4 +95,11 @@ type LocalDisconnect struct {
 
 type LocalStatus struct {
 	*Local
+
+	// Flags
+	Details bool
+}
+
+func (c *LocalStatus) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&c.Details, "details", false, "display status details")
 }

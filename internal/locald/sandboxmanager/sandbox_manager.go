@@ -25,15 +25,14 @@ import (
 )
 
 type sandboxManager struct {
-	log          *slog.Logger
-	localdConfig *config.LocalDaemon
-	connConfig   *connectcfg.ConnectionConfig
-	apiPort      uint16
-	hostname     string
-	grpcServer   *grpc.Server
-	sbmServer    *sbmServer
-	portForward  *portforward.PortForward
-	shutdownCh   chan struct{}
+	log         *slog.Logger
+	ciConfig    *config.ConnectInvocationConfig
+	connConfig  *connectcfg.ConnectionConfig
+	hostname    string
+	grpcServer  *grpc.Server
+	sbmServer   *sbmServer
+	portForward *portforward.PortForward
+	shutdownCh  chan struct{}
 
 	// tunnel API
 	tunMu        sync.Mutex
@@ -51,14 +50,15 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 		return nil, err
 	}
 
+	ciConfig := cfg.ConnectInvocationConfig
+
 	return &sandboxManager{
-		log:          log,
-		localdConfig: cfg,
-		connConfig:   cfg.ConnectInvocationConfig.ConnectionConfig,
-		apiPort:      cfg.ConnectInvocationConfig.APIPort,
-		hostname:     hostname,
-		grpcServer:   grpcServer,
-		shutdownCh:   shutdownCh,
+		log:        log,
+		ciConfig:   ciConfig,
+		connConfig: ciConfig.ConnectionConfig,
+		hostname:   hostname,
+		grpcServer: grpcServer,
+		shutdownCh: shutdownCh,
 	}, nil
 }
 
@@ -100,8 +100,8 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	}
 
 	// Register our service in gRPC server
-	m.sbmServer = newSandboxManagerGRPCServer(m.localdConfig.ConnectInvocationConfig,
-		m.portForward, m.isSBManagerReady, m.getSBMonitor, m.log, m.shutdownCh)
+	m.sbmServer = newSandboxManagerGRPCServer(m.ciConfig, m.portForward, m.isSBManagerReady,
+		m.getSBMonitor, m.log, m.shutdownCh)
 	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, m.sbmServer)
 
 	// Run the gRPC server
@@ -141,7 +141,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 }
 
 func (m *sandboxManager) runAPIServer() error {
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.apiPort))
+	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.ciConfig.APIPort))
 	if err != nil {
 		return err
 	}
@@ -188,10 +188,9 @@ func (m *sandboxManager) setTunnelAPIClient(proxyAddress string) error {
 }
 
 func (m *sandboxManager) revtunClient() revtun.Client {
-	connConfig := m.localdConfig.ConnectInvocationConfig.ConnectionConfig
 	rtClientConfig := &revtun.ClientConfig{
 		Labels: map[string]string{
-			protocol.RevTunnelUserLabel:     connConfig.KubeContext,
+			protocol.RevTunnelUserLabel:     m.ciConfig.User.Username,
 			protocol.RevTunnelHostnameLabel: m.hostname,
 		},
 		Socks5Addr: m.proxyAddress,
@@ -200,8 +199,8 @@ func (m *sandboxManager) revtunClient() revtun.Client {
 		},
 	}
 	inboundProto := connectcfg.SSHInboundProtocol
-	if connConfig.Inbound != nil {
-		inboundProto = connConfig.Inbound.Protocol
+	if m.connConfig.Inbound != nil {
+		inboundProto = m.connConfig.Inbound.Protocol
 	}
 	switch inboundProto {
 	case connectcfg.XAPInboundProtocol:
@@ -212,6 +211,6 @@ func (m *sandboxManager) revtunClient() revtun.Client {
 		return sshrevtun.NewClient(rtClientConfig, nil)
 	default:
 		// already validated
-		panic(fmt.Errorf("invalid inbound protocol: %s", connConfig.Inbound.Protocol))
+		panic(fmt.Errorf("invalid inbound protocol: %s", m.connConfig.Inbound.Protocol))
 	}
 }

@@ -52,7 +52,7 @@ func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConf
 	cmd := exec.Command(
 		"sudo",
 		"-n",
-		"-u", fmt.Sprintf("#%d", ciConfig.UID),
+		"-u", fmt.Sprintf("#%d", ciConfig.User.UID),
 		"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
 		binary,
 		"locald",
@@ -60,8 +60,8 @@ func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConf
 		"--sandbox-manager",
 	)
 	cmd.Env = append(cmd.Env,
-		fmt.Sprintf("HOME=%s", ciConfig.UIDHome),
-		fmt.Sprintf("PATH=%s", ciConfig.UIDPath),
+		fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
+		fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
 		fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)),
 	)
 	return cmd, nil

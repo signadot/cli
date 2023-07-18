@@ -55,7 +55,9 @@ func (c *Root) init() error {
 		}
 	}
 
-	c.Debug = viper.GetBool("debug")
+	if !c.Debug {
+		c.Debug = viper.GetBool("debug")
+	}
 
 	if dashURL := viper.GetString("dashboard_url"); dashURL != "" {
 		u, err := url.Parse(dashURL)
