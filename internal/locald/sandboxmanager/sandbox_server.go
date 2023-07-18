@@ -71,6 +71,12 @@ func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxReq
 	sb := &models.Sandbox{
 		Spec: sbSpec,
 	}
+	if sbSpec.Cluster == nil {
+		return nil, status.Errorf(codes.Internal, "sandbox spec must specify cluster")
+	}
+	if *sbSpec.Cluster != s.ciConfig.ConnectionConfig.Cluster {
+		return nil, status.Errorf(codes.Internal, "sandbox spec cluster %q does not match connected cluster (%q)", *sbSpec.Cluster, s.ciConfig.ConnectionConfig.Cluster)
+	}
 
 	apiConfig := s.ciConfig.API
 	s.log.Debug("api", "config", apiConfig)
