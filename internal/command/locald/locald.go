@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
@@ -30,6 +32,8 @@ func New(apiConfig *config.API) *cobra.Command {
 }
 
 func run(cfg *config.LocalDaemon, args []string) error {
+	signal.Ignore(syscall.SIGHUP)
+
 	if err := cfg.InitLocalDaemon(); err != nil {
 		return err
 	}
