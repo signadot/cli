@@ -1,4 +1,4 @@
-name: local-hotrod-route
+name: "@{user}-hotrod-route"
 spec:
   cluster: "@{cluster}"
   description: "route local sandbox"
