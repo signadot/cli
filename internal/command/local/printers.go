@@ -357,14 +357,14 @@ func (p *statusPrinter) printRuntimeConfig() {
 }
 
 func (p *statusPrinter) printErrors(errorLines []string) {
-	p.printLine(p.out, 0, fmt.Sprintf("connection not healthy! %s", p.red("✗")), "*")
+	p.printLine(p.out, 0, fmt.Sprintf("Local connection not healthy!"), p.red("✗"))
 	for _, line := range errorLines {
 		p.printLine(p.out, 0, line, "*")
 	}
 }
 
 func (p *statusPrinter) printSuccess() {
-	p.printLine(p.out, 0, fmt.Sprintf("connection healthy! %s", p.green("✓")), "*")
+	p.printLine(p.out, 0, fmt.Sprintf("Local connection healthy!"), p.green("✓"))
 	if p.ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
 		p.printPortforwardStatus()
 	}
@@ -376,54 +376,54 @@ func (p *statusPrinter) printSuccess() {
 }
 
 func (p *statusPrinter) printPortforwardStatus() {
-	p.printLine(p.out, 0, fmt.Sprintf("port-forward listening at %q", p.status.Portforward.LocalAddress), "*")
+	p.printLine(p.out, 1, fmt.Sprintf("port-forward listening at %q", p.status.Portforward.LocalAddress), "*")
 }
 
 func (p *statusPrinter) printLocalnetStatus() {
+	p.printLine(p.out, 1, "localnet has been configured", "*")
 	if p.cfg.Details {
-		p.printLine(p.out, 0, "localnet has been configured", "*")
 		if len(p.status.Localnet.Cidrs) > 0 {
-			p.printLine(p.out, 1, "CIDRs:", "*")
+			p.printLine(p.out, 2, "CIDRs:", "*")
 			for _, cidr := range p.status.Localnet.Cidrs {
-				p.printLine(p.out, 2, cidr, "-")
+				p.printLine(p.out, 3, cidr, "-")
 			}
 		}
 		if len(p.status.Localnet.ExcludedCidrs) > 0 {
-			p.printLine(p.out, 1, "Excluded CIDRs:", "*")
+			p.printLine(p.out, 2, "Excluded CIDRs:", "*")
 			for _, cidr := range p.status.Localnet.ExcludedCidrs {
-				p.printLine(p.out, 2, cidr, "-")
+				p.printLine(p.out, 3, cidr, "-")
 			}
 		}
-	} else {
-		p.printLine(p.out, 0, "localnet has been configured", "*")
 	}
 }
 
 func (p *statusPrinter) printHostsStatus() {
-	p.printLine(p.out, 0, fmt.Sprintf("%d hosts accessible via /etc/hosts", p.status.Hosts.NumHosts), "*")
+	p.printLine(p.out, 1, fmt.Sprintf("%d hosts accessible via /etc/hosts", p.status.Hosts.NumHosts), "*")
 }
 
 func (p *statusPrinter) printSandboxStatus() {
-	p.printLine(p.out, 0, "Local Sandboxes:", "*")
+	p.printLine(p.out, 0, "Connected Sandboxes:", "*")
 	if len(p.status.Sandboxes) == 0 {
 		p.printLine(p.out, 1, "No active sandbox", "-")
 	} else {
 		for _, sandbox := range p.status.Sandboxes {
 			p.printLine(p.out, 1, p.white(sandbox.Name), "-")
 			p.printLine(p.out, 2, fmt.Sprintf("Routing Key: %s", sandbox.RoutingKey), "*")
-			p.printLine(p.out, 2, "Local Workloads:", "*")
 			for _, localwl := range sandbox.LocalWorkloads {
-				p.printLine(p.out, 3, p.white(localwl.Name), "-")
-				p.printLine(p.out, 4, fmt.Sprintf("%s/%s in namespace %q",
-					localwl.Baseline.Kind, localwl.Baseline.Name, localwl.Baseline.Namespace), "*")
+				p.printLine(p.out, 2,
+					fmt.Sprintf("%s: routing from %s/%s in namespace %q",
+						p.white(localwl.Name),
+						localwl.Baseline.Kind,
+						localwl.Baseline.Name,
+						localwl.Baseline.Namespace), "-")
 				for _, portMap := range localwl.WorkloadPortMapping {
-					p.printLine(p.out, 5, fmt.Sprintf("port %d -> %s",
-						portMap.BaselinePort, portMap.LocalAddress), "*")
+					p.printLine(p.out, 3, fmt.Sprintf("remote port %d -> %s",
+						portMap.BaselinePort, portMap.LocalAddress), "-")
 				}
 				if localwl.TunnelHealth.Healthy {
-					p.printLine(p.out, 4, fmt.Sprintf("workload connected! %s", p.green("✓")), "*")
+					p.printLine(p.out, 2, fmt.Sprintf("connection ready"), p.green("✓"))
 				} else {
-					p.printLine(p.out, 4, fmt.Sprintf("workload not yet connected! %s", p.red("✗")), "*")
+					p.printLine(p.out, 2, fmt.Sprintf("connection not ready"), p.red("✗"))
 				}
 			}
 		}
