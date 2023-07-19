@@ -39,7 +39,7 @@ func newRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *mode
 		rtConfig.Forwards = append(rtConfig.Forwards,
 			rtproto.Forward{
 				LocalURL: fmt.Sprintf("tcp://%s", pm.ToLocal),
-				RemoteURL: fmt.Sprintf("tcp://%s.%s.%s:%s",
+				RemoteURL: fmt.Sprintf("tcp://%s.%s.%s:%d",
 					*local.From.Name,
 					*local.From.Namespace,
 					kind,

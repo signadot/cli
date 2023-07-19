@@ -10,7 +10,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
-	github.com/signadot/go-sdk v0.3.8-0.20230629093216-a080b761faca
+	github.com/signadot/go-sdk v0.3.8-0.20230719152350-64caa01ff9f7
 	github.com/signadot/libconnect v0.1.1-0.20230718181052-aa93718cb097
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
@@ -34,7 +34,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/errors v0.20.4 // indirect
-	github.com/go-openapi/jsonpointer v0.19.6 // indirect
+	github.com/go-openapi/jsonpointer v0.20.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/loads v0.21.2 // indirect
 	github.com/go-openapi/spec v0.20.9 // indirect
@@ -100,3 +100,4 @@ require (
 
 // Used for local dev
 //replace github.com/signadot/libconnect => ../libconnect/
+// replace github.com/signadot/go-sdk => ../go-sdk
