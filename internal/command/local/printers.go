@@ -357,14 +357,14 @@ func (p *statusPrinter) printRuntimeConfig() {
 }
 
 func (p *statusPrinter) printErrors(errorLines []string) {
-	p.printLine(p.out, 0, fmt.Sprintf("Local connection not healthy! %s", p.red("✗")), "*")
+	p.printLine(p.out, 0, fmt.Sprintf("Local connection not healthy!"), p.red("✗"))
 	for _, line := range errorLines {
 		p.printLine(p.out, 0, line, "*")
 	}
 }
 
 func (p *statusPrinter) printSuccess() {
-	p.printLine(p.out, 0, fmt.Sprintf("Local connection healthy! %s", p.green("✓")), "*")
+	p.printLine(p.out, 0, fmt.Sprintf("Local connection healthy!"), p.green("✓"))
 	if p.ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
 		p.printPortforwardStatus()
 	}
@@ -411,7 +411,7 @@ func (p *statusPrinter) printSandboxStatus() {
 			p.printLine(p.out, 2, fmt.Sprintf("Routing Key: %s", sandbox.RoutingKey), "*")
 			for _, localwl := range sandbox.LocalWorkloads {
 				p.printLine(p.out, 2,
-					fmt.Sprintf("%s: routing traffic from %s/%s in namespace %q",
+					fmt.Sprintf("%s: routing from %s/%s in namespace %q",
 						p.white(localwl.Name),
 						localwl.Baseline.Kind,
 						localwl.Baseline.Name,
@@ -421,9 +421,9 @@ func (p *statusPrinter) printSandboxStatus() {
 						portMap.BaselinePort, portMap.LocalAddress), "-")
 				}
 				if localwl.TunnelHealth.Healthy {
-					p.printLine(p.out, 2, fmt.Sprintf("Connection ready %s", p.green("✓")), "*")
+					p.printLine(p.out, 2, fmt.Sprintf("connection ready"), p.green("✓"))
 				} else {
-					p.printLine(p.out, 2, fmt.Sprintf("Cgionnection not ready %s", p.red("✗")), "*")
+					p.printLine(p.out, 2, fmt.Sprintf("connection not ready"), p.red("✗"))
 				}
 			}
 		}
