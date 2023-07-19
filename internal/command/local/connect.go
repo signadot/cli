@@ -132,7 +132,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 		if os.Geteuid() != 0 {
 			fmt.Fprintf(out, "signadot local connect needs root privileges for:\n\t"+
 				"- updating /etc/hosts with cluster service names\n\t"+
-				"- configuring networking to direct cluster traffic to the cluster\n")
+				"- configuring networking to direct local traffic to the cluster\n")
 		}
 		// run the root-manager
 		cmd = exec.Command(
