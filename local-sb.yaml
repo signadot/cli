@@ -12,7 +12,7 @@ spec:
       namespace: hotrod
       name: route
     mappings:
-    - port: "8083"
+    - port: 8083
       toLocal: "localhost:8083"
   defaultRouteGroup:
     endpoints: 
