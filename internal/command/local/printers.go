@@ -408,7 +408,7 @@ func (p *statusPrinter) printSandboxStatus() {
 	} else {
 		for _, sandbox := range p.status.Sandboxes {
 			p.printLine(p.out, 1, p.white(sandbox.Name), "-")
-			p.printLine(p.out, 2, fmt.Sprintf("routing Key: %s", sandbox.RoutingKey), "*")
+			p.printLine(p.out, 2, fmt.Sprintf("Routing Key: %s", sandbox.RoutingKey), "*")
 			for _, localwl := range sandbox.LocalWorkloads {
 				p.printLine(p.out, 2,
 					fmt.Sprintf("%s: routing traffic from %s/%s in namespace %q",
@@ -421,9 +421,9 @@ func (p *statusPrinter) printSandboxStatus() {
 						portMap.BaselinePort, portMap.LocalAddress), "-")
 				}
 				if localwl.TunnelHealth.Healthy {
-					p.printLine(p.out, 2, fmt.Sprintf("connection ready %s", p.green("✓")), "*")
+					p.printLine(p.out, 2, fmt.Sprintf("Connection ready %s", p.green("✓")), "*")
 				} else {
-					p.printLine(p.out, 2, fmt.Sprintf("connection not ready %s", p.red("✗")), "*")
+					p.printLine(p.out, 2, fmt.Sprintf("Cgionnection not ready %s", p.red("✗")), "*")
 				}
 			}
 		}
