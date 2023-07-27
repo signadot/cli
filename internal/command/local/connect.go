@@ -8,11 +8,14 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
+	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
+	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
@@ -97,10 +100,10 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	return runConnectImpl(out, logger, ciConfig)
+	return runConnectImpl(out, logger, cfg, ciConfig)
 }
 
-func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInvocationConfig) error {
+func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalConnect, ciConfig *config.ConnectInvocationConfig) error {
 	// Check if the corresponding manager is already running
 	// this gives fail fast response and is safe to return
 	// an error here, but the check is _not_ used to assume
@@ -168,8 +171,78 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 	green := color.New(color.FgGreen).SprintFunc()
 	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
 	fmt.Fprintf(out, "\nsignadot local connect has been started %s\n", green("✓"))
-	fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
-	return nil
+	if !localConfig.Wait {
+		fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
+		return nil
+	}
+	return waitConnect(localConfig, out)
+}
+
+func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
+	var (
+		ticker   = time.NewTicker(time.Second / 10)
+		deadline = time.After(localConfig.WaitTimeout)
+		status   *sbmapi.StatusResponse
+		err      error
+	)
+	defer ticker.Stop()
+	for {
+		status, err = getStatus()
+		if err != nil {
+			fmt.Fprintf(out, "error getting status: %s", err.Error())
+			goto tick
+		}
+		if isSuccess(status) {
+			break
+		}
+	tick:
+		select {
+		case <-ticker.C:
+		case <-deadline:
+			goto doneWaiting
+		}
+	}
+doneWaiting:
+
+	printLocalStatus(&config.LocalStatus{
+		Local: localConfig.Local,
+	}, out, status)
+	if isSuccess(status) {
+		return nil
+	}
+	return fmt.Errorf("connect failed")
+}
+
+// TODO unify this with printLocalStatus
+func isSuccess(status *sbmapi.StatusResponse) bool {
+	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
+	if err != nil {
+		return false
+	}
+
+	// check port forward status
+	if ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
+		err := checkPortforwardStatus(status.Portforward)
+		if err != nil {
+			return false
+		}
+	}
+	// TODO check proxyAddress config
+
+	// check root manager (if running)
+	if ciConfig.WithRootManager {
+		// check localnet service
+		err := checkLocalNetStatus(status.Localnet)
+		if err != nil {
+			return false
+		}
+		// check hosts service
+		err = checkHostsStatus(status.Hosts)
+		if err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {
