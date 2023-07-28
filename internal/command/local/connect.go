@@ -15,7 +15,6 @@ import (
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
-	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slog"
@@ -180,19 +179,29 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 
 func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 	var (
-		ticker   = time.NewTicker(time.Second / 10)
-		deadline = time.After(localConfig.WaitTimeout)
-		status   *sbmapi.StatusResponse
-		err      error
+		ciConfig    *config.ConnectInvocationConfig
+		ticker      = time.NewTicker(time.Second / 10)
+		deadline    = time.After(localConfig.WaitTimeout)
+		status      *sbmapi.StatusResponse
+		err         error
+		connectErrs []error
 	)
 	defer ticker.Stop()
 	for {
 		status, err = getStatus()
 		if err != nil {
 			fmt.Fprintf(out, "error getting status: %s", err.Error())
+			connectErrs = []error{err}
 			goto tick
 		}
-		if isSuccess(status) {
+		ciConfig, err = sbmapi.ToCIConfig(status.CiConfig)
+		if err != nil {
+			connectErrs = []error{err}
+			goto tick
+
+		}
+		connectErrs = checkLocalStatusConnectErrors(ciConfig, status)
+		if len(connectErrs) == 0 {
 			break
 		}
 	tick:
@@ -207,42 +216,26 @@ doneWaiting:
 	printLocalStatus(&config.LocalStatus{
 		Local: localConfig.Local,
 	}, out, status)
-	if isSuccess(status) {
+	if len(connectErrs) == 0 {
 		return nil
 	}
-	return fmt.Errorf("connect failed")
-}
+	// here it failed, but the connect background process may still be running
+	// so we disconnect.  Unfortunately, cobra doesn't let you set exit codes
+	// so easily, so a caller would have to parse the error message to determine
+	// whether or not disconnect on connect failure succeeded.
 
-// TODO unify this with printLocalStatus
-func isSuccess(status *sbmapi.StatusResponse) bool {
-	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
+	// disconnect step 1: Get the sigandot dir
+	signadotDir, err := system.GetSignadotDir()
 	if err != nil {
-		return false
+		return fmt.Errorf("unable to disconnect failing connect: %w", err)
 	}
-
-	// check port forward status
-	if ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
-		err := checkPortforwardStatus(status.Portforward)
-		if err != nil {
-			return false
-		}
+	// run with initialised config
+	if err := runDisconnectWith(&config.LocalDisconnect{
+		Local: localConfig.Local,
+	}, signadotDir); err != nil {
+		return fmt.Errorf("unable to disconnect failing connect: %w", err)
 	}
-	// TODO check proxyAddress config
-
-	// check root manager (if running)
-	if ciConfig.WithRootManager {
-		// check localnet service
-		err := checkLocalNetStatus(status.Localnet)
-		if err != nil {
-			return false
-		}
-		// check hosts service
-		err = checkHostsStatus(status.Hosts)
-		if err != nil {
-			return false
-		}
-	}
-	return true
+	return fmt.Errorf("connect failed and is no longer running")
 }
 
 func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {

@@ -39,6 +39,10 @@ func runDisconnect(cfg *config.LocalDisconnect, args []string) error {
 	if err != nil {
 		return err
 	}
+	return runDisconnectWith(cfg, signadotDir)
+}
+
+func runDisconnectWith(cfg *config.LocalDisconnect, signadotDir string) error {
 
 	runState := &runState{}
 	ticker := time.NewTicker(time.Second / 10)
