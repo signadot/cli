@@ -41,6 +41,10 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
+	if cfg.OutputFormat != config.OutputFormatDefault {
+		return fmt.Errorf("output format %s not supported for connect", cfg.OutputFormat)
+	}
+
 	// we will pass the connConfig to rootmanager and sandboxmanager
 	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
 	if err != nil {
