@@ -237,18 +237,13 @@ func getRawPortforward(cfg *config.LocalStatus, ciConfig *config.ConnectInvocati
 	return result
 }
 
-func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.StatusResponse) error {
-	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
-	if err != nil {
-		return fmt.Errorf("couldn't unmarshal ci-config from sandbox manager status, %v", err)
-	}
-	errorLines := []string{}
-
+func checkLocalStatusConnectErrors(ciConfig *config.ConnectInvocationConfig, status *sbmapi.StatusResponse) []error {
+	var errs []error
 	// check port forward status
 	if ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
 		err := checkPortforwardStatus(status.Portforward)
 		if err != nil {
-			errorLines = append(errorLines, err.Error())
+			errs = append(errs, err)
 		}
 	}
 	// check root manager (if running)
@@ -256,14 +251,23 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 		// check localnet service
 		err := checkLocalNetStatus(status.Localnet)
 		if err != nil {
-			errorLines = append(errorLines, err.Error())
+			errs = append(errs, err)
 		}
 		// check hosts service
 		err = checkHostsStatus(status.Hosts)
 		if err != nil {
-			errorLines = append(errorLines, err.Error())
+			errs = append(errs, err)
 		}
 	}
+	return errs
+}
+
+func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.StatusResponse) error {
+	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
+	if err != nil {
+		return fmt.Errorf("couldn't unmarshal ci-config from sandbox manager status, %v", err)
+	}
+	connectErrs := checkLocalStatusConnectErrors(ciConfig, status)
 
 	// create a printer
 	printer := statusPrinter{
@@ -278,10 +282,10 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 	// runtime config
 	printer.printRuntimeConfig()
 	// print status
-	if len(errorLines) == 0 {
+	if len(connectErrs) == 0 {
 		printer.printSuccess()
 	} else {
-		printer.printErrors(errorLines)
+		printer.printErrors(connectErrs)
 	}
 	return nil
 }
@@ -356,10 +360,10 @@ func (p *statusPrinter) printRuntimeConfig() {
 	p.printLine(p.out, 0, runtimeConfig, "*")
 }
 
-func (p *statusPrinter) printErrors(errorLines []string) {
+func (p *statusPrinter) printErrors(errs []error) {
 	p.printLine(p.out, 0, fmt.Sprintf("Local connection not healthy!"), p.red("✗"))
-	for _, line := range errorLines {
-		p.printLine(p.out, 0, line, "*")
+	for _, err := range errs {
+		p.printLine(p.out, 0, err.Error(), "*")
 	}
 }
 

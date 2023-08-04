@@ -8,9 +8,11 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
+	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
@@ -37,6 +39,10 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, args []string) error {
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
+	}
+
+	if cfg.OutputFormat != config.OutputFormatDefault {
+		return fmt.Errorf("output format %s not supported for connect", cfg.OutputFormat)
 	}
 
 	// we will pass the connConfig to rootmanager and sandboxmanager
@@ -97,10 +103,10 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	return runConnectImpl(out, logger, ciConfig)
+	return runConnectImpl(out, logger, cfg, ciConfig)
 }
 
-func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInvocationConfig) error {
+func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalConnect, ciConfig *config.ConnectInvocationConfig) error {
 	// Check if the corresponding manager is already running
 	// this gives fail fast response and is safe to return
 	// an error here, but the check is _not_ used to assume
@@ -168,8 +174,72 @@ func runConnectImpl(out io.Writer, log *slog.Logger, ciConfig *config.ConnectInv
 	green := color.New(color.FgGreen).SprintFunc()
 	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
 	fmt.Fprintf(out, "\nsignadot local connect has been started %s\n", green("✓"))
-	fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
-	return nil
+	if !localConfig.Wait {
+		fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
+		return nil
+	}
+	return waitConnect(localConfig, out)
+}
+
+func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
+	var (
+		ciConfig    *config.ConnectInvocationConfig
+		ticker      = time.NewTicker(time.Second / 10)
+		deadline    = time.After(localConfig.WaitTimeout)
+		status      *sbmapi.StatusResponse
+		err         error
+		connectErrs []error
+	)
+	defer ticker.Stop()
+	for {
+		status, err = getStatus()
+		if err != nil {
+			fmt.Fprintf(out, "error getting status: %s", err.Error())
+			connectErrs = []error{err}
+			goto tick
+		}
+		ciConfig, err = sbmapi.ToCIConfig(status.CiConfig)
+		if err != nil {
+			connectErrs = []error{err}
+			goto tick
+
+		}
+		connectErrs = checkLocalStatusConnectErrors(ciConfig, status)
+		if len(connectErrs) == 0 {
+			break
+		}
+	tick:
+		select {
+		case <-ticker.C:
+		case <-deadline:
+			goto doneWaiting
+		}
+	}
+doneWaiting:
+
+	printLocalStatus(&config.LocalStatus{
+		Local: localConfig.Local,
+	}, out, status)
+	if len(connectErrs) == 0 {
+		return nil
+	}
+	// here it failed, but the connect background process may still be running
+	// so we disconnect.  Unfortunately, cobra doesn't let you set exit codes
+	// so easily, so a caller would have to parse the error message to determine
+	// whether or not disconnect on connect failure succeeded.
+
+	// disconnect step 1: Get the sigandot dir
+	signadotDir, err := system.GetSignadotDir()
+	if err != nil {
+		return fmt.Errorf("unable to disconnect failing connect: %w", err)
+	}
+	// run with initialised config
+	if err := runDisconnectWith(&config.LocalDisconnect{
+		Local: localConfig.Local,
+	}, signadotDir); err != nil {
+		return fmt.Errorf("unable to disconnect failing connect: %w", err)
+	}
+	return fmt.Errorf("connect failed and is no longer running")
 }
 
 func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {

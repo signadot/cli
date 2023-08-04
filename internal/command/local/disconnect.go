@@ -35,10 +35,17 @@ func runDisconnect(cfg *config.LocalDisconnect, args []string) error {
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
 	}
+	if cfg.OutputFormat != config.OutputFormatDefault {
+		return fmt.Errorf("output format %s not supported for disconnect", cfg.OutputFormat)
+	}
 	signadotDir, err := system.GetSignadotDir()
 	if err != nil {
 		return err
 	}
+	return runDisconnectWith(cfg, signadotDir)
+}
+
+func runDisconnectWith(cfg *config.LocalDisconnect, signadotDir string) error {
 
 	runState := &runState{}
 	ticker := time.NewTicker(time.Second / 10)

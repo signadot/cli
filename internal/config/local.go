@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
@@ -76,6 +77,8 @@ type LocalConnect struct {
 	// Flags
 	Cluster      string
 	Unprivileged bool
+	Wait         bool
+	WaitTimeout  time.Duration
 
 	// Hidden Flags
 	DumpCIConfig bool
@@ -85,6 +88,8 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root privileges")
+	cmd.Flags().BoolVar(&c.Wait, "wait", false, "wait for connection healthy")
+	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 10*time.Second, "timeout to wait")
 	cmd.Flags().BoolVar(&c.DumpCIConfig, "dump-ci-config", false, "dump connect invocation config")
 	cmd.Flags().MarkHidden("dump-ci-config")
 }

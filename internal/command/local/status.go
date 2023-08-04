@@ -50,17 +50,8 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	if !isRunning {
 		return fmt.Errorf("signadot is not connected\n")
 	}
+	status, err := getStatus()
 
-	// Get a sandbox manager API client
-	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return fmt.Errorf("couldn't connect sandbox manager api: %w", err)
-	}
-	defer grpcConn.Close()
-
-	// Send the shutdown order
-	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
-	status, err := sbManagerClient.Status(context.Background(), &sbmapi.StatusRequest{})
 	if err != nil {
 		return fmt.Errorf("couldn't get status from sandbox manager api: %w", err)
 	}
@@ -75,4 +66,21 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
+}
+
+func getStatus() (*sbmapi.StatusResponse, error) {
+	// Get a sandbox manager API client
+	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't connect sandbox manager api: %w", err)
+	}
+	defer grpcConn.Close()
+
+	// get the status
+	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
+	status, err := sbManagerClient.Status(context.Background(), &sbmapi.StatusRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("couldn't get status from sandbox manager api: %w", err)
+	}
+	return status, nil
 }
