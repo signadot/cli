@@ -44,6 +44,7 @@ func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.Sandbox)
 	fmt.Fprintf(tw, "Description:\t%s\n", sb.Spec.Description)
 	fmt.Fprintf(tw, "Cluster:\t%s\n", *sb.Spec.Cluster)
 	fmt.Fprintf(tw, "Created:\t%s\n", formatTimestamp(sb.CreatedAt))
+	fmt.Fprintf(tw, "Update:\t%s\n", formatTimestamp(sb.UpdatedAt))
 	fmt.Fprintf(tw, "TTL:\t%s\n", formatTTL(sb))
 	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.SandboxDashboardURL(sb.RoutingKey))
 	fmt.Fprintf(tw, "Status:\t%s (%s: %s)\n", readiness(sb.Status), sb.Status.Reason, sb.Status.Message)
@@ -85,9 +86,23 @@ func formatTTL(sb *models.Sandbox) string {
 	if ttl == nil {
 		return "- (forever)"
 	}
-	createdAt, err := time.Parse(time.RFC3339, sb.CreatedAt)
-	if err != nil {
-		return "?(e parse-created-at)"
+	var (
+		ttlBase time.Time
+		err     error
+	)
+	switch ttl.OffsetFrom {
+	case "updatedAt":
+		ttlBase, err = time.Parse(time.RFC3339, sb.UpdatedAt)
+		if err != nil {
+			return fmt.Sprintf("?(e parse-updated-at %q)", sb.UpdatedAt)
+		}
+	case "createdAt":
+		ttlBase, err = time.Parse(time.RFC3339, sb.CreatedAt)
+		if err != nil {
+			return fmt.Sprintf("?(e parse-created-at %q)", sb.CreatedAt)
+		}
+	default:
+		return fmt.Sprintf("?(bad ttl offset %q)", ttl.OffsetFrom)
 	}
 	n := len(ttl.Duration)
 	count, unit := ttl.Duration[0:n-1], ttl.Duration[n-1:]
@@ -109,7 +124,7 @@ func formatTTL(sb *models.Sandbox) string {
 	case "w":
 		offset *= 24 * 7 * time.Hour
 	}
-	eol := createdAt.Add(offset)
+	eol := ttlBase.Add(offset)
 	local := eol.Local().Format(time.RFC1123)
 	remaining := eol.Sub(time.Now())
 	return fmt.Sprintf("%s (%s)", local, units.HumanDuration(remaining))
