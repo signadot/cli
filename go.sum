@@ -330,8 +330,8 @@ github.com/rogpeppe/go-internal v1.2.2/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.11.0 h1:cWPaGQEPrBb5/AsnsZesgZZ9yb1OQ+GOISoDNXVBh4M=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/signadot/go-sdk v0.3.8-0.20230914150754-246eb0a2652f h1:Rwo8mdB9XoRHb82xVjvLqcum0NePQNIOOeRT9z3f2Z8=
-github.com/signadot/go-sdk v0.3.8-0.20230914150754-246eb0a2652f/go.mod h1:X86A7rI8J//a2T8aKVCCVXxOMBjh32c2GJ50WK7iYzs=
+github.com/signadot/go-sdk v0.3.8-0.20230917202415-61cf5bfada91 h1:DVxA0GXvgVmrlpUo48xd0SDbcXHLO+KkUHkUFbWfSwg=
+github.com/signadot/go-sdk v0.3.8-0.20230917202415-61cf5bfada91/go.mod h1:X86A7rI8J//a2T8aKVCCVXxOMBjh32c2GJ50WK7iYzs=
 github.com/signadot/libconnect v0.1.1-0.20230718181052-aa93718cb097 h1:sY9WSgiTyDXnhb//DY+n1a6jtYnBfGEgcMTCvr1QpU0=
 github.com/signadot/libconnect v0.1.1-0.20230718181052-aa93718cb097/go.mod h1:E6ExZIKzVtccOHRZxc11OiDnB0/s6ecSjs8Y+STjWL8=
 github.com/sirupsen/logrus v1.4.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=

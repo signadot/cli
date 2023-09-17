@@ -10,7 +10,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
-	github.com/signadot/go-sdk v0.3.8-0.20230914150754-246eb0a2652f
+	github.com/signadot/go-sdk v0.3.8-0.20230917202415-61cf5bfada91
 	github.com/signadot/libconnect v0.1.1-0.20230718181052-aa93718cb097
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
