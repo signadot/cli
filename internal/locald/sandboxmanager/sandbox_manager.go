@@ -16,6 +16,9 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
 
+	// load all auth plugins
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
 	"github.com/signadot/libconnect/common/portforward"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/revtun"
