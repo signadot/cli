@@ -15,6 +15,7 @@ func New(api *config.API) *cobra.Command {
 
 	// Subcommands
 	cmd.AddCommand(
+		newGet(cfg),
 		newAdd(cfg),
 		newList(cfg),
 		token.New(cfg),

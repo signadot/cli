@@ -21,3 +21,7 @@ func (c *ClusterAdd) AddFlags(cmd *cobra.Command) {
 type ClusterList struct {
 	*Cluster
 }
+
+type ClusterGet struct {
+	*Cluster
+}
