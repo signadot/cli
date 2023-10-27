@@ -13,7 +13,7 @@ import (
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 func New(apiConfig *config.API) *cobra.Command {

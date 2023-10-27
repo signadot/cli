@@ -5,7 +5,7 @@ import (
 	"time"
 
 	sbmanagerapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

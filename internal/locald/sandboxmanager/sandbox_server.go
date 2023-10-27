@@ -13,7 +13,7 @@ import (
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/portforward"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"

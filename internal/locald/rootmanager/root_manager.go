@@ -14,7 +14,7 @@ import (
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/fwdtun/etchosts"
 	"github.com/signadot/libconnect/fwdtun/localnet"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )

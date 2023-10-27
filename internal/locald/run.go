@@ -8,7 +8,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald/rootmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {

@@ -12,7 +12,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/libconnect/common/processes"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
