@@ -12,7 +12,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
 

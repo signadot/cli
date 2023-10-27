@@ -10,7 +10,7 @@ import (
 	clapi "github.com/signadot/libconnect/apiv1"
 	clapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/revtun"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

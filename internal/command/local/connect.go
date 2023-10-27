@@ -17,7 +17,7 @@ import (
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slog"
+	"log/slog"
 	"sigs.k8s.io/yaml"
 )
 

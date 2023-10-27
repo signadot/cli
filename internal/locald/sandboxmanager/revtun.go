@@ -9,7 +9,7 @@ import (
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/revtun"
 	rtproto "github.com/signadot/libconnect/revtun/protocol"
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type rt struct {
