@@ -10,14 +10,16 @@ import (
 	"path/filepath"
 	"time"
 
+	"log/slog"
+
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"log/slog"
 	"sigs.k8s.io/yaml"
 )
 
@@ -192,7 +194,7 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 	)
 	defer ticker.Stop()
 	for {
-		status, err = getStatus()
+		status, err := sbmgr.GetStatus()
 		if err != nil {
 			fmt.Fprintf(out, "error getting status: %s", err.Error())
 			connectErrs = []error{err}
@@ -204,7 +206,7 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 			goto tick
 
 		}
-		connectErrs = checkLocalStatusConnectErrors(ciConfig, status)
+		connectErrs = sbmgr.CheckStatusConnectErrors(status, ciConfig)
 		if len(connectErrs) == 0 {
 			break
 		}

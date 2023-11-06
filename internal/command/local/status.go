@@ -1,19 +1,16 @@
 package local
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"path/filepath"
 
 	"github.com/signadot/cli/internal/config"
-	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func newStatus(localConfig *config.Local) *cobra.Command {
@@ -50,10 +47,11 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	if !isRunning {
 		return fmt.Errorf("signadot is not connected\n")
 	}
-	status, err := getStatus()
 
+	// Get the status from sandbox manager
+	status, err := sbmgr.GetStatus()
 	if err != nil {
-		return fmt.Errorf("couldn't get status from sandbox manager api: %w", err)
+		return err
 	}
 
 	switch cfg.OutputFormat {
@@ -66,21 +64,4 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-}
-
-func getStatus() (*sbmapi.StatusResponse, error) {
-	// Get a sandbox manager API client
-	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, fmt.Errorf("couldn't connect sandbox manager api: %w", err)
-	}
-	defer grpcConn.Close()
-
-	// get the status
-	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
-	status, err := sbManagerClient.Status(context.Background(), &sbmapi.StatusRequest{})
-	if err != nil {
-		return nil, fmt.Errorf("couldn't get status from sandbox manager api: %w", err)
-	}
-	return status, nil
 }

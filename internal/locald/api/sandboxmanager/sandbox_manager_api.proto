@@ -9,36 +9,11 @@ package sandboxmanager;
 
 
 service SandboxManagerAPI {
-  // This method is used to create a sandbox with local references.
-  // The local controller (signadot local connect) should be running,
-  // otherwise it will return an error
-  rpc ApplySandbox(ApplySandboxRequest) returns (ApplySandboxResponse) {}
-
-
   // This method returns the status of the local controller
   rpc Status(StatusRequest) returns (StatusResponse) {}
 
   // This method requests the root controller to shutdown
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
-}
-
-// ApplySandbox
-// ----------------------------------------------------------------------------
-
-message ApplySandboxRequest {
-  // sandbox name
-  string name = 1;
-  // sandbox spec (instance of github.com/signadot/go-sdk/models.SandboxSpec)
-  google.protobuf.Struct sandbox_spec = 2;
-}
-
-message ApplySandboxResponse {
-  oneof it {
-	  // sandbox (instance of github.com/signadot/go-sdk/models.Sandbox)
-	  google.protobuf.Struct sandbox = 1;
-          
-          string apiError = 2;
-  }
 }
 
 // Status

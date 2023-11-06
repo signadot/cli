@@ -6,14 +6,14 @@ import (
 	"sync"
 	"time"
 
+	"log/slog"
+
 	"github.com/signadot/cli/internal/config"
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
-	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/portforward"
-	"log/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -60,60 +60,60 @@ func newSandboxManagerGRPCServer(ciConfig *config.ConnectInvocationConfig, portF
 	return srv
 }
 
-func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
-	if !s.isSBManagerReadyFunc() {
-		return sbapi.APIErrorResponse(
-			fmt.Errorf("sandboxmanager is still starting")), nil
-	}
-	sbSpec, err := sbapi.ToModelsSandboxSpec(req.SandboxSpec)
-	if err != nil {
-		return sbapi.APIErrorResponse(
-			fmt.Errorf("unable to create go-sdk sandbox spec: %w", err)), nil
-	}
-	sb := &models.Sandbox{
-		Spec: sbSpec,
-	}
-	if sbSpec.Cluster == nil {
-		return sbapi.APIErrorResponse(
-			fmt.Errorf("sandbox spec must specify cluster")), nil
-	}
-	if *sbSpec.Cluster != s.ciConfig.ConnectionConfig.Cluster {
-		return sbapi.APIErrorResponse(
-			fmt.Errorf("sandbox spec cluster %q does not match connected cluster (%q)",
-				*sbSpec.Cluster, s.ciConfig.ConnectionConfig.Cluster)), nil
-	}
+// func (s *sbmServer) ApplySandbox(ctx context.Context, req *sbapi.ApplySandboxRequest) (*sbapi.ApplySandboxResponse, error) {
+// 	if !s.isSBManagerReadyFunc() {
+// 		return sbapi.APIErrorResponse(
+// 			fmt.Errorf("sandboxmanager is still starting")), nil
+// 	}
+// 	sbSpec, err := sbapi.ToModelsSandboxSpec(req.SandboxSpec)
+// 	if err != nil {
+// 		return sbapi.APIErrorResponse(
+// 			fmt.Errorf("unable to create go-sdk sandbox spec: %w", err)), nil
+// 	}
+// 	sb := &models.Sandbox{
+// 		Spec: sbSpec,
+// 	}
+// 	if sbSpec.Cluster == nil {
+// 		return sbapi.APIErrorResponse(
+// 			fmt.Errorf("sandbox spec must specify cluster")), nil
+// 	}
+// 	if *sbSpec.Cluster != s.ciConfig.ConnectionConfig.Cluster {
+// 		return sbapi.APIErrorResponse(
+// 			fmt.Errorf("sandbox spec cluster %q does not match connected cluster (%q)",
+// 				*sbSpec.Cluster, s.ciConfig.ConnectionConfig.Cluster)), nil
+// 	}
 
-	apiConfig := s.ciConfig.API
-	s.log.Debug("api", "config", apiConfig)
-	params := sandboxes.NewApplySandboxParams().
-		WithOrgName(apiConfig.Org).WithSandboxName(req.Name).WithData(sb)
-	result, err := apiConfig.Client.Sandboxes.ApplySandbox(params, nil)
-	if err != nil {
-		return sbapi.APIErrorResponse(err), nil
-	}
-	code := result.Code()
-	switch {
-	default:
-		return sbapi.APIErrorResponse(result), nil
-	case code/100 == 2:
-		// success, continue below
-	}
+// 	apiConfig := s.ciConfig.API
+// 	s.log.Debug("api", "config", apiConfig)
+// 	params := sandboxes.NewApplySandboxParams().
+// 		WithOrgName(apiConfig.Org).WithSandboxName(req.Name).WithData(sb)
+// 	result, err := apiConfig.Client.Sandboxes.ApplySandbox(params, nil)
+// 	if err != nil {
+// 		return sbapi.APIErrorResponse(err), nil
+// 	}
+// 	code := result.Code()
+// 	switch {
+// 	default:
+// 		return sbapi.APIErrorResponse(result), nil
+// 	case code/100 == 2:
+// 		// success, continue below
+// 	}
 
-	// the api call was a success, register sandbox
-	s.registerSandbox(result.Payload)
+// 	// the api call was a success, register sandbox
+// 	s.registerSandbox(result.Payload)
 
-	// construct response
-	grpcSandbox, err := sbapi.ToGRPCSandbox(result.Payload)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to create grpc sandbox: %s", err.Error())
-	}
-	resp := &sbapi.ApplySandboxResponse{
-		It: &sbapi.ApplySandboxResponse_Sandbox{
-			Sandbox: grpcSandbox,
-		},
-	}
-	return resp, nil
-}
+// 	// construct response
+// 	grpcSandbox, err := sbapi.ToGRPCSandbox(result.Payload)
+// 	if err != nil {
+// 		return nil, status.Errorf(codes.Internal, "unable to create grpc sandbox: %s", err.Error())
+// 	}
+// 	resp := &sbapi.ApplySandboxResponse{
+// 		It: &sbapi.ApplySandboxResponse_Sandbox{
+// 			Sandbox: grpcSandbox,
+// 		},
+// 	}
+// 	return resp, nil
+// }
 
 func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
 	// make a local copy
