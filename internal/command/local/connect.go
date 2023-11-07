@@ -194,7 +194,7 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 	)
 	defer ticker.Stop()
 	for {
-		status, err := sbmgr.GetStatus()
+		status, err = sbmgr.GetStatus()
 		if err != nil {
 			fmt.Fprintf(out, "error getting status: %s", err.Error())
 			connectErrs = []error{err}
