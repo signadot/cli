@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/denisbrodbeck/machineid"
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
@@ -69,11 +69,11 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		}
 
 		// Set the local machine ID
-		machineID, err := machineid.ProtectedID("signadotCLI")
+		machineID, err := system.GetMachineID()
 		if err != nil {
-			return fmt.Errorf("couldn't read machine-id, %v", err)
+			return err
 		}
-		req.Spec.MachineID = machineID
+		req.Spec.LocalMachineID = machineID
 	}
 
 	// Send the request to the SaaS

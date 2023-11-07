@@ -1,11 +1,13 @@
 package system
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
 
+	"github.com/denisbrodbeck/machineid"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -51,4 +53,12 @@ func GetRollingLogWriter(logDirPath, logName string, uid, gid int) (io.Writer, s
 		MaxSize:    50, // megabytes
 		MaxAge:     28, // days
 	}, logPath, nil
+}
+
+func GetMachineID() (string, error) {
+	machineID, err := machineid.ProtectedID("signadotCLI")
+	if err != nil {
+		return "", fmt.Errorf("couldn't read machine-id, %v", err)
+	}
+	return machineID[:63], nil
 }
