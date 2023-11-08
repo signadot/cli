@@ -43,6 +43,8 @@ func newSBController(log *slog.Logger, sandbox *tunapiv1.WatchLocalSandboxesResp
 	}
 	// run the controller
 	go ctrl.run()
+	// trigger a reconcile
+	ctrl.triggerReconcile()
 	return ctrl
 }
 
