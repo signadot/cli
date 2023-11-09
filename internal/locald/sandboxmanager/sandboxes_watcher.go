@@ -141,11 +141,11 @@ func (sbw *sbmWatcher) processStreamEvent(event *tunapiv1.WatchLocalSandboxesRes
 	}
 }
 
-func (sbw *sbmWatcher) getSandboxes() []*tunapiv1.WatchLocalSandboxesResponse_Sandbox {
+func (sbw *sbmWatcher) getSandboxes() []*tunapiv1.Sandbox {
 	sbw.sbMu.Lock()
 	defer sbw.sbMu.Unlock()
 
-	res := make([]*tunapiv1.WatchLocalSandboxesResponse_Sandbox, 0, len(sbw.sbControllers))
+	res := make([]*tunapiv1.Sandbox, 0, len(sbw.sbControllers))
 	for _, ctrl := range sbw.sbControllers {
 		res = append(res, ctrl.getSandbox())
 	}

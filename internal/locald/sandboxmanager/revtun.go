@@ -27,7 +27,7 @@ type rt struct {
 }
 
 func newRevtun(log *slog.Logger, rtc revtun.Client, rk string,
-	xw *tunapiv1.WatchLocalSandboxesResponse_ExternalWorkload) (*rt, error) {
+	xw *tunapiv1.ExternalWorkload) (*rt, error) {
 	// define the revtun config (that will be used to setup the reverse tunnel)
 	rtConfig := &rtproto.Config{
 		SandboxRoutingKey: rk,

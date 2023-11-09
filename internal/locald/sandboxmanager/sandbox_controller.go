@@ -20,7 +20,7 @@ type sbController struct {
 	sync.Mutex
 
 	log          *slog.Logger
-	sandbox      *tunapiv1.WatchLocalSandboxesResponse_Sandbox
+	sandbox      *tunapiv1.Sandbox
 	revtunClient revtun.Client
 	revtuns      map[string]*rt
 	delFn        func()
@@ -29,7 +29,7 @@ type sbController struct {
 	doneCh      chan struct{}
 }
 
-func newSBController(log *slog.Logger, sandbox *tunapiv1.WatchLocalSandboxesResponse_Sandbox,
+func newSBController(log *slog.Logger, sandbox *tunapiv1.Sandbox,
 	rtClient revtun.Client, delFn func()) *sbController {
 	// create the controller
 	ctrl := &sbController{
@@ -69,7 +69,7 @@ reconcileLoop:
 
 	// we're done, clean up revtuns
 	ctrl.log.Debug("cleaning up reverse tunnels")
-	ctrl.updateSandbox(&tunapiv1.WatchLocalSandboxesResponse_Sandbox{})
+	ctrl.updateSandbox(&tunapiv1.Sandbox{})
 	ctrl.reconcile()
 	ctrl.delFn()
 }
@@ -82,13 +82,13 @@ func (ctrl *sbController) stop() {
 	}
 }
 
-func (ctrl *sbController) getSandbox() *tunapiv1.WatchLocalSandboxesResponse_Sandbox {
+func (ctrl *sbController) getSandbox() *tunapiv1.Sandbox {
 	ctrl.Lock()
 	defer ctrl.Unlock()
 	return ctrl.sandbox
 }
 
-func (ctrl *sbController) updateSandbox(sandbox *tunapiv1.WatchLocalSandboxesResponse_Sandbox) {
+func (ctrl *sbController) updateSandbox(sandbox *tunapiv1.Sandbox) {
 	ctrl.Lock()
 	defer ctrl.Unlock()
 
@@ -134,7 +134,7 @@ func (ctrl *sbController) reconcile() {
 	// reconcile
 	ctrl.log.Debug("reconciling tunnels")
 	// put the xwls in a map
-	xwMap := make(map[string]*tunapiv1.WatchLocalSandboxesResponse_ExternalWorkload, len(ctrl.sandbox.ExternalWorkloads))
+	xwMap := make(map[string]*tunapiv1.ExternalWorkload, len(ctrl.sandbox.ExternalWorkloads))
 	for _, xw := range ctrl.sandbox.ExternalWorkloads {
 		xwMap[xw.Name] = xw
 	}
@@ -209,14 +209,14 @@ func (ctrl *sbController) closeRevTunnel(xwName string) {
 	}
 }
 
-func (ctrl *sbController) compareExternalWorkloadsSpec(a, b *apiv1.WatchLocalSandboxesResponse_ExternalWorkload) bool {
+func (ctrl *sbController) compareExternalWorkloadsSpec(a, b *apiv1.ExternalWorkload) bool {
 	// for comparison, ignore status info
-	specA := &apiv1.WatchLocalSandboxesResponse_ExternalWorkload{
+	specA := &apiv1.ExternalWorkload{
 		Name:                a.Name,
 		Baseline:            a.Baseline,
 		WorkloadPortMapping: a.WorkloadPortMapping,
 	}
-	specB := &apiv1.WatchLocalSandboxesResponse_ExternalWorkload{
+	specB := &apiv1.ExternalWorkload{
 		Name:                b.Name,
 		Baseline:            b.Baseline,
 		WorkloadPortMapping: b.WorkloadPortMapping,
