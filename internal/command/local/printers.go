@@ -72,7 +72,6 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 			ConfigDir        string                       `json:"configDir"`
 			User             *PrintableUser               `json:"user"`
 			ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
-			API              *PrintableAPI                `json:"api"`
 			Debug            bool                         `json:"debug"`
 		}
 
@@ -88,13 +87,7 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 				UIDHome:  ciConfig.User.UIDHome,
 			},
 			ConnectionConfig: ciConfig.ConnectionConfig,
-			API: &PrintableAPI{
-				ConfigFile:   ciConfig.API.ConfigFile,
-				Org:          ciConfig.API.Org,
-				MaskedAPIKey: ciConfig.API.MaskedAPIKey,
-				APIURL:       ciConfig.API.APIURL,
-			},
-			Debug: ciConfig.Debug,
+			Debug:            ciConfig.Debug,
 		}
 	} else {
 		// Standard view

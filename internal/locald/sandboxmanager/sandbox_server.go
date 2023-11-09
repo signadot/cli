@@ -57,7 +57,6 @@ func newSandboxManagerGRPCServer(log *slog.Logger, ciConfig *config.ConnectInvoc
 func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbapi.StatusResponse, error) {
 	// make a local copy
 	sbConfig := *s.ciConfig
-	sbConfig.APIKey = sbConfig.APIKey[:6] + "..."
 
 	grpcCIConfig, err := sbapi.ToGRPCCIConfig(&sbConfig)
 	if err != nil {
