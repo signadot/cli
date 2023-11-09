@@ -28,19 +28,21 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 	}
 
 	type rawStatus struct {
-		RuntimeConfig any `json:"runtimeConfig,omitempty"`
-		Localnet      any `json:"localnet,omitempty"`
-		Hosts         any `json:"hosts,omitempty"`
-		Portforward   any `json:"portforward,omitempty"`
-		Sandboxes     any `json:"sandboxes,omitempty"`
+		RuntimeConfig    any `json:"runtimeConfig,omitempty"`
+		Localnet         any `json:"localnet,omitempty"`
+		Hosts            any `json:"hosts,omitempty"`
+		Portforward      any `json:"portforward,omitempty"`
+		SandboxesWatcher any `json:"sandboxesWatcher,omitempty"`
+		Sandboxes        any `json:"sandboxes,omitempty"`
 	}
 
 	rawSt := rawStatus{
-		RuntimeConfig: getRawRuntimeConfig(cfg, ciConfig),
-		Localnet:      getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
-		Hosts:         getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
-		Portforward:   getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
-		Sandboxes:     statusMap["sandboxes"],
+		RuntimeConfig:    getRawRuntimeConfig(cfg, ciConfig),
+		Localnet:         getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
+		Hosts:            getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
+		Portforward:      getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
+		SandboxesWatcher: getRawWatcher(cfg, status.Watcher, statusMap),
+		Sandboxes:        statusMap["sandboxes"],
 	}
 
 	return printer(out, rawSt)
@@ -238,6 +240,42 @@ func getRawPortforward(cfg *config.LocalStatus, ciConfig *config.ConnectInvocati
 	return result
 }
 
+func getRawWatcher(cfg *config.LocalStatus, watcher *commonapi.WatcherStatus,
+	statusMap map[string]any) any {
+	var result any
+
+	if cfg.Details {
+		// Details view
+		result = statusMap["watcher"]
+	} else {
+		// Standard view
+		type PrintableWatcher struct {
+			Healthy         bool   `json:"healthy"`
+			LastErrorReason string `json:"lastErrorReason,omitempty"`
+		}
+
+		result = &PrintableWatcher{
+			Healthy: false,
+		}
+
+		if watcher != nil {
+			if watcher.Health != nil {
+				if watcher.Health.Healthy {
+					result = &PrintableWatcher{
+						Healthy: true,
+					}
+				} else {
+					result = &PrintableWatcher{
+						Healthy:         false,
+						LastErrorReason: watcher.Health.LastErrorReason,
+					}
+				}
+			}
+		}
+	}
+	return result
+}
+
 func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.StatusResponse) error {
 	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
 	if err != nil {
@@ -307,6 +345,7 @@ func (p *statusPrinter) printSuccess() {
 		p.printLocalnetStatus()
 		p.printHostsStatus()
 	}
+	p.printSandboxesWatcherStatus()
 	p.printSandboxStatus()
 }
 
@@ -334,6 +373,10 @@ func (p *statusPrinter) printLocalnetStatus() {
 
 func (p *statusPrinter) printHostsStatus() {
 	p.printLine(p.out, 1, fmt.Sprintf("%d hosts accessible via /etc/hosts", p.status.Hosts.NumHosts), "*")
+}
+
+func (p *statusPrinter) printSandboxesWatcherStatus() {
+	p.printLine(p.out, 1, "sandboxes watcher is running", "*")
 }
 
 func (p *statusPrinter) printSandboxStatus() {
