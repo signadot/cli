@@ -19,7 +19,6 @@ import (
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"sigs.k8s.io/yaml"
 )
 
@@ -89,8 +88,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 			Username: user.Username,
 		},
 		ConnectionConfig: connConfig,
-		API:              cfg.API,
-		APIKey:           viper.GetString("api_key"),
 		Debug:            cfg.LocalConfig.Debug,
 	}
 	if cfg.DumpCIConfig {

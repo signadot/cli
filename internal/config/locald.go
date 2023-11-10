@@ -7,7 +7,6 @@ import (
 
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"sigs.k8s.io/yaml"
 )
 
@@ -54,11 +53,6 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 		return err
 	}
 
-	viper.Set("api_url", ciConfig.API.APIURL)
-	viper.Set("api_key", ciConfig.APIKey)
-	if err := ciConfig.API.InitAPITransport(ciConfig.APIKey); err != nil {
-		return err
-	}
 	ld.ConnectInvocationConfig = ciConfig
 	return nil
 
@@ -77,8 +71,6 @@ type ConnectInvocationConfig struct {
 	SignadotDir      string                       `json:"signadotDir"`
 	User             *ConnectInvocationUser       `json:"user"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
-	API              *API                         `json:"api"`
-	APIKey           string                       `json:"apiKey"`
 	Debug            bool                         `json:"debug"`
 }
 
