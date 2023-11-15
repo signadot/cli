@@ -9,6 +9,7 @@ import (
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/utils/system"
 	connectcfg "github.com/signadot/libconnect/config"
 )
 
@@ -49,6 +50,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 }
 
 func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig) any {
+	machineID, _ := system.GetMachineID()
 	var runtimeConfig any
 
 	if cfg.Details {
@@ -66,6 +68,7 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 			LocalNetPort     uint16                       `json:"localNetPort"`
 			ConfigDir        string                       `json:"configDir"`
 			User             *PrintableUser               `json:"user"`
+			MachineID        string                       `json:"machineID"`
 			ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 			Debug            bool                         `json:"debug"`
 		}
@@ -81,6 +84,7 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 				Username: ciConfig.User.Username,
 				UIDHome:  ciConfig.User.UIDHome,
 			},
+			MachineID:        machineID,
 			ConnectionConfig: ciConfig.ConnectionConfig,
 			Debug:            ciConfig.Debug,
 		}
@@ -285,6 +289,8 @@ type statusPrinter struct {
 }
 
 func (p *statusPrinter) printRuntimeConfig() {
+	machineID, _ := system.GetMachineID()
+
 	var runtimeConfig string
 	if p.ciConfig.WithRootManager {
 		runtimeConfig = fmt.Sprintf("runtime config: cluster %s, running with root-daemon",
@@ -294,7 +300,7 @@ func (p *statusPrinter) printRuntimeConfig() {
 			p.white(p.ciConfig.ConnectionConfig.Cluster))
 	}
 	if p.cfg.Details {
-		runtimeConfig += fmt.Sprintf(" (config-dir: %s)", p.ciConfig.SignadotDir)
+		runtimeConfig += fmt.Sprintf(" (config-dir: %s, machine-id %s)", p.ciConfig.SignadotDir, machineID)
 	}
 	p.printLine(p.out, 0, runtimeConfig, "*")
 }
