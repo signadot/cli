@@ -15,10 +15,10 @@ import (
 )
 
 func GetStatus() (*sbmapi.StatusResponse, error) {
-	// Get a sandbox manager API client
-	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// get a sandbox manager API client
+	grpcConn, err := connectSandboxManager()
 	if err != nil {
-		return nil, fmt.Errorf("couldn't connect sandboxmanager: %w", err)
+		return nil, err
 	}
 	defer grpcConn.Close()
 
@@ -26,14 +26,7 @@ func GetStatus() (*sbmapi.StatusResponse, error) {
 	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
 	sbStatus, err := sbManagerClient.Status(context.Background(), &sbmapi.StatusRequest{})
 	if err != nil {
-		grpcStatus, ok := status.FromError(err)
-		if ok {
-			switch grpcStatus.Code() {
-			case codes.Unavailable:
-				return nil, fmt.Errorf("sandboxmanager is not running, start it with \"signadot local connect\"")
-			}
-		}
-		return nil, fmt.Errorf("unable to get status from sandboxmanager: %w", err)
+		return nil, processGRPCError("unable to get status from sandboxmanager", err)
 	}
 	return sbStatus, nil
 }
@@ -72,11 +65,6 @@ func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.Co
 		}
 	}
 
-	// check sandboxes watcher service
-	err := checkWatcherStatus(status.Watcher)
-	if err != nil {
-		errs = append(errs, err)
-	}
 	return errs
 }
 
@@ -125,17 +113,48 @@ func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 	return fmt.Errorf(errorMsg)
 }
 
-func checkWatcherStatus(watcher *commonapi.WatcherStatus) error {
-	errorMsg := "failed to run sandboxes watcher"
-	if watcher != nil {
-		if watcher.Health != nil {
-			if watcher.Health.Healthy {
-				return nil
-			}
-			if watcher.Health.LastErrorReason != "" {
-				errorMsg += fmt.Sprintf(" (%q)", watcher.Health.LastErrorReason)
-			}
+func IsWatcherRunning(status *sbmapi.StatusResponse) bool {
+	if status == nil || status.Watcher == nil || status.Watcher.Health == nil {
+		return false
+	}
+	return status.Watcher.Health.Healthy
+}
+
+func RegisterSandbox(sandboxName, routingKey string) error {
+	// get a sandbox manager API client
+	grpcConn, err := connectSandboxManager()
+	if err != nil {
+		return err
+	}
+	defer grpcConn.Close()
+
+	// register the sandbox
+	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
+	_, err = sbManagerClient.RegisterSandbox(context.Background(), &sbmapi.RegisterSandboxRequest{
+		SandboxName: sandboxName,
+		RoutingKey:  routingKey,
+	})
+	if err != nil {
+		return processGRPCError("unable to register sandbox in sandboxmanager", err)
+	}
+	return nil
+}
+
+func connectSandboxManager() (*grpc.ClientConn, error) {
+	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("couldn't connect sandboxmanager: %w", err)
+	}
+	return grpcConn, nil
+}
+
+func processGRPCError(action string, err error) error {
+	grpcStatus, ok := status.FromError(err)
+	if ok {
+		switch grpcStatus.Code() {
+		case codes.Unavailable:
+			return fmt.Errorf("sandboxmanager is not running, start it with \"signadot local connect\"")
 		}
 	}
-	return fmt.Errorf(errorMsg)
+	return fmt.Errorf("%s: %w", action, err)
 }

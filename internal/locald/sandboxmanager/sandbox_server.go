@@ -82,6 +82,12 @@ func (s *sbmServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (*
 	return &sbapi.ShutdownResponse{}, nil
 }
 
+func (s *sbmServer) RegisterSandbox(ctx context.Context, req *sbapi.RegisterSandboxRequest) (
+	*sbapi.RegisterSandboxResponse, error) {
+	s.sbmWatcher.registerSandbox(req.SandboxName, req.RoutingKey)
+	return &sbapi.RegisterSandboxResponse{}, nil
+}
+
 func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
 	if !s.ciConfig.WithRootManager {
 		// We are running without a root manager

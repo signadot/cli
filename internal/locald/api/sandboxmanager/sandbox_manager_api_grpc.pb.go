@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	SandboxManagerAPI_Status_FullMethodName   = "/sandboxmanager.SandboxManagerAPI/Status"
-	SandboxManagerAPI_Shutdown_FullMethodName = "/sandboxmanager.SandboxManagerAPI/Shutdown"
+	SandboxManagerAPI_Status_FullMethodName          = "/sandboxmanager.SandboxManagerAPI/Status"
+	SandboxManagerAPI_Shutdown_FullMethodName        = "/sandboxmanager.SandboxManagerAPI/Shutdown"
+	SandboxManagerAPI_RegisterSandbox_FullMethodName = "/sandboxmanager.SandboxManagerAPI/RegisterSandbox"
 )
 
 // SandboxManagerAPIClient is the client API for SandboxManagerAPI service.
@@ -31,6 +32,10 @@ type SandboxManagerAPIClient interface {
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 	// This method requests the root controller to shutdown
 	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
+	// This method is used to register sandboxes in the local controller. It is
+	// mainly used in the context of old operators (the ones that don't support
+	// WatchLocalSandboxes in tunnel-api)
+	RegisterSandbox(ctx context.Context, in *RegisterSandboxRequest, opts ...grpc.CallOption) (*RegisterSandboxResponse, error)
 }
 
 type sandboxManagerAPIClient struct {
@@ -59,6 +64,15 @@ func (c *sandboxManagerAPIClient) Shutdown(ctx context.Context, in *ShutdownRequ
 	return out, nil
 }
 
+func (c *sandboxManagerAPIClient) RegisterSandbox(ctx context.Context, in *RegisterSandboxRequest, opts ...grpc.CallOption) (*RegisterSandboxResponse, error) {
+	out := new(RegisterSandboxResponse)
+	err := c.cc.Invoke(ctx, SandboxManagerAPI_RegisterSandbox_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SandboxManagerAPIServer is the server API for SandboxManagerAPI service.
 // All implementations must embed UnimplementedSandboxManagerAPIServer
 // for forward compatibility
@@ -67,6 +81,10 @@ type SandboxManagerAPIServer interface {
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 	// This method requests the root controller to shutdown
 	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
+	// This method is used to register sandboxes in the local controller. It is
+	// mainly used in the context of old operators (the ones that don't support
+	// WatchLocalSandboxes in tunnel-api)
+	RegisterSandbox(context.Context, *RegisterSandboxRequest) (*RegisterSandboxResponse, error)
 	mustEmbedUnimplementedSandboxManagerAPIServer()
 }
 
@@ -79,6 +97,9 @@ func (UnimplementedSandboxManagerAPIServer) Status(context.Context, *StatusReque
 }
 func (UnimplementedSandboxManagerAPIServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Shutdown not implemented")
+}
+func (UnimplementedSandboxManagerAPIServer) RegisterSandbox(context.Context, *RegisterSandboxRequest) (*RegisterSandboxResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RegisterSandbox not implemented")
 }
 func (UnimplementedSandboxManagerAPIServer) mustEmbedUnimplementedSandboxManagerAPIServer() {}
 
@@ -129,6 +150,24 @@ func _SandboxManagerAPI_Shutdown_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SandboxManagerAPI_RegisterSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterSandboxRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SandboxManagerAPIServer).RegisterSandbox(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SandboxManagerAPI_RegisterSandbox_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SandboxManagerAPIServer).RegisterSandbox(ctx, req.(*RegisterSandboxRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SandboxManagerAPI_ServiceDesc is the grpc.ServiceDesc for SandboxManagerAPI service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -143,6 +182,10 @@ var SandboxManagerAPI_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Shutdown",
 			Handler:    _SandboxManagerAPI_Shutdown_Handler,
+		},
+		{
+			MethodName: "RegisterSandbox",
+			Handler:    _SandboxManagerAPI_RegisterSandbox_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

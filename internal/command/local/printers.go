@@ -352,7 +352,15 @@ func (p *statusPrinter) printHostsStatus() {
 }
 
 func (p *statusPrinter) printSandboxesWatcherStatus() {
-	p.printLine(p.out, 1, "sandboxes watcher is running", "*")
+	msg := "sandboxes watcher is not running"
+	if p.status.Watcher != nil && p.status.Watcher.Health != nil {
+		if p.status.Watcher.Health.Healthy {
+			msg = "sandboxes watcher is running"
+		} else {
+			msg += fmt.Sprintf(" (%q)", p.status.Watcher.Health.LastErrorReason)
+		}
+	}
+	p.printLine(p.out, 1, msg, "*")
 }
 
 func (p *statusPrinter) printSandboxStatus() {

@@ -43,12 +43,13 @@ func newSBController(log *slog.Logger, sandbox *tunapiv1.Sandbox,
 	}
 	// run the controller
 	go ctrl.run()
-	// trigger a reconcile
-	ctrl.triggerReconcile()
 	return ctrl
 }
 
 func (ctrl *sbController) run() {
+	// trigger a reconcile
+	ctrl.triggerReconcile()
+
 	// run the reconcile loop
 	ticker := time.NewTicker(reconcilePeriod)
 	defer ticker.Stop()
@@ -204,8 +205,8 @@ func (ctrl *sbController) closeRevTunnel(xwName string) {
 	select {
 	case <-revtun.rtToClose:
 	default:
-		ctrl.log.Debug("sandbox controller closing revtun", "local", xwName)
 		close(revtun.rtToClose)
+		ctrl.log.Debug("sandbox controller closing revtun", "local", xwName)
 	}
 }
 
