@@ -66,6 +66,7 @@ func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbap
 	resp := &sbapi.StatusResponse{
 		CiConfig:    grpcCIConfig,
 		Portforward: s.portForwardStatus(),
+		Watcher:     s.watcherStatus(),
 		Sandboxes:   s.sbStatuses(),
 	}
 	resp.Hosts, resp.Localnet = s.rootStatus()
@@ -134,6 +135,12 @@ func (s *sbmServer) portForwardStatus() *commonapi.PortForwardStatus {
 		grpcPFStatus.LocalAddress = fmt.Sprintf(":%d", *pfst.LocalPort)
 	}
 	return grpcPFStatus
+}
+
+func (s *sbmServer) watcherStatus() *commonapi.WatcherStatus {
+	return &commonapi.WatcherStatus{
+		Health: commonapi.ToGRPCServiceHealth(s.sbmWatcher.getStatus()),
+	}
 }
 
 func (s *sbmServer) sbStatuses() []*commonapi.SandboxStatus {

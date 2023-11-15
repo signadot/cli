@@ -57,6 +57,7 @@ func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.Co
 			errs = append(errs, err)
 		}
 	}
+
 	// check root manager (if running)
 	if ciConfig.WithRootManager {
 		// check localnet service
@@ -69,6 +70,12 @@ func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.Co
 		if err != nil {
 			errs = append(errs, err)
 		}
+	}
+
+	// check sandboxes watcher service
+	err := checkWatcherStatus(status.Watcher)
+	if err != nil {
+		errs = append(errs, err)
 	}
 	return errs
 }
@@ -112,6 +119,21 @@ func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 			}
 			if hosts.Health.LastErrorReason != "" {
 				errorMsg += fmt.Sprintf(" (%q)", hosts.Health.LastErrorReason)
+			}
+		}
+	}
+	return fmt.Errorf(errorMsg)
+}
+
+func checkWatcherStatus(watcher *commonapi.WatcherStatus) error {
+	errorMsg := "failed to run sandboxes watcher"
+	if watcher != nil {
+		if watcher.Health != nil {
+			if watcher.Health.Healthy {
+				return nil
+			}
+			if watcher.Health.LastErrorReason != "" {
+				errorMsg += fmt.Sprintf(" (%q)", watcher.Health.LastErrorReason)
 			}
 		}
 	}

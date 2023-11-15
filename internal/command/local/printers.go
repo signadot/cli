@@ -9,6 +9,7 @@ import (
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/utils/system"
 	connectcfg "github.com/signadot/libconnect/config"
 )
 
@@ -28,25 +29,28 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 	}
 
 	type rawStatus struct {
-		RuntimeConfig any `json:"runtimeConfig,omitempty"`
-		Localnet      any `json:"localnet,omitempty"`
-		Hosts         any `json:"hosts,omitempty"`
-		Portforward   any `json:"portforward,omitempty"`
-		Sandboxes     any `json:"sandboxes,omitempty"`
+		RuntimeConfig    any `json:"runtimeConfig,omitempty"`
+		Localnet         any `json:"localnet,omitempty"`
+		Hosts            any `json:"hosts,omitempty"`
+		Portforward      any `json:"portforward,omitempty"`
+		SandboxesWatcher any `json:"sandboxesWatcher,omitempty"`
+		Sandboxes        any `json:"sandboxes,omitempty"`
 	}
 
 	rawSt := rawStatus{
-		RuntimeConfig: getRawRuntimeConfig(cfg, ciConfig),
-		Localnet:      getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
-		Hosts:         getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
-		Portforward:   getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
-		Sandboxes:     statusMap["sandboxes"],
+		RuntimeConfig:    getRawRuntimeConfig(cfg, ciConfig),
+		Localnet:         getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
+		Hosts:            getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
+		Portforward:      getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
+		SandboxesWatcher: getRawWatcher(cfg, status.Watcher, statusMap),
+		Sandboxes:        statusMap["sandboxes"],
 	}
 
 	return printer(out, rawSt)
 }
 
 func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig) any {
+	machineID, _ := system.GetMachineID()
 	var runtimeConfig any
 
 	if cfg.Details {
@@ -58,19 +62,13 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 			UIDHome  string `json:"uidHome"`
 		}
 
-		type PrintableAPI struct {
-			ConfigFile   string `json:"configFile"`
-			Org          string `json:"org"`
-			MaskedAPIKey string `json:"maskedAPIKey"`
-			APIURL       string `json:"apiURL"`
-		}
-
 		type PrintableRuntimeConfig struct {
 			RootDaemon       bool                         `json:"rootDaemon"`
 			APIPort          uint16                       `json:"apiPort"`
 			LocalNetPort     uint16                       `json:"localNetPort"`
 			ConfigDir        string                       `json:"configDir"`
 			User             *PrintableUser               `json:"user"`
+			MachineID        string                       `json:"machineID"`
 			ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 			Debug            bool                         `json:"debug"`
 		}
@@ -86,6 +84,7 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 				Username: ciConfig.User.Username,
 				UIDHome:  ciConfig.User.UIDHome,
 			},
+			MachineID:        machineID,
 			ConnectionConfig: ciConfig.ConnectionConfig,
 			Debug:            ciConfig.Debug,
 		}
@@ -109,39 +108,35 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 
 func getRawLocalnet(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
 	localnet *commonapi.LocalNetStatus, statusMap map[string]any) any {
-	var result any
-
 	if !ciConfig.WithRootManager {
 		return localnet
 	}
 
 	if cfg.Details {
 		// Details view
-		result = statusMap["localnet"]
-	} else {
-		// Standard view
-		type PrintableLocalnet struct {
-			Healthy         bool   `json:"healthy"`
-			LastErrorReason string `json:"lastErrorReason,omitempty"`
-		}
+		return statusMap["localnet"]
+	}
 
+	// Standard view
+	type PrintableLocalnet struct {
+		Healthy         bool   `json:"healthy"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintableLocalnet{
+		Healthy: false,
+	}
+	if localnet == nil || localnet.Health == nil {
+		return result
+	}
+	if localnet.Health.Healthy {
 		result = &PrintableLocalnet{
-			Healthy: false,
+			Healthy: true,
 		}
-
-		if localnet != nil {
-			if localnet.Health != nil {
-				if localnet.Health.Healthy {
-					result = &PrintableLocalnet{
-						Healthy: true,
-					}
-				} else {
-					result = &PrintableLocalnet{
-						Healthy:         false,
-						LastErrorReason: localnet.Health.LastErrorReason,
-					}
-				}
-			}
+	} else {
+		result = &PrintableLocalnet{
+			Healthy:         false,
+			LastErrorReason: localnet.Health.LastErrorReason,
 		}
 	}
 	return result
@@ -149,41 +144,37 @@ func getRawLocalnet(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationC
 
 func getRawHosts(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
 	hosts *commonapi.HostsStatus, statusMap map[string]any) any {
-	var result any
-
 	if !ciConfig.WithRootManager {
 		return hosts
 	}
 
 	if cfg.Details {
 		// Details view
-		result = statusMap["hosts"]
-	} else {
-		// Standard view
-		type PrintableHosts struct {
-			Healthy         bool   `json:"healthy"`
-			NumHosts        uint32 `json:"numHosts"`
-			LastErrorReason string `json:"lastErrorReason,omitempty"`
-		}
+		return statusMap["hosts"]
+	}
 
+	// Standard view
+	type PrintableHosts struct {
+		Healthy         bool   `json:"healthy"`
+		NumHosts        uint32 `json:"numHosts"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintableHosts{
+		Healthy: false,
+	}
+	if hosts == nil || hosts.Health == nil {
+		return result
+	}
+	if hosts.Health.Healthy {
 		result = &PrintableHosts{
-			Healthy: false,
+			Healthy:  true,
+			NumHosts: hosts.NumHosts,
 		}
-
-		if hosts != nil {
-			if hosts.Health != nil {
-				if hosts.Health.Healthy {
-					result = &PrintableHosts{
-						Healthy:  true,
-						NumHosts: hosts.NumHosts,
-					}
-				} else {
-					result = &PrintableHosts{
-						Healthy:         false,
-						LastErrorReason: hosts.Health.LastErrorReason,
-					}
-				}
-			}
+	} else {
+		result = &PrintableHosts{
+			Healthy:         false,
+			LastErrorReason: hosts.Health.LastErrorReason,
 		}
 	}
 	return result
@@ -191,41 +182,69 @@ func getRawHosts(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConf
 
 func getRawPortforward(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
 	portforward *commonapi.PortForwardStatus, statusMap map[string]any) any {
-	var result any
-
 	if ciConfig.ConnectionConfig.Type != connectcfg.PortForwardLinkType {
 		return portforward
 	}
 
 	if cfg.Details {
 		// Details view
-		result = statusMap["portforward"]
-	} else {
-		// Standard view
-		type PrintablePortforward struct {
-			Healthy         bool   `json:"healthy"`
-			LocalAddress    string `json:"localAddress"`
-			LastErrorReason string `json:"lastErrorReason,omitempty"`
-		}
+		return statusMap["portforward"]
+	}
 
+	// Standard view
+	type PrintablePortforward struct {
+		Healthy         bool   `json:"healthy"`
+		LocalAddress    string `json:"localAddress"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintablePortforward{
+		Healthy: false,
+	}
+	if portforward == nil || portforward.Health == nil {
+		return result
+	}
+	if portforward.Health.Healthy {
 		result = &PrintablePortforward{
-			Healthy: false,
+			Healthy:      true,
+			LocalAddress: portforward.LocalAddress,
 		}
+	} else {
+		result = &PrintablePortforward{
+			Healthy:         false,
+			LastErrorReason: portforward.Health.LastErrorReason,
+		}
+	}
+	return result
+}
 
-		if portforward != nil {
-			if portforward.Health != nil {
-				if portforward.Health.Healthy {
-					result = &PrintablePortforward{
-						Healthy:      true,
-						LocalAddress: portforward.LocalAddress,
-					}
-				} else {
-					result = &PrintablePortforward{
-						Healthy:         false,
-						LastErrorReason: portforward.Health.LastErrorReason,
-					}
-				}
-			}
+func getRawWatcher(cfg *config.LocalStatus, watcher *commonapi.WatcherStatus,
+	statusMap map[string]any) any {
+	if cfg.Details {
+		// Details view
+		return statusMap["watcher"]
+	}
+
+	// Standard view
+	type PrintableWatcher struct {
+		Healthy         bool   `json:"healthy"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintableWatcher{
+		Healthy: false,
+	}
+	if watcher == nil || watcher.Health == nil {
+		return result
+	}
+	if watcher.Health.Healthy {
+		result = &PrintableWatcher{
+			Healthy: true,
+		}
+	} else {
+		result = &PrintableWatcher{
+			Healthy:         false,
+			LastErrorReason: watcher.Health.LastErrorReason,
 		}
 	}
 	return result
@@ -270,6 +289,8 @@ type statusPrinter struct {
 }
 
 func (p *statusPrinter) printRuntimeConfig() {
+	machineID, _ := system.GetMachineID()
+
 	var runtimeConfig string
 	if p.ciConfig.WithRootManager {
 		runtimeConfig = fmt.Sprintf("runtime config: cluster %s, running with root-daemon",
@@ -279,7 +300,7 @@ func (p *statusPrinter) printRuntimeConfig() {
 			p.white(p.ciConfig.ConnectionConfig.Cluster))
 	}
 	if p.cfg.Details {
-		runtimeConfig += fmt.Sprintf(" (config-dir: %s)", p.ciConfig.SignadotDir)
+		runtimeConfig += fmt.Sprintf(" (config-dir: %s, machine-id %s)", p.ciConfig.SignadotDir, machineID)
 	}
 	p.printLine(p.out, 0, runtimeConfig, "*")
 }
@@ -300,6 +321,7 @@ func (p *statusPrinter) printSuccess() {
 		p.printLocalnetStatus()
 		p.printHostsStatus()
 	}
+	p.printSandboxesWatcherStatus()
 	p.printSandboxStatus()
 }
 
@@ -327,6 +349,10 @@ func (p *statusPrinter) printLocalnetStatus() {
 
 func (p *statusPrinter) printHostsStatus() {
 	p.printLine(p.out, 1, fmt.Sprintf("%d hosts accessible via /etc/hosts", p.status.Hosts.NumHosts), "*")
+}
+
+func (p *statusPrinter) printSandboxesWatcherStatus() {
+	p.printLine(p.out, 1, "sandboxes watcher is running", "*")
 }
 
 func (p *statusPrinter) printSandboxStatus() {

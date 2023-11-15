@@ -36,6 +36,11 @@ message PortForwardStatus {
   string local_address = 2;
 }
 
+// Sandboxes watcher status (produced by local controller)
+message WatcherStatus {
+  ServiceHealth health = 1;
+}
+
 // Sandbox status (produced by local controller)
 message SandboxStatus {
   message Baseline {
