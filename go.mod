@@ -11,11 +11,10 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/signadot/go-sdk v0.3.8-0.20230917202415-61cf5bfada91
-	github.com/signadot/libconnect v0.1.1-0.20231027085512-a9f6abcdcf30
+	github.com/signadot/libconnect v0.1.1-0.20231115123237-a3bc3707f525
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
-	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/net v0.10.0
 	golang.org/x/term v0.9.0
 	google.golang.org/grpc v1.56.0
@@ -111,5 +110,6 @@ require (
 )
 
 // Used for local dev
-//replace github.com/signadot/libconnect => ../libconnect/
+// replace github.com/signadot/libconnect => ../libconnect/
+
 //replace github.com/signadot/go-sdk => ../go-sdk
