@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/signadot/go-sdk v0.3.8-0.20230917202415-61cf5bfada91
-	github.com/signadot/libconnect v0.1.1-0.20231114231521-4f72fe0d71b6
+	github.com/signadot/libconnect v0.1.1-0.20231115123237-a3bc3707f525
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
