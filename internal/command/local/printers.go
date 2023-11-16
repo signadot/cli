@@ -335,7 +335,7 @@ func (p *statusPrinter) printRuntimeConfig() {
 			p.white(p.ciConfig.ConnectionConfig.Cluster))
 	}
 	if p.cfg.Details {
-		runtimeConfig += fmt.Sprintf(" (config-dir: %s, machine-id %s)", p.ciConfig.SignadotDir, machineID)
+		runtimeConfig += fmt.Sprintf(" (config-dir: %s, machine-id: %s)", p.ciConfig.SignadotDir, machineID)
 	}
 	p.printLine(p.out, 0, runtimeConfig, "*")
 }
