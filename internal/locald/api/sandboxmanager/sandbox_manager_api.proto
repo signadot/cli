@@ -31,6 +31,7 @@ message StatusResponse {
   // connect invocation config
   // (instance of internal/config/locald.ConnectInvocationConfig)
   google.protobuf.Struct ci_config = 1;
+  apicommon.OperatorInfo operator_info = 7;
   apicommon.LocalNetStatus localnet = 2;
   apicommon.HostsStatus hosts = 3;
   apicommon.PortForwardStatus portforward = 4;

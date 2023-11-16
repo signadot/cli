@@ -17,6 +17,7 @@ import (
 
 type sbmWatcher struct {
 	log *slog.Logger
+	oiu *operatorInfoUpdater
 
 	machineID string
 
@@ -33,9 +34,10 @@ type sbmWatcher struct {
 }
 
 func newSandboxManagerWatcher(log *slog.Logger, machineID string, revtunClient func() revtun.Client,
-	shutdownCh chan struct{}) *sbmWatcher {
+	oiu *operatorInfoUpdater, shutdownCh chan struct{}) *sbmWatcher {
 	srv := &sbmWatcher{
 		log:       log,
+		oiu:       oiu,
 		machineID: machineID,
 		status: svchealth.ServiceHealth{
 			Healthy:         false,
@@ -82,7 +84,7 @@ func (sbw *sbmWatcher) readStream(ctx context.Context,
 	for {
 		event, err := sbwClient.Recv()
 		if err == nil {
-			sbw.setSuccess()
+			sbw.setSuccess(ctx)
 			sbw.processStreamEvent(event)
 			continue
 		}
@@ -214,12 +216,15 @@ func (sbw *sbmWatcher) stopMonitors() {
 	}
 }
 
-func (sbw *sbmWatcher) setSuccess() {
+func (sbw *sbmWatcher) setSuccess(ctx context.Context) {
 	sbw.sbMu.Lock()
 	defer sbw.sbMu.Unlock()
 
 	// update the status
 	sbw.status.Healthy = true
+
+	// try loading the operator info
+	sbw.oiu.Reload(ctx, sbw.tunAPIClient, false)
 
 	// stop all sandbox monitor (if any)
 	sbw.stopMonitors()
@@ -229,6 +234,7 @@ func (sbw *sbmWatcher) setError(errMsg string, err error) {
 	sbw.sbMu.Lock()
 	defer sbw.sbMu.Unlock()
 
+	// update the status
 	now := time.Now()
 	var reason string
 	if err != nil {
@@ -243,6 +249,9 @@ func (sbw *sbmWatcher) setError(errMsg string, err error) {
 	sbw.status.LastErrorReason = reason
 	sbw.status.LastErrorTime = &now
 	sbw.status.ErrorCount += 1
+
+	// reset the operator info
+	sbw.oiu.Reset()
 }
 
 func (sbw *sbmWatcher) registerSandbox(sandboxName, routingKey string) {

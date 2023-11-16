@@ -397,6 +397,69 @@ func (x *SandboxStatus) GetLocalWorkloads() []*SandboxStatus_LocalWorkload {
 	return nil
 }
 
+type OperatorInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Version   string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	GitCommit string `protobuf:"bytes,2,opt,name=git_commit,json=gitCommit,proto3" json:"git_commit,omitempty"`
+	BuildDate string `protobuf:"bytes,3,opt,name=build_date,json=buildDate,proto3" json:"build_date,omitempty"`
+}
+
+func (x *OperatorInfo) Reset() {
+	*x = OperatorInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_internal_locald_api_common_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *OperatorInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OperatorInfo) ProtoMessage() {}
+
+func (x *OperatorInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_locald_api_common_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OperatorInfo.ProtoReflect.Descriptor instead.
+func (*OperatorInfo) Descriptor() ([]byte, []int) {
+	return file_internal_locald_api_common_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *OperatorInfo) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *OperatorInfo) GetGitCommit() string {
+	if x != nil {
+		return x.GitCommit
+	}
+	return ""
+}
+
+func (x *OperatorInfo) GetBuildDate() string {
+	if x != nil {
+		return x.BuildDate
+	}
+	return ""
+}
+
 type SandboxStatus_Baseline struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -411,7 +474,7 @@ type SandboxStatus_Baseline struct {
 func (x *SandboxStatus_Baseline) Reset() {
 	*x = SandboxStatus_Baseline{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_locald_api_common_proto_msgTypes[6]
+		mi := &file_internal_locald_api_common_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -424,7 +487,7 @@ func (x *SandboxStatus_Baseline) String() string {
 func (*SandboxStatus_Baseline) ProtoMessage() {}
 
 func (x *SandboxStatus_Baseline) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_locald_api_common_proto_msgTypes[6]
+	mi := &file_internal_locald_api_common_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -480,7 +543,7 @@ type SandboxStatus_BaselineToLocal struct {
 func (x *SandboxStatus_BaselineToLocal) Reset() {
 	*x = SandboxStatus_BaselineToLocal{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_locald_api_common_proto_msgTypes[7]
+		mi := &file_internal_locald_api_common_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -493,7 +556,7 @@ func (x *SandboxStatus_BaselineToLocal) String() string {
 func (*SandboxStatus_BaselineToLocal) ProtoMessage() {}
 
 func (x *SandboxStatus_BaselineToLocal) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_locald_api_common_proto_msgTypes[7]
+	mi := &file_internal_locald_api_common_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -542,7 +605,7 @@ type SandboxStatus_LocalWorkload struct {
 func (x *SandboxStatus_LocalWorkload) Reset() {
 	*x = SandboxStatus_LocalWorkload{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_internal_locald_api_common_proto_msgTypes[8]
+		mi := &file_internal_locald_api_common_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -555,7 +618,7 @@ func (x *SandboxStatus_LocalWorkload) String() string {
 func (*SandboxStatus_LocalWorkload) ProtoMessage() {}
 
 func (x *SandboxStatus_LocalWorkload) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_locald_api_common_proto_msgTypes[8]
+	mi := &file_internal_locald_api_common_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -688,10 +751,17 @@ var file_internal_locald_api_common_proto_rawDesc = []byte{
 	0x6e, 0x65, 0x6c, 0x5f, 0x68, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0b,
 	0x32, 0x18, 0x2e, 0x61, 0x70, 0x69, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2e, 0x53, 0x65, 0x72,
 	0x76, 0x69, 0x63, 0x65, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x52, 0x0c, 0x74, 0x75, 0x6e, 0x6e,
-	0x65, 0x6c, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x42, 0x2d, 0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68,
-	0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x64, 0x6f, 0x74, 0x2f,
-	0x63, 0x6c, 0x69, 0x2f, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6c, 0x6f, 0x63,
-	0x61, 0x6c, 0x64, 0x2f, 0x61, 0x70, 0x69, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x6c, 0x48, 0x65, 0x61, 0x6c, 0x74, 0x68, 0x22, 0x66, 0x0a, 0x0c, 0x4f, 0x70, 0x65, 0x72,
+	0x61, 0x74, 0x6f, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73,
+	0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69,
+	0x6f, 0x6e, 0x12, 0x1d, 0x0a, 0x0a, 0x67, 0x69, 0x74, 0x5f, 0x63, 0x6f, 0x6d, 0x6d, 0x69, 0x74,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x67, 0x69, 0x74, 0x43, 0x6f, 0x6d, 0x6d, 0x69,
+	0x74, 0x12, 0x1d, 0x0a, 0x0a, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x5f, 0x64, 0x61, 0x74, 0x65, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x62, 0x75, 0x69, 0x6c, 0x64, 0x44, 0x61, 0x74, 0x65,
+	0x42, 0x2d, 0x5a, 0x2b, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73,
+	0x69, 0x67, 0x6e, 0x61, 0x64, 0x6f, 0x74, 0x2f, 0x63, 0x6c, 0x69, 0x2f, 0x69, 0x6e, 0x74, 0x65,
+	0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x64, 0x2f, 0x61, 0x70, 0x69, 0x62,
+	0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -706,7 +776,7 @@ func file_internal_locald_api_common_proto_rawDescGZIP() []byte {
 	return file_internal_locald_api_common_proto_rawDescData
 }
 
-var file_internal_locald_api_common_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_internal_locald_api_common_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_internal_locald_api_common_proto_goTypes = []interface{}{
 	(*ServiceHealth)(nil),                 // 0: apicommon.ServiceHealth
 	(*LocalNetStatus)(nil),                // 1: apicommon.LocalNetStatus
@@ -714,21 +784,22 @@ var file_internal_locald_api_common_proto_goTypes = []interface{}{
 	(*PortForwardStatus)(nil),             // 3: apicommon.PortForwardStatus
 	(*WatcherStatus)(nil),                 // 4: apicommon.WatcherStatus
 	(*SandboxStatus)(nil),                 // 5: apicommon.SandboxStatus
-	(*SandboxStatus_Baseline)(nil),        // 6: apicommon.SandboxStatus.Baseline
-	(*SandboxStatus_BaselineToLocal)(nil), // 7: apicommon.SandboxStatus.BaselineToLocal
-	(*SandboxStatus_LocalWorkload)(nil),   // 8: apicommon.SandboxStatus.LocalWorkload
-	(*timestamp.Timestamp)(nil),           // 9: google.protobuf.Timestamp
+	(*OperatorInfo)(nil),                  // 6: apicommon.OperatorInfo
+	(*SandboxStatus_Baseline)(nil),        // 7: apicommon.SandboxStatus.Baseline
+	(*SandboxStatus_BaselineToLocal)(nil), // 8: apicommon.SandboxStatus.BaselineToLocal
+	(*SandboxStatus_LocalWorkload)(nil),   // 9: apicommon.SandboxStatus.LocalWorkload
+	(*timestamp.Timestamp)(nil),           // 10: google.protobuf.Timestamp
 }
 var file_internal_locald_api_common_proto_depIdxs = []int32{
-	9,  // 0: apicommon.ServiceHealth.last_error_time:type_name -> google.protobuf.Timestamp
+	10, // 0: apicommon.ServiceHealth.last_error_time:type_name -> google.protobuf.Timestamp
 	0,  // 1: apicommon.LocalNetStatus.health:type_name -> apicommon.ServiceHealth
 	0,  // 2: apicommon.HostsStatus.health:type_name -> apicommon.ServiceHealth
-	9,  // 3: apicommon.HostsStatus.last_update_time:type_name -> google.protobuf.Timestamp
+	10, // 3: apicommon.HostsStatus.last_update_time:type_name -> google.protobuf.Timestamp
 	0,  // 4: apicommon.PortForwardStatus.health:type_name -> apicommon.ServiceHealth
 	0,  // 5: apicommon.WatcherStatus.health:type_name -> apicommon.ServiceHealth
-	8,  // 6: apicommon.SandboxStatus.local_workloads:type_name -> apicommon.SandboxStatus.LocalWorkload
-	6,  // 7: apicommon.SandboxStatus.LocalWorkload.baseline:type_name -> apicommon.SandboxStatus.Baseline
-	7,  // 8: apicommon.SandboxStatus.LocalWorkload.workloadPortMapping:type_name -> apicommon.SandboxStatus.BaselineToLocal
+	9,  // 6: apicommon.SandboxStatus.local_workloads:type_name -> apicommon.SandboxStatus.LocalWorkload
+	7,  // 7: apicommon.SandboxStatus.LocalWorkload.baseline:type_name -> apicommon.SandboxStatus.Baseline
+	8,  // 8: apicommon.SandboxStatus.LocalWorkload.workloadPortMapping:type_name -> apicommon.SandboxStatus.BaselineToLocal
 	0,  // 9: apicommon.SandboxStatus.LocalWorkload.tunnel_health:type_name -> apicommon.ServiceHealth
 	10, // [10:10] is the sub-list for method output_type
 	10, // [10:10] is the sub-list for method input_type
@@ -816,7 +887,7 @@ func file_internal_locald_api_common_proto_init() {
 			}
 		}
 		file_internal_locald_api_common_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SandboxStatus_Baseline); i {
+			switch v := v.(*OperatorInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -828,7 +899,7 @@ func file_internal_locald_api_common_proto_init() {
 			}
 		}
 		file_internal_locald_api_common_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*SandboxStatus_BaselineToLocal); i {
+			switch v := v.(*SandboxStatus_Baseline); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -840,6 +911,18 @@ func file_internal_locald_api_common_proto_init() {
 			}
 		}
 		file_internal_locald_api_common_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SandboxStatus_BaselineToLocal); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_internal_locald_api_common_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*SandboxStatus_LocalWorkload); i {
 			case 0:
 				return &v.state
@@ -858,7 +941,7 @@ func file_internal_locald_api_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_internal_locald_api_common_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

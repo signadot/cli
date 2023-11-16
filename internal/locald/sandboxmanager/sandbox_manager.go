@@ -35,8 +35,6 @@ type sandboxManager struct {
 	hostname    string
 	machineID   string
 	grpcServer  *grpc.Server
-	sbmServer   *sbmServer
-	sbmWatcher  *sbmWatcher
 	portForward *portforward.PortForward
 	shutdownCh  chan struct{}
 
@@ -111,13 +109,18 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		}
 	}
 
+	// Create an operator info updater
+	oiu := &operatorInfoUpdater{
+		log: m.log,
+	}
+
 	// Create the watcher
-	m.sbmWatcher = newSandboxManagerWatcher(m.log, m.machineID, m.revtunClient, m.shutdownCh)
+	sbmWatcher := newSandboxManagerWatcher(m.log, m.machineID, m.revtunClient, oiu, m.shutdownCh)
 
 	// Register our service in gRPC server
-	m.sbmServer = newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward,
-		m.sbmWatcher, m.shutdownCh)
-	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, m.sbmServer)
+	sbmServer := newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward,
+		sbmWatcher, oiu, m.shutdownCh)
+	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, sbmServer)
 
 	// Run the gRPC server
 	if err := m.runAPIServer(); err != nil {
@@ -143,7 +146,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	}
 
 	// Run the sandboxes watcher
-	m.sbmWatcher.run(ctx, m.tunAPIClient)
+	sbmWatcher.run(runCtx, m.tunAPIClient)
 
 	// Wait until termination
 	<-runCtx.Done()
@@ -151,7 +154,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	// Clean up
 	m.log.Info("Shutting down")
 	m.grpcServer.GracefulStop()
-	m.sbmWatcher.stop()
+	sbmWatcher.stop()
 	if m.portForward != nil {
 		m.portForward.Close()
 	}
