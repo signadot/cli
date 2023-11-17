@@ -49,9 +49,10 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		return fmt.Errorf("sandbox spec must specify cluster")
 	}
 
+	var status *sbmapi.StatusResponse
 	if len(req.Spec.Local) > 0 {
 		// Confirm sandboxmanager is running and connected to the right cluster
-		status, err := sbmgr.GetStatus()
+		status, err = sbmgr.GetStatus()
 		if err != nil {
 			return err
 		}
@@ -87,6 +88,17 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 
 	fmt.Fprintf(log, "Created sandbox %q (routing key: %s) in cluster %q.\n\n",
 		req.Name, resp.RoutingKey, *req.Spec.Cluster)
+
+	if len(req.Spec.Local) > 0 && !sbmgr.IsWatcherRunning(status) {
+		// We don't really know here if it is a temporal problem or if we are
+		// dealing with an old operator that doesn't support it, in any case we
+		// will go ahead and register the sandbox in sandboxmanager. If this is
+		// a temporal issue, it will fix itself inside of sandboxmanager.
+
+		if err = sbmgr.RegisterSandbox(resp.Name, resp.RoutingKey); err != nil {
+			return fmt.Errorf("couldn't register sandbox in sandboxmanager, %v", err)
+		}
+	}
 
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
