@@ -15,6 +15,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	SandboxesWatcherUnimplemented = "this feature requires operator >= 0.14.1"
+)
+
 type sbmWatcher struct {
 	log *slog.Logger
 	oiu *operatorInfoUpdater
@@ -109,7 +113,7 @@ func (sbw *sbmWatcher) readStream(ctx context.Context,
 			sbw.setError("sandboxes watch internal grpc error", err)
 			<-time.After(3 * time.Second)
 		case codes.Unimplemented:
-			sbw.setError("this feature requires operator >= 0.14.1", nil)
+			sbw.setError(SandboxesWatcherUnimplemented, nil)
 			// in this case, check again in 1 minutes
 			<-time.After(1 * time.Minute)
 		default:

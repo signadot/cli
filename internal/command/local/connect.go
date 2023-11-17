@@ -209,7 +209,11 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 			goto tick
 		}
 		// wait until all local sandboxes are ready (all tunnels have connected)
-		if !sbmgr.IsWatcherRunning(status) {
+		if isRunning, lastError := sbmgr.IsWatcherRunning(status); !isRunning {
+			if lastError == sbmgr.SandboxesWatcherUnimplemented {
+				// this is an old operator, we are done
+				break
+			}
 			goto tick
 		}
 		for i := range status.Sandboxes {

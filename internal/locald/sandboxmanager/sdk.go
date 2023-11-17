@@ -113,11 +113,11 @@ func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 	return fmt.Errorf(errorMsg)
 }
 
-func IsWatcherRunning(status *sbmapi.StatusResponse) bool {
+func IsWatcherRunning(status *sbmapi.StatusResponse) (bool, string) {
 	if status == nil || status.Watcher == nil || status.Watcher.Health == nil {
-		return false
+		return false, ""
 	}
-	return status.Watcher.Health.Healthy
+	return status.Watcher.Health.Healthy, status.Watcher.Health.LastErrorReason
 }
 
 func RegisterSandbox(sandboxName, routingKey string) error {
