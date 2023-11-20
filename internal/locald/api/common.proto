@@ -71,3 +71,9 @@ message SandboxStatus {
   string routing_key = 2;
   repeated LocalWorkload local_workloads = 3;
 }
+
+message OperatorInfo {
+  string version = 1;
+  string git_commit = 2;
+  string build_date = 3;
+}

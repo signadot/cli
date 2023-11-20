@@ -30,6 +30,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 
 	type rawStatus struct {
 		RuntimeConfig    any `json:"runtimeConfig,omitempty"`
+		OperatorInfo     any `json:"operatorInfo,omitempty"`
 		Localnet         any `json:"localnet,omitempty"`
 		Hosts            any `json:"hosts,omitempty"`
 		Portforward      any `json:"portforward,omitempty"`
@@ -39,6 +40,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 
 	rawSt := rawStatus{
 		RuntimeConfig:    getRawRuntimeConfig(cfg, ciConfig),
+		OperatorInfo:     getRawOperatorInfo(cfg, status.OperatorInfo),
 		Localnet:         getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
 		Hosts:            getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
 		Portforward:      getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
@@ -104,6 +106,39 @@ func getRawRuntimeConfig(cfg *config.LocalStatus, ciConfig *config.ConnectInvoca
 	}
 
 	return runtimeConfig
+}
+
+func getRawOperatorInfo(cfg *config.LocalStatus, info *commonapi.OperatorInfo) any {
+	var operatorInfo any
+	if info == nil {
+		return operatorInfo
+	}
+
+	if cfg.Details {
+		// Details view
+		type PrintableOperatorInfo struct {
+			Version   string `json:"version"`
+			GitCommit string `json:"gitCommit"`
+			BuildDate string `json:"buildDate"`
+		}
+
+		operatorInfo = &PrintableOperatorInfo{
+			Version:   info.Version,
+			GitCommit: info.GitCommit,
+			BuildDate: info.BuildDate,
+		}
+	} else {
+		// Standard view
+		type PrintableOperatorInfo struct {
+			Version string `json:"version"`
+		}
+
+		operatorInfo = &PrintableOperatorInfo{
+			Version: info.Version,
+		}
+	}
+
+	return operatorInfo
 }
 
 func getRawLocalnet(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
@@ -300,7 +335,7 @@ func (p *statusPrinter) printRuntimeConfig() {
 			p.white(p.ciConfig.ConnectionConfig.Cluster))
 	}
 	if p.cfg.Details {
-		runtimeConfig += fmt.Sprintf(" (config-dir: %s, machine-id %s)", p.ciConfig.SignadotDir, machineID)
+		runtimeConfig += fmt.Sprintf(" (config-dir: %s, machine-id: %s)", p.ciConfig.SignadotDir, machineID)
 	}
 	p.printLine(p.out, 0, runtimeConfig, "*")
 }
@@ -314,6 +349,9 @@ func (p *statusPrinter) printErrors(errs []error) {
 
 func (p *statusPrinter) printSuccess() {
 	p.printLine(p.out, 0, fmt.Sprintf("Local connection healthy!"), p.green("✓"))
+	if p.status.OperatorInfo != nil {
+		p.printOperatorInfo()
+	}
 	if p.ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
 		p.printPortforwardStatus()
 	}
@@ -323,6 +361,15 @@ func (p *statusPrinter) printSuccess() {
 	}
 	p.printSandboxesWatcherStatus()
 	p.printSandboxStatus()
+}
+
+func (p *statusPrinter) printOperatorInfo() {
+	msg := fmt.Sprintf("operator version %s", p.status.OperatorInfo.Version)
+	if p.cfg.Details {
+		msg += fmt.Sprintf(" (git-commit: %s, build-date: %s)",
+			p.status.OperatorInfo.GitCommit, p.status.OperatorInfo.BuildDate)
+	}
+	p.printLine(p.out, 1, msg, "*")
 }
 
 func (p *statusPrinter) printPortforwardStatus() {

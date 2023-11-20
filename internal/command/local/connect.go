@@ -203,10 +203,30 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 			goto tick
 
 		}
+		// wait until the local connection has been established
 		connectErrs = sbmgr.CheckStatusConnectErrors(status, ciConfig)
-		if len(connectErrs) == 0 {
-			break
+		if len(connectErrs) != 0 {
+			goto tick
 		}
+		// wait until all local sandboxes are ready (all tunnels have connected)
+		if isRunning, lastError := sbmgr.IsWatcherRunning(status); !isRunning {
+			if lastError == sbmgr.SandboxesWatcherUnimplemented {
+				// this is an old operator, we are done
+				break
+			}
+			goto tick
+		}
+		for i := range status.Sandboxes {
+			sds := status.Sandboxes[i]
+			for j := range sds.LocalWorkloads {
+				lw := sds.LocalWorkloads[j]
+				if lw.TunnelHealth == nil || !lw.TunnelHealth.Healthy {
+					connectErrs = []error{fmt.Errorf("sandbox %s is not ready", sds.Name)}
+					goto tick
+				}
+			}
+		}
+		break
 	tick:
 		select {
 		case <-ticker.C:

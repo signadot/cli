@@ -23,6 +23,7 @@ type sbmServer struct {
 	sbapi.UnimplementedSandboxManagerAPIServer
 
 	log *slog.Logger
+	oiu *operatorInfoUpdater
 
 	// runtime config
 	ciConfig *config.ConnectInvocationConfig
@@ -42,10 +43,11 @@ type sbmServer struct {
 }
 
 func newSandboxManagerGRPCServer(log *slog.Logger, ciConfig *config.ConnectInvocationConfig,
-	portForward *portforward.PortForward, sbmWatcher *sbmWatcher,
+	portForward *portforward.PortForward, sbmWatcher *sbmWatcher, oiu *operatorInfoUpdater,
 	shutdownCh chan struct{}) *sbmServer {
 	srv := &sbmServer{
 		log:         log,
+		oiu:         oiu,
 		ciConfig:    ciConfig,
 		portForward: portForward,
 		sbmWatcher:  sbmWatcher,
@@ -64,10 +66,11 @@ func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbap
 	}
 
 	resp := &sbapi.StatusResponse{
-		CiConfig:    grpcCIConfig,
-		Portforward: s.portForwardStatus(),
-		Watcher:     s.watcherStatus(),
-		Sandboxes:   s.sbStatuses(),
+		CiConfig:     grpcCIConfig,
+		OperatorInfo: s.oiu.Get(),
+		Portforward:  s.portForwardStatus(),
+		Watcher:      s.watcherStatus(),
+		Sandboxes:    s.sbStatuses(),
 	}
 	resp.Hosts, resp.Localnet = s.rootStatus()
 	return resp, nil

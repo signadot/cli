@@ -89,12 +89,9 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	fmt.Fprintf(log, "Created sandbox %q (routing key: %s) in cluster %q.\n\n",
 		req.Name, resp.RoutingKey, *req.Spec.Cluster)
 
-	if len(req.Spec.Local) > 0 && !sbmgr.IsWatcherRunning(status) {
-		// We don't really know here if it is a temporal problem or if we are
-		// dealing with an old operator that doesn't support it, in any case we
-		// will go ahead and register the sandbox in sandboxmanager. If this is
-		// a temporal issue, it will fix itself inside of sandboxmanager.
-
+	if len(req.Spec.Local) > 0 && status.OperatorInfo == nil {
+		// we are dealing with an old operator that doesn't support sandboxes
+		// watcher, go ahead and register the sandbox in sandboxmanager.
 		if err = sbmgr.RegisterSandbox(resp.Name, resp.RoutingKey); err != nil {
 			return fmt.Errorf("couldn't register sandbox in sandboxmanager, %v", err)
 		}
