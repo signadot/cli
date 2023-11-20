@@ -36,6 +36,11 @@ message PortForwardStatus {
   string local_address = 2;
 }
 
+// Sandboxes watcher status (produced by local controller)
+message WatcherStatus {
+  ServiceHealth health = 1;
+}
+
 // Sandbox status (produced by local controller)
 message SandboxStatus {
   message Baseline {
@@ -65,4 +70,10 @@ message SandboxStatus {
   string name = 1;
   string routing_key = 2;
   repeated LocalWorkload local_workloads = 3;
+}
+
+message OperatorInfo {
+  string version = 1;
+  string git_commit = 2;
+  string build_date = 3;
 }

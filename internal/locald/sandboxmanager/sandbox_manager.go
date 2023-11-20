@@ -6,13 +6,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
+
+	"log/slog"
 
 	"github.com/signadot/cli/internal/config"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	"github.com/signadot/cli/internal/utils/system"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
-	"log/slog"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
 
@@ -32,13 +33,12 @@ type sandboxManager struct {
 	ciConfig    *config.ConnectInvocationConfig
 	connConfig  *connectcfg.ConnectionConfig
 	hostname    string
+	machineID   string
 	grpcServer  *grpc.Server
-	sbmServer   *sbmServer
 	portForward *portforward.PortForward
 	shutdownCh  chan struct{}
 
 	// tunnel API
-	tunMu        sync.Mutex
 	tunAPIClient tunapiclient.Client
 	proxyAddress string
 }
@@ -53,6 +53,12 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 		return nil, err
 	}
 
+	// Resolve the machine ID
+	machineID, err := system.GetMachineID()
+	if err != nil {
+		return nil, err
+	}
+
 	ciConfig := cfg.ConnectInvocationConfig
 
 	return &sandboxManager{
@@ -60,6 +66,7 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 		ciConfig:   ciConfig,
 		connConfig: ciConfig.ConnectionConfig,
 		hostname:   hostname,
+		machineID:  machineID,
 		grpcServer: grpcServer,
 		shutdownCh: shutdownCh,
 	}, nil
@@ -102,10 +109,18 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		}
 	}
 
+	// Create an operator info updater
+	oiu := &operatorInfoUpdater{
+		log: m.log,
+	}
+
+	// Create the watcher
+	sbmWatcher := newSandboxManagerWatcher(m.log, m.machineID, m.revtunClient, oiu, m.shutdownCh)
+
 	// Register our service in gRPC server
-	m.sbmServer = newSandboxManagerGRPCServer(m.ciConfig, m.portForward, m.isSBManagerReady,
-		m.getSBMonitor, m.log, m.shutdownCh)
-	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, m.sbmServer)
+	sbmServer := newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward,
+		sbmWatcher, oiu, m.shutdownCh)
+	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, sbmServer)
 
 	// Run the gRPC server
 	if err := m.runAPIServer(); err != nil {
@@ -130,13 +145,16 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		}
 	}
 
+	// Run the sandboxes watcher
+	sbmWatcher.run(runCtx, m.tunAPIClient)
+
 	// Wait until termination
 	<-runCtx.Done()
 
 	// Clean up
 	m.log.Info("Shutting down")
 	m.grpcServer.GracefulStop()
-	m.sbmServer.stop()
+	sbmWatcher.stop()
 	if m.portForward != nil {
 		m.portForward.Close()
 	}
@@ -152,39 +170,12 @@ func (m *sandboxManager) runAPIServer() error {
 	return nil
 }
 
-func (m *sandboxManager) isSBManagerReady() bool {
-	m.tunMu.Lock()
-	defer m.tunMu.Unlock()
-	return m.tunAPIClient != nil
-}
-
-func (m *sandboxManager) getSBMonitor(routingKey string, delFn func()) *sbMonitor {
-	m.tunMu.Lock()
-	defer m.tunMu.Unlock()
-	if m.tunAPIClient == nil {
-		// this shouldn't happen because we check
-		// if sb manager is ready, which is
-		// monotonic
-		m.log.Error("invalid internal state: getSBMonitor while sb manager is not ready")
-		return nil
-	}
-	return newSBMonitor(
-		routingKey,
-		m.tunAPIClient,
-		m.revtunClient(),
-		delFn,
-		m.log.With("sandbox-routing-key", routingKey),
-	)
-}
-
 func (m *sandboxManager) setTunnelAPIClient(proxyAddress string) error {
 	tunAPIClient, err := tunapiclient.NewClient(proxyAddress, tunapiclient.DefaultClientKeepaliveParams())
 	if err != nil {
 		return err
 	}
 
-	m.tunMu.Lock()
-	defer m.tunMu.Unlock()
 	m.tunAPIClient = tunAPIClient
 	m.proxyAddress = proxyAddress
 	return nil

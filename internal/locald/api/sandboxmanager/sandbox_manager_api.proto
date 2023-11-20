@@ -9,36 +9,16 @@ package sandboxmanager;
 
 
 service SandboxManagerAPI {
-  // This method is used to create a sandbox with local references.
-  // The local controller (signadot local connect) should be running,
-  // otherwise it will return an error
-  rpc ApplySandbox(ApplySandboxRequest) returns (ApplySandboxResponse) {}
-
-
   // This method returns the status of the local controller
   rpc Status(StatusRequest) returns (StatusResponse) {}
 
   // This method requests the root controller to shutdown
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
-}
 
-// ApplySandbox
-// ----------------------------------------------------------------------------
-
-message ApplySandboxRequest {
-  // sandbox name
-  string name = 1;
-  // sandbox spec (instance of github.com/signadot/go-sdk/models.SandboxSpec)
-  google.protobuf.Struct sandbox_spec = 2;
-}
-
-message ApplySandboxResponse {
-  oneof it {
-	  // sandbox (instance of github.com/signadot/go-sdk/models.Sandbox)
-	  google.protobuf.Struct sandbox = 1;
-          
-          string apiError = 2;
-  }
+  // This method is used to register sandboxes in the local controller. It is
+  // mainly used in the context of old operators (the ones that don't support
+  // WatchLocalSandboxes in tunnel-api)
+  rpc RegisterSandbox(RegisterSandboxRequest) returns (RegisterSandboxResponse) {}
 }
 
 // Status
@@ -51,9 +31,11 @@ message StatusResponse {
   // connect invocation config
   // (instance of internal/config/locald.ConnectInvocationConfig)
   google.protobuf.Struct ci_config = 1;
+  apicommon.OperatorInfo operator_info = 7;
   apicommon.LocalNetStatus localnet = 2;
   apicommon.HostsStatus hosts = 3;
   apicommon.PortForwardStatus portforward = 4;
+  apicommon.WatcherStatus watcher = 6;
   repeated apicommon.SandboxStatus sandboxes = 5;
 }
 
@@ -64,4 +46,15 @@ message ShutdownRequest {
 }
 
 message ShutdownResponse {
+}
+
+// RegisterSandbox
+// ----------------------------------------------------------------------------
+
+message RegisterSandboxRequest {
+  string sandbox_name = 1;
+  string routing_key = 2;
+}
+
+message RegisterSandboxResponse {
 }

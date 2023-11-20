@@ -3,6 +3,7 @@ module github.com/signadot/cli
 go 1.21
 
 require (
+	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/docker/go-units v0.5.0
 	github.com/go-openapi/runtime v0.26.0
 	github.com/go-openapi/strfmt v0.21.7
@@ -10,8 +11,8 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
-	github.com/signadot/go-sdk v0.3.8-0.20230917202415-61cf5bfada91
-	github.com/signadot/libconnect v0.1.1-0.20231115123237-a3bc3707f525
+	github.com/signadot/go-sdk v0.3.8-0.20231120112931-5aa0810b12b7
+	github.com/signadot/libconnect v0.1.1-0.20231117125146-85eb3e9106d5
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
@@ -42,7 +43,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/fatih/color v1.15.0
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
-	github.com/go-logr/logr v1.2.4 // indirect
+	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/errors v0.20.4 // indirect
@@ -84,9 +85,9 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
 	go.mongodb.org/mongo-driver v1.12.1 // indirect
-	go.opentelemetry.io/otel v1.18.0 // indirect
-	go.opentelemetry.io/otel/metric v1.18.0 // indirect
-	go.opentelemetry.io/otel/trace v1.18.0 // indirect
+	go.opentelemetry.io/otel v1.19.0 // indirect
+	go.opentelemetry.io/otel/metric v1.19.0 // indirect
+	go.opentelemetry.io/otel/trace v1.19.0 // indirect
 	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
 	golang.org/x/sys v0.9.0 // indirect
@@ -111,5 +112,4 @@ require (
 
 // Used for local dev
 // replace github.com/signadot/libconnect => ../libconnect/
-
-//replace github.com/signadot/go-sdk => ../go-sdk
+// replace github.com/signadot/go-sdk => ../go-sdk

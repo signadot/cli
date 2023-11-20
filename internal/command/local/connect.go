@@ -10,14 +10,15 @@ import (
 	"path/filepath"
 	"time"
 
+	"log/slog"
+
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"log/slog"
 	"sigs.k8s.io/yaml"
 )
 
@@ -87,8 +88,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 			Username: user.Username,
 		},
 		ConnectionConfig: connConfig,
-		API:              cfg.API,
-		APIKey:           viper.GetString("api_key"),
 		Debug:            cfg.LocalConfig.Debug,
 	}
 	if cfg.DumpCIConfig {
@@ -192,7 +191,7 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 	)
 	defer ticker.Stop()
 	for {
-		status, err = getStatus()
+		status, err = sbmgr.GetStatus()
 		if err != nil {
 			fmt.Fprintf(out, "error getting status: %s", err.Error())
 			connectErrs = []error{err}
@@ -204,10 +203,30 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 			goto tick
 
 		}
-		connectErrs = checkLocalStatusConnectErrors(ciConfig, status)
-		if len(connectErrs) == 0 {
-			break
+		// wait until the local connection has been established
+		connectErrs = sbmgr.CheckStatusConnectErrors(status, ciConfig)
+		if len(connectErrs) != 0 {
+			goto tick
 		}
+		// wait until all local sandboxes are ready (all tunnels have connected)
+		if isRunning, lastError := sbmgr.IsWatcherRunning(status); !isRunning {
+			if lastError == sbmgr.SandboxesWatcherUnimplemented {
+				// this is an old operator, we are done
+				break
+			}
+			goto tick
+		}
+		for i := range status.Sandboxes {
+			sds := status.Sandboxes[i]
+			for j := range sds.LocalWorkloads {
+				lw := sds.LocalWorkloads[j]
+				if lw.TunnelHealth == nil || !lw.TunnelHealth.Healthy {
+					connectErrs = []error{fmt.Errorf("sandbox %s is not ready", sds.Name)}
+					goto tick
+				}
+			}
+		}
+		break
 	tick:
 		select {
 		case <-ticker.C:

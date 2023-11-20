@@ -6,16 +6,17 @@ import (
 	"io"
 	"time"
 
-	"github.com/signadot/go-sdk/models"
+	"log/slog"
+
+	tunapiv1 "github.com/signadot/libconnect/apiv1"
 	"github.com/signadot/libconnect/revtun"
 	rtproto "github.com/signadot/libconnect/revtun/protocol"
-	"log/slog"
 )
 
 type rt struct {
-	log       *slog.Logger
-	localName string
-	// NB used exclusively by sanbox monitor => no races
+	log *slog.Logger
+
+	// NB used exclusively by sanbox controller => no races
 	clusterNotConnectedTime *time.Time
 	rtClient                revtun.Client
 	rtConfig                *rtproto.Config
@@ -25,31 +26,33 @@ type rt struct {
 	rtErr                   error
 }
 
-func newRevtun(log *slog.Logger, rtc revtun.Client, name, rk string, local *models.Local) (*rt, error) {
+func newRevtun(log *slog.Logger, rtc revtun.Client, rk string,
+	xw *tunapiv1.ExternalWorkload) (*rt, error) {
+	// define the revtun config (that will be used to setup the reverse tunnel)
 	rtConfig := &rtproto.Config{
 		SandboxRoutingKey: rk,
-		ExternalWorkload:  name,
+		ExternalWorkload:  xw.Name,
 		Forwards:          []rtproto.Forward{},
 	}
-	for _, pm := range local.Mappings {
-		kind, err := kindToRemoteURLTLD(local.From.Kind)
+	for _, pm := range xw.WorkloadPortMapping {
+		kind, err := kindToRemoteURLTLD(xw.Baseline.Kind)
 		if err != nil {
 			return nil, err
 		}
 		rtConfig.Forwards = append(rtConfig.Forwards,
 			rtproto.Forward{
-				LocalURL: fmt.Sprintf("tcp://%s", pm.ToLocal),
+				LocalURL: fmt.Sprintf("tcp://%s", pm.LocalAddress),
 				RemoteURL: fmt.Sprintf("tcp://%s.%s.%s:%d",
-					*local.From.Name,
-					*local.From.Namespace,
+					xw.Baseline.Name,
+					xw.Baseline.Namespace,
 					kind,
-					pm.Port),
+					pm.BaselinePort,
+				),
 			},
 		)
 	}
 	res := &rt{
-		log:       log,
-		localName: name,
+		log:       log.With("local", xw.Name),
 		rtClient:  rtc,
 		rtConfig:  rtConfig,
 		rtToClose: make(chan struct{}),
@@ -88,16 +91,13 @@ func (t *rt) monitor() {
 	}
 }
 
-func kindToRemoteURLTLD(kind *string) (string, error) {
-	if kind == nil {
-		return "svc", nil
-	}
-	switch *kind {
+func kindToRemoteURLTLD(kind string) (string, error) {
+	switch kind {
 	case "Deployment":
 		return "deploy", nil
 	case "Rollout":
 		return "rollout", nil
 	default:
-		return "", fmt.Errorf("invalid local.From kind: %q", *kind)
+		return "", fmt.Errorf("invalid baseline kind: %q", kind)
 	}
 }

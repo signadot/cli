@@ -1,17 +1,17 @@
 package sandbox
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/signadot/cli/internal/config"
+	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
@@ -39,33 +39,63 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
+
+	// Load the sandbox spec
 	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals, false /*forDelete */)
 	if err != nil {
 		return err
 	}
-
-	var resp *models.Sandbox
-	if len(req.Spec.Local) > 0 {
-		// Send the request to the sandbox manager
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		resp, err = sbmgr.Apply(ctx, cfg.Org, req.Name, req.Spec)
-		if err != nil {
-			return err
-		}
-	} else {
-		// Send the request directly to the SaaS
-		params := sandboxes.NewApplySandboxParams().
-			WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
-		result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)
-		if err != nil {
-			return err
-		}
-		resp = result.Payload
+	if req.Spec.Cluster == nil {
+		return fmt.Errorf("sandbox spec must specify cluster")
 	}
+
+	var status *sbmapi.StatusResponse
+	if len(req.Spec.Local) > 0 {
+		// Confirm sandboxmanager is running and connected to the right cluster
+		status, err = sbmgr.GetStatus()
+		if err != nil {
+			return err
+		}
+		ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
+		if err != nil {
+			return fmt.Errorf("couldn't unmarshal ci-config from sandboxmanager status, %v", err)
+		}
+		connectErrs := sbmgr.CheckStatusConnectErrors(status, ciConfig)
+		if len(connectErrs) != 0 {
+			return fmt.Errorf("sandboxmanager is still starting")
+		}
+		if *req.Spec.Cluster != ciConfig.ConnectionConfig.Cluster {
+			return fmt.Errorf("sandbox spec cluster %q does not match connected cluster (%q)",
+				*req.Spec.Cluster, ciConfig.ConnectionConfig.Cluster)
+		}
+
+		// Set the local machine ID
+		machineID, err := system.GetMachineID()
+		if err != nil {
+			return err
+		}
+		req.Spec.LocalMachineID = machineID
+	}
+
+	// Send the request to the SaaS
+	params := sandboxes.NewApplySandboxParams().
+		WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
+	result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)
+	if err != nil {
+		return err
+	}
+	resp := result.Payload
 
 	fmt.Fprintf(log, "Created sandbox %q (routing key: %s) in cluster %q.\n\n",
 		req.Name, resp.RoutingKey, *req.Spec.Cluster)
+
+	if len(req.Spec.Local) > 0 && status.OperatorInfo == nil {
+		// we are dealing with an old operator that doesn't support sandboxes
+		// watcher, go ahead and register the sandbox in sandboxmanager.
+		if err = sbmgr.RegisterSandbox(resp.Name, resp.RoutingKey); err != nil {
+			return fmt.Errorf("couldn't register sandbox in sandboxmanager, %v", err)
+		}
+	}
 
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
