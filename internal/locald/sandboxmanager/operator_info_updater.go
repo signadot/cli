@@ -44,16 +44,12 @@ func (oiu *operatorInfoUpdater) Reload(ctx context.Context, tunAPIClient tunapic
 		return
 	}
 	// reload the data
-	oiu.isRunning = true
 	go oiu.reload(ctx, tunAPIClient)
 }
 
 func (oiu *operatorInfoUpdater) reload(ctx context.Context, tunAPIClient tunapiclient.Client) {
-	defer func() {
-		oiu.Lock()
-		defer oiu.Unlock()
-		oiu.isRunning = false
-	}()
+	oiu.setIsRunning(true)
+	defer oiu.setIsRunning(false)
 
 	for {
 		resp, err := tunAPIClient.GetOperatorInfo(ctx, &tunapiv1.GetOperatorInfoRRequest{})
@@ -77,4 +73,10 @@ func (oiu *operatorInfoUpdater) reload(ctx context.Context, tunAPIClient tunapic
 		case <-time.After(3 * time.Second):
 		}
 	}
+}
+
+func (oiu *operatorInfoUpdater) setIsRunning(isRunning bool) {
+	oiu.Lock()
+	defer oiu.Unlock()
+	oiu.isRunning = isRunning
 }
