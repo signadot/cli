@@ -2,6 +2,7 @@ package sandboxmanager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/signadot/cli/internal/config"
@@ -12,6 +13,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+)
+
+var (
+	ErrSandboxManagerUnavailable = errors.New(
+		"sandboxmanager is not running, start it with \"signadot local connect\"")
 )
 
 func GetStatus() (*sbmapi.StatusResponse, error) {
@@ -153,7 +159,7 @@ func processGRPCError(action string, err error) error {
 	if ok {
 		switch grpcStatus.Code() {
 		case codes.Unavailable:
-			return fmt.Errorf("sandboxmanager is not running, start it with \"signadot local connect\"")
+			return ErrSandboxManagerUnavailable
 		}
 	}
 	return fmt.Errorf("%s: %w", action, err)

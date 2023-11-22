@@ -341,14 +341,14 @@ func (p *statusPrinter) printRuntimeConfig() {
 }
 
 func (p *statusPrinter) printErrors(errs []error) {
-	p.printLine(p.out, 0, fmt.Sprintf("Local connection not healthy!"), p.red("✗"))
+	p.printLine(p.out, 0, "Local connection not healthy!", p.red("✗"))
 	for _, err := range errs {
 		p.printLine(p.out, 0, err.Error(), "*")
 	}
 }
 
 func (p *statusPrinter) printSuccess() {
-	p.printLine(p.out, 0, fmt.Sprintf("Local connection healthy!"), p.green("✓"))
+	p.printLine(p.out, 0, "Local connection healthy!", p.green("✓"))
 	if p.status.OperatorInfo != nil {
 		p.printOperatorInfo()
 	}
@@ -430,9 +430,9 @@ func (p *statusPrinter) printSandboxStatus() {
 						portMap.BaselinePort, portMap.LocalAddress), "-")
 				}
 				if localwl.TunnelHealth.Healthy {
-					p.printLine(p.out, 2, fmt.Sprintf("connection ready"), p.green("✓"))
+					p.printLine(p.out, 2, "connection ready", p.green("✓"))
 				} else {
-					p.printLine(p.out, 2, fmt.Sprintf("connection not ready"), p.red("✗"))
+					p.printLine(p.out, 2, "connection not ready", p.red("✗"))
 				}
 			}
 		}

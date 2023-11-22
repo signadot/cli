@@ -96,6 +96,13 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 
 type LocalDisconnect struct {
 	*Local
+
+	// Flags
+	CleanLocalSandboxes bool
+}
+
+func (c *LocalDisconnect) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&c.CleanLocalSandboxes, "clean-local-sandboxes", false, "clean active local sandboxes")
 }
 
 type LocalStatus struct {
