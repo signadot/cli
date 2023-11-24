@@ -7,7 +7,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/denisbrodbeck/machineid"
+	"github.com/panta/machineid"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
