@@ -1,4 +1,4 @@
-name: Release Internal Images
+name: Release Signadot CLI
 on:
   push:
     tags:
