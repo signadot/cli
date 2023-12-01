@@ -49,9 +49,10 @@ jobs:
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@v5
       with:
-        version: latest
-        args: release --snapshot --clean
+        version: 1.22.1
+        args: release --clean
       env:
+        SIGNADOT_IMAGE_SUFFIX: ''
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
