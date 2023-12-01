@@ -23,21 +23,9 @@ go build ./cmd/signadot
 
 ## Release
 
-To release the CLI, you'll need [GoReleaser](https://goreleaser.com/) as well as
-a GiHtub token with write permissions to Signadot's repos.
-
-Check out the desired commit and then push a new tag:
-
-```sh
-git tag -a -m 'Release vX.Y.Z' vX.Y.Z
-git push origin vX.Y.Z
-```
-
-Then run GoReleaser, which will build and push all release artifacts:
-
-```sh
-GITHUB_TOKEN=... make release
-```
+To release the CLI, you can use the release Github action.
+Push a new tag that matches the format `v[0-9]+.[0-9]+.[0-9]`
+and it will push new release artifacts and update brew.
 
 ## See Also
 
