@@ -1,0 +1,56 @@
+name: Release Signadot CLI
+on:
+  push:
+    tags:
+    - 'v[0-9]+.[0-9]+.[0-9]'
+env:
+  GO_VERSION: "1.21"
+
+jobs:
+  release-cli:
+    name: "Release CLI"
+    env:
+      GOPRIVATE: github.com/signadot/libconnect
+      GH_ACCESS_TOKEN: ${{ secrets.SIGNADOT_GHA_GOBUILD_PAT }}
+
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        # Use a depth of 0 to fetch full history. This is the only way to fetch
+        # tags, needed to choose a version number to embed.
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: ${{ env.GO_VERSION }}
+
+    - name: Prepare for GOPRIVATE
+      run: |
+        git config --global url.https://$GH_ACCESS_TOKEN@github.com/.insteadOf https://github.com/
+
+    - name: Docker Login
+      uses: docker/login-action@v3.0.0
+      with:
+        username: ${{ secrets.DOCKERHUB_USER }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    # https://github.com/docker/setup-qemu-action
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+    
+    # https://github.com/docker/setup-buildx-action
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v3
+
+    # run goreleaser
+    - name: Run GoReleaser
+      uses: goreleaser/goreleaser-action@v5
+      with:
+        version: 1.22.1
+        args: release --clean
+      env:
+        SIGNADOT_IMAGE_SUFFIX: ''
+        GITHUB_TOKEN: ${{ secrets.SIGNADOT_GHA_GOBUILD_PAT }}
