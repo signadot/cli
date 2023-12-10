@@ -8,13 +8,15 @@ import (
 	"runtime"
 	"syscall"
 
+	"log/slog"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/signadot/cli/internal/config"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
+	"github.com/signadot/libconnect/apiv1"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/fwdtun/etchosts"
 	"github.com/signadot/libconnect/fwdtun/localnet"
-	"log/slog"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -123,7 +125,7 @@ func (m *rootManager) stopLocalnetService() error {
 
 func (m *rootManager) runEtcHostsService(ctx context.Context, socks5Addr string) {
 	// Start the etc hosts service
-	etcHostsSVC := etchosts.NewEtcHosts(socks5Addr, m.getHostsFile(), m.log)
+	etcHostsSVC := etchosts.NewEtcHosts(socks5Addr, m.getHostsFile(), m.xCIDRsFilter(), m.log)
 
 	// Register the etc hosts service in root api
 	m.root.setEtcHostsService(etcHostsSVC)
@@ -135,6 +137,33 @@ func (m *rootManager) stopEtcHostsService() error {
 		return etcHostsSVC.Close()
 	}
 	return nil
+}
+
+func (m *rootManager) xCIDRsFilter() func(*apiv1.GetDNSEntriesResponse_K8SService) bool {
+	xCIDRsConfig := []string{}
+	if m.ciConfig.ConnectionConfig.Outbound != nil {
+		xCIDRsConfig = m.ciConfig.ConnectionConfig.Outbound.ExcludeCIDRs
+	}
+	xCIDRs := make([]net.IPNet, 0, len(xCIDRsConfig))
+	for _, xc := range xCIDRsConfig {
+		_, net, err := net.ParseCIDR(xc)
+		if err != nil {
+			m.log.Error("couldn't parse excluded CIDR", "cidr", xc)
+			continue
+		}
+		xCIDRs = append(xCIDRs, *net)
+	}
+	xCIDRsFilter := func(s *apiv1.GetDNSEntriesResponse_K8SService) bool {
+		ip := net.ParseIP(s.ServiceIp)
+		for _, xNet := range xCIDRs {
+			if xNet.Contains(ip) {
+				m.log.Info("excluding dns entry for", "service", s.Name, "namespace", s.Namespace, "excluded-cidr", xNet.String())
+				return false
+			}
+		}
+		return true
+	}
+	return xCIDRsFilter
 }
 
 func (m *rootManager) getHostsFile() string {
