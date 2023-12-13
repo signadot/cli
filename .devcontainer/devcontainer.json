@@ -1,0 +1,20 @@
+{
+	"name": "signadot-aws",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"USER": "${localEnv:USER}",
+			"GOARCH": "${localEnv:GOARCH}"
+		}
+	},
+	"capAdd": ["NET_ADMIN"],
+	"remoteUser": "${localEnv:USER}",
+	"mounts": [
+		{"source": "${localEnv:HOME}/.signadot", "target": "/home/${localEnv:USER}/.signadot", "type": "bind"},
+		{"source": "${localEnv:HOME}/.kube", "target": "/home/${localEnv:USER}/.kube", "type": "bind"},
+		{"source": "${localEnv:HOME}/.aws", "target": "/home/${localEnv:USER}/.aws", "type": "bind"}
+	],
+	"features": {
+		"ghcr.io/brokeyourbike/devcontainer-features/staticcheck:0": {}
+	}
+}
