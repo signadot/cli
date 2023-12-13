@@ -20,7 +20,7 @@ RUN apt-get install -y wget
 COPY install-aws.sh /install-aws.sh
 RUN /install-aws.sh
 COPY install-go.sh /install-go.sh
-RUN GOARCH=$GOARCH /install-go.sh
+RUN /install-go.sh $GOARCH
 RUN /usr/local/go/bin/go install github.com/goreleaser/goreleaser@latest
 
 COPY signadot /usr/bin/signadot
@@ -34,6 +34,7 @@ RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 USER $USER
 WORKDIR /home/$USER
+RUN echo "PATH=\$PATH:/usr/local/go/bin" >> .profile
 
 ENTRYPOINT ["/bin/bash"]
 

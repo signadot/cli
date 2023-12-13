@@ -18,5 +18,5 @@ release:
 
 
 devcontainer:
-	go build -o .devcontainer/signadot ./cmd/signadot
-	GOARCH=$(go env GOARCH) devcontainer --workspace-folder . build
+	GOOS=linux go build -o .devcontainer/signadot ./cmd/signadot
+	GOARCH=$(shell go env GOARCH) devcontainer --workspace-folder . build
