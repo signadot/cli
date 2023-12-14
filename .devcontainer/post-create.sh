@@ -1,5 +1,10 @@
 #!/bin/sh
 
+set -e
+
+#
+# copy signadot config from mount
+#
 if [ -d $HOME/.signadot ]; then
 	true;
 else
@@ -12,3 +17,11 @@ else
 	cp $HOME/.signadot-localhost/config.yaml $HOME/.signadot/config.yaml
 fi
 
+#
+# rewrite kubeconfig
+#
+if [ -d $HOME/.kube ]; then
+	true;
+else
+	go run /workspaces/cli/.devcontainer/rewrite_kubeconfig
+fi

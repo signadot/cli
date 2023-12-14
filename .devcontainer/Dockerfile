@@ -13,6 +13,8 @@ RUN apt-get install -y curl
 RUN apt-get install -y vim
 RUN apt-get install -y git
 RUN apt-get install -y protobuf-compiler
+COPY install-kubectl.sh /install-kubectl.sh
+RUN /install-kubectl.sh
 
 COPY signadot /usr/bin/signadot
 
@@ -23,6 +25,7 @@ RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
 USER $USER
 WORKDIR /home/$USER
+
 
 CMD ["/bin/bash"]
 ENTRYPOINT ["/bin/bash"]
