@@ -10,11 +10,20 @@
 	"capAdd": ["NET_ADMIN"],
 	"remoteUser": "${localEnv:USER}",
 	"mounts": [
-		{"source": "${localEnv:HOME}/.signadot", "target": "/home/${localEnv:USER}/.signadot", "type": "bind"},
-		{"source": "${localEnv:HOME}/.kube", "target": "/home/${localEnv:USER}/.kube", "type": "bind"},
+		{"source": "${localEnv:HOME}/.signadot", "target": "/home/${localEnv:USER}/.signadot-localhost", "type": "bind"},
+		{"source": "${localEnv:HOME}/.kube", "target": "/home/${localEnv:USER}/.kube-localhost", "type": "bind"},
 		{"source": "${localEnv:HOME}/.aws", "target": "/home/${localEnv:USER}/.aws", "type": "bind"}
 	],
+
+	"postCreateCommand": "sh .devcontainer/post-create.sh",
+
 	"features": {
-		"ghcr.io/brokeyourbike/devcontainer-features/staticcheck:0": {}
+		"ghcr.io/devcontainers/features/git:1": {},
+		"ghcr.io/devcontainers/features/go:1": {},
+		"ghcr.io/brokeyourbike/devcontainer-features/staticcheck:0": {},
+		"ghcr.io/guiyomh/features/vim": {},
+		"ghcr.io/guiyomh/features/goreleaser:0": {},
+		"ghcr.io/eitsupi/devcontainer-features/jq-likes:2": {},
+		"ghcr.io/devcontainers/features/aws-cli:1": {}
 	}
 }
