@@ -9,8 +9,9 @@ func New(api *config.API) *cobra.Command {
 	cfg := &config.ResourcePlugin{API: api}
 
 	cmd := &cobra.Command{
-		Use:   "resourceplugin",
-		Short: "Inspect and manipulate resource plugins",
+		Use:     "resourceplugin",
+		Short:   "Inspect and manipulate resource plugins",
+		Aliases: []string{"rp"},
 	}
 
 	// Subcommands
