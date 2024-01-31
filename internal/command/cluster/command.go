@@ -9,8 +9,9 @@ import (
 func New(api *config.API) *cobra.Command {
 	cfg := &config.Cluster{API: api}
 	cmd := &cobra.Command{
-		Use:   "cluster",
-		Short: "Manage connections between your Kubernetes clusters and Signadot",
+		Use:     "cluster",
+		Short:   "Manage connections between your Kubernetes clusters and Signadot",
+		Aliases: []string{"cl"},
 	}
 
 	// Subcommands
