@@ -9,8 +9,9 @@ func New(api *config.API) *cobra.Command {
 	cfg := &config.RouteGroup{API: api}
 
 	cmd := &cobra.Command{
-		Use:   "routegroup",
-		Short: "Inspect and manipulate routegroups",
+		Use:     "routegroup",
+		Short:   "Inspect and manipulate routegroups",
+		Aliases: []string{"rg"},
 	}
 
 	// Subcommands
