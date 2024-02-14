@@ -2,6 +2,7 @@ package routegroup
 
 import (
 	"fmt"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"io"
 	"text/tabwriter"
@@ -19,7 +20,7 @@ type routegroupRow struct {
 	Cluster    string `sdtab:"CLUSTER"`
 	Created    string `sdtab:"CREATED"`
 	Status     string `sdtab:"STATUS"`
-	Ready      string `sdtab:"SANDBOXES READY"`
+	Ready      string `sdtab:"READY SANDBOXES"`
 }
 
 func printRouteGroupTable(cfg *config.RouteGroupList, out io.Writer, rgs []*models.RouteGroup) error {
@@ -31,11 +32,16 @@ func printRouteGroupTable(cfg *config.RouteGroupList, out io.Writer, rgs []*mode
 			return err
 		}
 
+		createdAt, err := time.Parse(time.RFC3339, rg.CreatedAt)
+		if err != nil {
+			return err
+		}
+
 		t.AddRow(routegroupRow{
 			Name:       rg.Name,
 			RoutingKey: rg.RoutingKey,
 			Cluster:    rg.Spec.Cluster,
-			Created:    rg.CreatedAt,
+			Created:    utils.FromTimeGetStringAgo(createdAt),
 			Status:     readiness(rg.Status),
 			Ready:      sbxStatus,
 		})
