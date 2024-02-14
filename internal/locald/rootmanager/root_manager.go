@@ -16,6 +16,7 @@ import (
 	"github.com/signadot/libconnect/apiv1"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/fwdtun/etchosts"
+	"github.com/signadot/libconnect/fwdtun/ipmap"
 	"github.com/signadot/libconnect/fwdtun/localnet"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -61,17 +62,23 @@ func (m *rootManager) Run(ctx context.Context) error {
 		return err
 	}
 
+	// start the ip mapping
+	ipMap, err := ipmap.NewIPMap(m.ciConfig.VirtualIPNet)
+	if err != nil {
+		return err
+	}
+
 	// Run the sandbox manager
 	go m.sbmMonitor.run()
 
 	if m.ciConfig.ConnectionConfig.Type == connectcfg.ProxyAddressLinkType {
 		// Start localnet and etchost services
-		m.runLocalnetService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress)
-		m.runEtcHostsService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress)
+		m.runLocalnetService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap)
+		m.runEtcHostsService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap)
 	} else {
 		// Start the port-forward monitor, who will be in charge of
 		// starting/restarting the localnet and etchost services
-		m.pfwMonitor = NewPortForwardMonitor(ctx, m)
+		m.pfwMonitor = NewPortForwardMonitor(ctx, m, ipMap)
 	}
 
 	// Wait until termination
@@ -102,13 +109,14 @@ func (m *rootManager) runAPIServer(ctx context.Context) error {
 	return nil
 }
 
-func (m *rootManager) runLocalnetService(ctx context.Context, socks5Addr string) {
+func (m *rootManager) runLocalnetService(ctx context.Context, socks5Addr string, ipMap *ipmap.IPMap) {
 	// Start the localnet service
-	localnetSVC := localnet.NewService(ctx, &localnet.ClientConfig{
-		Log:        m.log,
-		User:       m.ciConfig.User.Username,
-		SOCKS5Addr: socks5Addr,
-		ListenAddr: "127.0.0.1:2223",
+	localnetSVC := localnet.NewService(ctx, ipMap, &localnet.ClientConfig{
+		Log:          m.log,
+		User:         m.ciConfig.User.Username,
+		SOCKS5Addr:   socks5Addr,
+		VirtualIPNet: m.ciConfig.VirtualIPNet,
+		ListenAddr:   "127.0.0.1:2223",
 	}, m.ciConfig.ConnectionConfig)
 
 	// Register the localnet service in root api
@@ -123,9 +131,9 @@ func (m *rootManager) stopLocalnetService() error {
 	return nil
 }
 
-func (m *rootManager) runEtcHostsService(ctx context.Context, socks5Addr string) {
+func (m *rootManager) runEtcHostsService(ctx context.Context, socks5Addr string, ipMap *ipmap.IPMap) {
 	// Start the etc hosts service
-	etcHostsSVC := etchosts.NewEtcHosts(socks5Addr, m.getHostsFile(), m.xCIDRsFilter(), m.log)
+	etcHostsSVC := etchosts.NewEtcHosts(socks5Addr, m.getHostsFile(), ipMap, m.xCIDRsFilter(), m.log)
 
 	// Register the etc hosts service in root api
 	m.root.setEtcHostsService(etcHostsSVC)
