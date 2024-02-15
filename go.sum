@@ -364,8 +364,8 @@ github.com/rogpeppe/go-internal v1.11.0/go.mod h1:ddIwULY96R17DhadqLgMfk9H9tvdUz
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/signadot/go-sdk v0.3.8-0.20231120112931-5aa0810b12b7 h1:PgIayNxGde2TvVYCFOsDVZ65WsrBdlh6MN3tzHGeXtM=
 github.com/signadot/go-sdk v0.3.8-0.20231120112931-5aa0810b12b7/go.mod h1:mLzoMuSE0GsFLONRjjYYHQBsU9twXML1BrExSvpMqeI=
-github.com/signadot/libconnect v0.1.1-0.20231211143818-1d8a0c800e35 h1:v2Y7mhnr5ai/hf3dngvGfPQzQRkcBskEuZNm+6tT3Pc=
-github.com/signadot/libconnect v0.1.1-0.20231211143818-1d8a0c800e35/go.mod h1:4OzWoyxyoh56h4jgCw/FBJVxyHB45qpwHDVWbsGfFTg=
+github.com/signadot/libconnect v0.1.1-0.20240215161123-08abced763ca h1:kT3S4iOuaQBziSENJ0AanYFNVV6r8LOlPgSYVqNOA1g=
+github.com/signadot/libconnect v0.1.1-0.20240215161123-08abced763ca/go.mod h1:4OzWoyxyoh56h4jgCw/FBJVxyHB45qpwHDVWbsGfFTg=
 github.com/sirupsen/logrus v1.4.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
