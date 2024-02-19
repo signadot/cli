@@ -173,7 +173,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 	green := color.New(color.FgGreen).SprintFunc()
 	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
 	fmt.Fprintf(out, "\nsignadot local connect has been started %s\n", green("✓"))
-	if !localConfig.Wait {
+	if localConfig.NoWait {
 		fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
 		return nil
 	}
