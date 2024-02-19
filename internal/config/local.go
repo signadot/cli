@@ -90,7 +90,7 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root privileges")
-	cmd.Flags().BoolVar(&c.NoWait, "no-wait", false, "wait for connection healthy")
+	cmd.Flags().BoolVar(&c.NoWait, "no-wait", false, "don't wait for connection healthy")
 	cmd.Flags().AddGoFlag(&flag.Flag{
 		Name: "wait",
 		Value: &waitFlagValue{
