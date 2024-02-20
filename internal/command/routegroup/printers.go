@@ -2,8 +2,8 @@ package routegroup
 
 import (
 	"fmt"
-	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/xeonx/timeago"
 	"io"
 	"text/tabwriter"
 	"time"
@@ -41,7 +41,7 @@ func printRouteGroupTable(cfg *config.RouteGroupList, out io.Writer, rgs []*mode
 			Name:       rg.Name,
 			RoutingKey: rg.RoutingKey,
 			Cluster:    rg.Spec.Cluster,
-			Created:    utils.FromTimeGetStringAgo(createdAt),
+			Created:    timeago.NoMax(timeago.English).Format(createdAt),
 			Status:     readiness(rg.Status),
 			Ready:      sbxStatus,
 		})
