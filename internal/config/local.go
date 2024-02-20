@@ -104,6 +104,7 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 			negPointer: &c.NoWait,
 		},
 		DefValue: "true",
+		Usage:    "wait for the connection to become healthy",
 	})
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 10*time.Second, "timeout to wait")
 
