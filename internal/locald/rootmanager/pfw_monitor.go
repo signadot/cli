@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	sbmanagerapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"log/slog"
+
+	sbmanagerapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	"github.com/signadot/libconnect/fwdtun/ipmap"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -21,14 +23,16 @@ type pfwMonitor struct {
 	root            *rootManager
 	sbManagerAddr   string
 	portforwardAddr string
+	ipMap           *ipmap.IPMap
 	starting        bool
 	sbClient        sbmanagerapi.SandboxManagerAPIClient
 	closeCh         chan struct{}
 }
 
-func NewPortForwardMonitor(ctx context.Context, root *rootManager) *pfwMonitor {
+func NewPortForwardMonitor(ctx context.Context, root *rootManager, ipMap *ipmap.IPMap) *pfwMonitor {
 	mon := &pfwMonitor{
 		log:           root.log,
+		ipMap:         ipMap,
 		sbManagerAddr: fmt.Sprintf("127.0.0.1:%d", root.ciConfig.APIPort),
 		root:          root,
 		starting:      true,
@@ -104,15 +108,15 @@ func (mon *pfwMonitor) checkPortForward(ctx context.Context) bool {
 	}
 	if status.Portforward.LocalAddress != mon.portforwardAddr {
 		mon.portforwardAddr = status.Portforward.LocalAddress
-		mon.log.Info("port forward is ready", "addr", mon.portforwardAddr)
+		mon.log.Info("port forward is ready (restarting)", "addr", mon.portforwardAddr, "was", status.Portforward.LocalAddress)
 
 		// Restart localnet
 		mon.root.stopLocalnetService()
-		mon.root.runLocalnetService(ctx, mon.portforwardAddr)
+		mon.root.runLocalnetService(ctx, mon.portforwardAddr, mon.ipMap)
 
 		// Restart etc hosts
 		mon.root.stopEtcHostsService()
-		mon.root.runEtcHostsService(ctx, mon.portforwardAddr)
+		mon.root.runEtcHostsService(ctx, mon.portforwardAddr, mon.ipMap)
 	}
 	mon.starting = false
 	return true
