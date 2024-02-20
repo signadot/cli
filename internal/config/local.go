@@ -1,8 +1,10 @@
 package config
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/signadot/libconnect/config"
@@ -84,7 +86,7 @@ type LocalConnect struct {
 	// Flags
 	Cluster      string
 	Unprivileged bool
-	Wait         bool
+	NoWait       bool
 	WaitTimeout  time.Duration
 
 	// Hidden Flags
@@ -95,10 +97,44 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root privileges")
-	cmd.Flags().BoolVar(&c.Wait, "wait", false, "wait for connection healthy")
+	cmd.Flags().BoolVar(&c.NoWait, "no-wait", false, "don't wait for connection healthy")
+	cmd.Flags().AddGoFlag(&flag.Flag{
+		Name: "wait",
+		Value: &waitFlagValue{
+			negPointer: &c.NoWait,
+		},
+		DefValue: "true",
+		Usage:    "wait for the connection to become healthy",
+	})
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 10*time.Second, "timeout to wait")
+
 	cmd.Flags().BoolVar(&c.DumpCIConfig, "dump-ci-config", false, "dump connect invocation config")
 	cmd.Flags().MarkHidden("dump-ci-config")
+	cmd.Flags().MarkHidden("wait")
+}
+
+type waitFlagValue struct {
+	negPointer *bool
+}
+
+func (w *waitFlagValue) Set(v string) error {
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return err
+	}
+	*w.negPointer = !b
+	return nil
+}
+
+func (w *waitFlagValue) String() string {
+	if w == nil || w.negPointer == nil {
+		return "false"
+	}
+	return fmt.Sprintf("%t", *w.negPointer)
+}
+
+func (w *waitFlagValue) IsBoolFlag() bool {
+	return true
 }
 
 type LocalDisconnect struct {
