@@ -13,6 +13,10 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+const (
+	DefaultVirtualIPNet = "242.242.0.1/16"
+)
+
 type Local struct {
 	*API
 
@@ -38,6 +42,9 @@ func (l *Local) InitLocalConfig() error {
 	}
 	if localConfig.Local == nil {
 		return fmt.Errorf("no local section in %s", viper.ConfigFileUsed())
+	}
+	if localConfig.Local.VirtualIPNet == "" {
+		localConfig.Local.VirtualIPNet = DefaultVirtualIPNet
 	}
 	if err := localConfig.Local.Validate(); err != nil {
 		return err

@@ -12,7 +12,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/panta/machineid v1.0.2
 	github.com/signadot/go-sdk v0.3.8-0.20231120112931-5aa0810b12b7
-	github.com/signadot/libconnect v0.1.1-0.20231211143818-1d8a0c800e35
+	github.com/signadot/libconnect v0.1.1-0.20240219154241-dce58bd5adf0
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
@@ -112,4 +112,5 @@ require (
 
 // Used for local dev
 // replace github.com/signadot/libconnect => ../libconnect/
+
 // replace github.com/signadot/go-sdk => ../go-sdk

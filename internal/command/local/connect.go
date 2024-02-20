@@ -80,6 +80,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		SignadotDir:     signadotDir,
 		APIPort:         6666,
 		LocalNetPort:    6667,
+		VirtualIPNet:    cfg.LocalConfig.VirtualIPNet,
 		User: &config.ConnectInvocationUser{
 			UID:      os.Geteuid(),
 			GID:      os.Getegid(),

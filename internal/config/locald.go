@@ -65,11 +65,13 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 // everything that needs to be passed in a json so we can evolve what needs to
 // be passed without plumbing the command line
 type ConnectInvocationConfig struct {
-	WithRootManager  bool                         `json:"withRootManager"`
-	APIPort          uint16                       `json:"apiPort"`
-	LocalNetPort     uint16                       `json:"localNetPort"`
-	SignadotDir      string                       `json:"signadotDir"`
+	WithRootManager bool   `json:"withRootManager"`
+	APIPort         uint16 `json:"apiPort"`
+	LocalNetPort    uint16 `json:"localNetPort"`
+	SignadotDir     string `json:"signadotDir"`
+
 	User             *ConnectInvocationUser       `json:"user"`
+	VirtualIPNet     string                       `json:"virtualIPNet"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	Debug            bool                         `json:"debug"`
 }
