@@ -110,6 +110,7 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&c.DumpCIConfig, "dump-ci-config", false, "dump connect invocation config")
 	cmd.Flags().MarkHidden("dump-ci-config")
+	cmd.Flags().MarkHidden("wait")
 }
 
 type waitFlagValue struct {
