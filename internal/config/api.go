@@ -91,7 +91,7 @@ func (a *API) InitAPITransport(apiKey string) error {
 
 	// Add auth info to every request.
 	transport := oaclient.New(tc.Host, tc.BasePath, tc.Schemes)
-	transport.DefaultAuthentication = oaclient.APIKeyAuth("signadot-api-key", "header", apiKey)
+	transport.DefaultAuthentication = oaclient.APIKeyAuth(APIKeyHeader, "header", apiKey)
 	transport.SetDebug(a.Debug)
 
 	// Add User-Agent to every request

@@ -1,4 +1,4 @@
-package local
+package proxy
 
 import (
 	"github.com/signadot/cli/internal/config"
@@ -6,18 +6,16 @@ import (
 )
 
 func New(api *config.API) *cobra.Command {
-	cfg := &config.Local{API: api}
+	cfg := &config.Proxy{API: api}
 
 	cmd := &cobra.Command{
-		Use:   "local",
-		Short: "Connect local machine with cluster",
+		Use:   "proxy",
+		Short: "Forward proxy to cluster services",
 	}
 
 	// Subcommands
 	cmd.AddCommand(
 		newConnect(cfg),
-		newStatus(cfg),
-		newDisconnect(cfg),
 	)
 
 	return cmd
