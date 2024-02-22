@@ -30,9 +30,10 @@ func newRevtun(log *slog.Logger, rtc revtun.Client, rk string,
 	xw *tunapiv1.ExternalWorkload) (*rt, error) {
 	// define the revtun config (that will be used to setup the reverse tunnel)
 	rtConfig := &rtproto.Config{
-		SandboxRoutingKey: rk,
-		ExternalWorkload:  xw.Name,
-		Forwards:          []rtproto.Forward{},
+		SandboxRoutingKey:         rk,
+		ExternalWorkload:          xw.Name,
+		ExternalWorkloadNamespace: xw.Baseline.Namespace,
+		Forwards:                  []rtproto.Forward{},
 	}
 	for _, pm := range xw.WorkloadPortMapping {
 		kind, err := kindToRemoteURLTLD(xw.Baseline.Kind)
