@@ -36,7 +36,7 @@ func list(cfg *config.RouteGroupList, out io.Writer) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printRouteGroupTable(out, resp.Payload)
+		return printRouteGroupTable(cfg, out, resp.Payload)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
