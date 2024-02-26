@@ -73,6 +73,8 @@ type ConnectInvocationConfig struct {
 	User             *ConnectInvocationUser       `json:"user"`
 	VirtualIPNet     string                       `json:"virtualIPNet"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
+	ProxyURL         string                       `json:"proxyURL"`
+	APIKey           string                       `json:"apiKey"`
 	Debug            bool                         `json:"debug"`
 }
 

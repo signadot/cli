@@ -10,6 +10,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	routegroups "github.com/signadot/go-sdk/client/route_groups"
 	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,8 @@ func newConnect(proxyConfig *config.Proxy) *cobra.Command {
 }
 
 func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.ProxyConnect, args []string) error {
+	ctx := context.Background()
+
 	if err := cfg.InitProxyConfig(); err != nil {
 		return err
 	}
@@ -79,19 +82,21 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.ProxyConnect, arg
 	for i := range cfg.ProxyMappings {
 		pm := &cfg.ProxyMappings[i]
 
-		proxyServer, err := NewProxyServer(&proxyConfig{
-			log:        log,
-			cfg:        cfg.Proxy,
-			routingKey: routingKey,
-			cluster:    cluster,
-			mapping:    pm,
-		})
+		ctlPlaneProxy, err := controlplaneproxy.NewProxy(&controlplaneproxy.Config{
+			Log:        log,
+			ProxyURL:   cfg.ProxyURL,
+			TargetURL:  pm.GetTarget(),
+			Cluster:    cluster,
+			RoutingKey: routingKey,
+			BindAddr:   pm.BindAddr,
+		}, config.GetAPIKey())
 		if err != nil {
 			return err
 		}
+
 		servers.Add(
-			proxyServer.Start,
-			func(error) { proxyServer.Shutdown(context.Background()) },
+			func() error { ctlPlaneProxy.Run(ctx); return nil },
+			func(error) { ctlPlaneProxy.Close(ctx) },
 		)
 	}
 

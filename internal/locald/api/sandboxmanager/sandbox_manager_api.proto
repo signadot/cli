@@ -35,6 +35,7 @@ message StatusResponse {
   apicommon.LocalNetStatus localnet = 2;
   apicommon.HostsStatus hosts = 3;
   apicommon.PortForwardStatus portforward = 4;
+  apicommon.ControlPlaneProxyStatus control_plane_proxy = 8;
   apicommon.WatcherStatus watcher = 6;
   repeated apicommon.SandboxStatus sandboxes = 5;
 }

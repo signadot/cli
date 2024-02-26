@@ -28,7 +28,7 @@ type rootManager struct {
 	grpcServer *grpc.Server
 	root       *rootServer
 	sbmMonitor *sbmgrMonitor
-	pfwMonitor *pfwMonitor
+	tpMonitor  *tpMonitor
 	shutdownCh chan struct{}
 }
 
@@ -71,14 +71,15 @@ func (m *rootManager) Run(ctx context.Context) error {
 	// Run the sandbox manager
 	go m.sbmMonitor.run()
 
-	if m.ciConfig.ConnectionConfig.Type == connectcfg.ProxyAddressLinkType {
+	switch m.ciConfig.ConnectionConfig.Type {
+	case connectcfg.PortForwardLinkType, connectcfg.ControlPlaneProxyLinkType:
+		// Start the port-forward monitor, who will be in charge of
+		// starting/restarting the localnet and etchost services
+		m.tpMonitor = NewTunnelProxyMonitor(ctx, m, ipMap)
+	default:
 		// Start localnet and etchost services
 		m.runLocalnetService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap)
 		m.runEtcHostsService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap)
-	} else {
-		// Start the port-forward monitor, who will be in charge of
-		// starting/restarting the localnet and etchost services
-		m.pfwMonitor = NewPortForwardMonitor(ctx, m, ipMap)
 	}
 
 	// Wait until termination
@@ -91,8 +92,8 @@ func (m *rootManager) Run(ctx context.Context) error {
 	// Clean up
 	m.log.Info("Shutting down")
 	var me *multierror.Error
-	if m.pfwMonitor != nil {
-		m.pfwMonitor.Stop()
+	if m.tpMonitor != nil {
+		m.tpMonitor.Stop()
 	}
 	me = multierror.Append(me, m.sbmMonitor.stop())
 	me = multierror.Append(me, m.stopLocalnetService())

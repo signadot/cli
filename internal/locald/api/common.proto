@@ -36,6 +36,12 @@ message PortForwardStatus {
   string local_address = 2;
 }
 
+// ControlPlaneProxy status (produced by local controller)
+message ControlPlaneProxyStatus {
+  ServiceHealth health = 1;
+  string local_address = 2;
+}
+
 // Sandboxes watcher status (produced by local controller)
 message WatcherStatus {
   ServiceHealth health = 1;

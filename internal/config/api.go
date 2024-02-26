@@ -11,6 +11,7 @@ import (
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/hack"
 	"github.com/signadot/go-sdk/client"
+	"github.com/signadot/libconnect/common"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 )
@@ -91,7 +92,7 @@ func (a *API) InitAPITransport(apiKey string) error {
 
 	// Add auth info to every request.
 	transport := oaclient.New(tc.Host, tc.BasePath, tc.Schemes)
-	transport.DefaultAuthentication = oaclient.APIKeyAuth(APIKeyHeader, "header", apiKey)
+	transport.DefaultAuthentication = oaclient.APIKeyAuth(common.APIKeyHeader, "header", apiKey)
 	transport.SetDebug(a.Debug)
 
 	// Add User-Agent to every request

@@ -6,7 +6,6 @@ import (
 
 	"log/slog"
 
-	"github.com/signadot/libconnect/apiv1"
 	tunapiv1 "github.com/signadot/libconnect/apiv1"
 	"github.com/signadot/libconnect/revtun"
 	"google.golang.org/protobuf/proto"
@@ -210,14 +209,14 @@ func (ctrl *sbController) closeRevTunnel(xwName string) {
 	}
 }
 
-func (ctrl *sbController) compareExternalWorkloadsSpec(a, b *apiv1.ExternalWorkload) bool {
+func (ctrl *sbController) compareExternalWorkloadsSpec(a, b *tunapiv1.ExternalWorkload) bool {
 	// for comparison, ignore status info
-	specA := &apiv1.ExternalWorkload{
+	specA := &tunapiv1.ExternalWorkload{
 		Name:                a.Name,
 		Baseline:            a.Baseline,
 		WorkloadPortMapping: a.WorkloadPortMapping,
 	}
-	specB := &apiv1.ExternalWorkload{
+	specB := &tunapiv1.ExternalWorkload{
 		Name:                b.Name,
 		Baseline:            b.Baseline,
 		WorkloadPortMapping: b.WorkloadPortMapping,

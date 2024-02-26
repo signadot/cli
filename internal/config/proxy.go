@@ -18,25 +18,29 @@ type Proxy struct {
 }
 
 func (p *Proxy) InitProxyConfig() error {
-	if err := p.API.InitAPIConfig(); err != nil {
+	var err error
+	if err = p.API.InitAPIConfig(); err != nil {
 		return err
 	}
-
-	// Allow Proxy URL to be overridden (e.g. for talking to dev/staging).
-	if proxyURL := viper.GetString("proxy_url"); proxyURL != "" {
-		_, err := url.Parse(proxyURL)
-		if err != nil {
-			return fmt.Errorf("invalid proxy_url: %w", err)
-		}
-		p.ProxyURL = proxyURL
-
-	} else {
-		p.ProxyURL = "https://proxy.signadot.com"
+	if p.ProxyURL, err = GetProxyURL(); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (p *Proxy) GetAPIKey() string {
+func GetProxyURL() (string, error) {
+	// Allow Proxy URL to be overridden (e.g. for talking to dev/staging).
+	if proxyURL := viper.GetString("proxy_url"); proxyURL != "" {
+		_, err := url.Parse(proxyURL)
+		if err != nil {
+			return "", fmt.Errorf("invalid proxy_url: %w", err)
+		}
+		return proxyURL, nil
+	}
+	return "https://proxy.signadot.com", nil
+}
+
+func GetAPIKey() string {
 	return viper.GetString("api_key")
 }
 
