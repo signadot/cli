@@ -27,7 +27,7 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "connect",
-		Short: "connect local machine to cluster",
+		Short: "Connect local machine to cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConnect(cmd, cmd.OutOrStdout(), cfg, args)
 		},

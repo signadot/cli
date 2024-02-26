@@ -18,7 +18,7 @@ func newStatus(localConfig *config.Local) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "show status of the local machine's connection with cluster",
+		Short: "Show status of the local machine's connection with cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStatus(cfg, cmd.OutOrStdout(), args)
 		},
