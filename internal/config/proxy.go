@@ -51,7 +51,7 @@ type ProxyConnect struct {
 	Sandbox       string
 	RouteGroup    string
 	Cluster       string
-	ProxyMappings ProxyMappings
+	ProxyMappings []ProxyMapping
 }
 
 func (pc *ProxyConnect) Validate() error {
@@ -109,9 +109,9 @@ func (pm *ProxyMapping) String() string {
 	return fmt.Sprintf("%s://%s|%s", pm.TargetProto, pm.TargetAddr, pm.BindAddr)
 }
 
-type ProxyMappings []ProxyMapping
+type proxyMappings []ProxyMapping
 
-func (pms *ProxyMappings) String() string {
+func (pms *proxyMappings) String() string {
 	b := bytes.NewBuffer(nil)
 	for i := range *pms {
 		pm := &(*pms)[i]
@@ -124,7 +124,7 @@ func (pms *ProxyMappings) String() string {
 }
 
 // Set appends a new argument  to instance of Nargs
-func (pms *ProxyMappings) Set(arg string) error {
+func (pms *proxyMappings) Set(arg string) error {
 	regex := regexp.MustCompile(`^(.+?)://(.+?)\|(.+)$`)
 	matches := regex.FindStringSubmatch(arg)
 	if matches == nil || len(matches) != 4 {
@@ -140,7 +140,7 @@ func (pms *ProxyMappings) Set(arg string) error {
 }
 
 // Type is a no-op
-func (pms *ProxyMappings) Type() string {
+func (pms *proxyMappings) Type() string {
 	return "string"
 }
 
@@ -148,5 +148,5 @@ func (c *ProxyConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Sandbox, "sandbox", "s", "", "run the proxy in the context of the specificed sandbox")
 	cmd.Flags().StringVarP(&c.RouteGroup, "routegroup", "r", "", "run the proxy in the context of the specificed routegroup")
 	cmd.Flags().StringVarP(&c.Cluster, "cluster", "c", "", "target cluster")
-	cmd.Flags().VarP(&c.ProxyMappings, "map", "m", "--map <target-protocol>://<target-addr>|<bind-addr>")
+	cmd.Flags().VarP((*proxyMappings)(&c.ProxyMappings), "map", "m", "--map <target-protocol>://<target-addr>|<bind-addr>")
 }

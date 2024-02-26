@@ -2,6 +2,8 @@ package routegroup
 
 import (
 	"fmt"
+	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/xeonx/timeago"
 	"io"
 	"text/tabwriter"
 	"time"
@@ -18,18 +20,30 @@ type routegroupRow struct {
 	Cluster    string `sdtab:"CLUSTER"`
 	Created    string `sdtab:"CREATED"`
 	Status     string `sdtab:"STATUS"`
+	Ready      string `sdtab:"READY SANDBOXES"`
 }
 
-func printRouteGroupTable(out io.Writer, rgs []*models.RouteGroup) error {
+func printRouteGroupTable(cfg *config.RouteGroupList, out io.Writer, rgs []*models.RouteGroup) error {
 	t := sdtab.New[routegroupRow](out)
 	t.AddHeader()
 	for _, rg := range rgs {
+		sbxStatus, err := getSandboxesStatus(cfg, rg.Status)
+		if err != nil {
+			return err
+		}
+
+		createdAt, err := time.Parse(time.RFC3339, rg.CreatedAt)
+		if err != nil {
+			return err
+		}
+
 		t.AddRow(routegroupRow{
 			Name:       rg.Name,
 			RoutingKey: rg.RoutingKey,
 			Cluster:    rg.Spec.Cluster,
-			Created:    rg.CreatedAt,
+			Created:    timeago.NoMax(timeago.English).Format(createdAt),
 			Status:     readiness(rg.Status),
+			Ready:      sbxStatus,
 		})
 	}
 	return t.Flush()
@@ -64,6 +78,25 @@ func readiness(status *models.RouteGroupStatus) string {
 		return "Ready"
 	}
 	return "Not Ready"
+}
+
+func getSandboxesStatus(cfg *config.RouteGroupList, status *models.RouteGroupStatus) (string, error) {
+	readyCounter := 0
+
+	matchedSandboxes := status.MatchedSandboxes
+	for _, sandboxName := range matchedSandboxes {
+		params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
+		sandbox, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
+		if err != nil {
+			return "", err
+		}
+
+		if sandbox.Payload.Status.Ready {
+			readyCounter += 1
+		}
+	}
+
+	return fmt.Sprintf("%d/%d", readyCounter, len(matchedSandboxes)), nil
 }
 
 func formatTimestamp(in string) string {
