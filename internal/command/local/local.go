@@ -18,6 +18,7 @@ func New(api *config.API) *cobra.Command {
 		newConnect(cfg),
 		newStatus(cfg),
 		newDisconnect(cfg),
+		newProxy(cfg),
 	)
 
 	return cmd

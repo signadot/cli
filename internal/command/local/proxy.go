@@ -1,4 +1,4 @@
-package proxy
+package local
 
 import (
 	"context"
@@ -14,16 +14,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newConnect(proxyConfig *config.Proxy) *cobra.Command {
-	cfg := &config.ProxyConnect{
-		Proxy: proxyConfig,
+func newProxy(localConfig *config.Local) *cobra.Command {
+	cfg := &config.LocalProxy{
+		Local: localConfig,
 	}
 
 	cmd := &cobra.Command{
-		Use:   "connect [--sandbox SANDBOX|--routegroup ROUTEGROUP|--cluster CLUSTER] --map <target-protocol>://<target-addr>|<bind-addr> [--map <target-protocol>://<target-addr>|<bind-addr>]",
-		Short: "Proxy connections to the specified mappings",
+		Use:   "proxy [--sandbox SANDBOX|--routegroup ROUTEGROUP|--cluster CLUSTER] --map <target-protocol>://<target-addr>|<bind-addr> [--map <target-protocol>://<target-addr>|<bind-addr>]",
+		Short: "Proxy connections based on the specified mappings",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConnect(cmd, cmd.OutOrStdout(), cfg, args)
+			return runProxy(cmd, cmd.OutOrStdout(), cfg, args)
 		},
 	}
 	cfg.AddFlags(cmd)
@@ -31,10 +31,10 @@ func newConnect(proxyConfig *config.Proxy) *cobra.Command {
 	return cmd
 }
 
-func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.ProxyConnect, args []string) error {
+func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []string) error {
 	ctx := context.Background()
 
-	if err := cfg.InitProxyConfig(); err != nil {
+	if err := cfg.InitLocalProxyConfig(); err != nil {
 		return err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -89,7 +89,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.ProxyConnect, arg
 			Cluster:    cluster,
 			RoutingKey: routingKey,
 			BindAddr:   pm.BindAddr,
-		}, config.GetAPIKey())
+		}, cfg.GetAPIKey())
 		if err != nil {
 			return err
 		}
