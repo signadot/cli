@@ -14,6 +14,7 @@ import (
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
+	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/kubernetes"
 
@@ -29,14 +30,15 @@ import (
 )
 
 type sandboxManager struct {
-	log         *slog.Logger
-	ciConfig    *config.ConnectInvocationConfig
-	connConfig  *connectcfg.ConnectionConfig
-	hostname    string
-	machineID   string
-	grpcServer  *grpc.Server
-	portForward *portforward.PortForward
-	shutdownCh  chan struct{}
+	log           *slog.Logger
+	ciConfig      *config.ConnectInvocationConfig
+	connConfig    *connectcfg.ConnectionConfig
+	hostname      string
+	machineID     string
+	grpcServer    *grpc.Server
+	portForward   *portforward.PortForward
+	ctlPlaneProxy *controlplaneproxy.Proxy
+	shutdownCh    chan struct{}
 
 	// tunnel API
 	tunAPIClient tunapiclient.Client
@@ -87,8 +89,9 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		}
 	}()
 
-	// Start the port-forward (if needed)
-	if m.connConfig.Type == connectcfg.PortForwardLinkType {
+	switch m.connConfig.Type {
+	case connectcfg.PortForwardLinkType:
+		// Start the port-forward
 		restConfig, err := m.connConfig.GetRESTConfig()
 		if err != nil {
 			return err
@@ -102,7 +105,21 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 			restConfig, clientSet,
 			m.log, 0, "signadot", "tunnel-proxy", 1080,
 		)
-	} else {
+	case connectcfg.ControlPlaneProxyLinkType:
+		// Start a control-plane proxy
+		ctlPlaneProxy, err := controlplaneproxy.NewProxy(&controlplaneproxy.Config{
+			Log:       m.log,
+			ProxyURL:  m.ciConfig.ProxyURL,
+			TargetURL: "tcp://tunnel-proxy.signadot.svc:1080",
+			Cluster:   m.connConfig.Cluster,
+			BindAddr:  ":0",
+		}, m.ciConfig.APIKey)
+		if err != nil {
+			return err
+		}
+		m.ctlPlaneProxy = ctlPlaneProxy
+		go m.ctlPlaneProxy.Run(ctx)
+	default:
 		// Create the tunnel API client
 		if err := m.setTunnelAPIClient(m.connConfig.ProxyAddress); err != nil {
 			return err
@@ -118,7 +135,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	sbmWatcher := newSandboxManagerWatcher(m.log, m.machineID, m.revtunClient, oiu, m.shutdownCh)
 
 	// Register our service in gRPC server
-	sbmServer := newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward,
+	sbmServer := newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward, m.ctlPlaneProxy,
 		sbmWatcher, oiu, m.shutdownCh)
 	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, sbmServer)
 
@@ -143,6 +160,22 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 				cancel()
 			}
 		}
+	} else if m.ctlPlaneProxy != nil {
+		// Wait until control-plane proxy is healthy
+		status, err := m.ctlPlaneProxy.WaitHealthy(runCtx)
+		if err != nil || status.LocalPort == nil {
+			m.log.Error("couldn't establish control-plane proxy", "error", err)
+			cancel()
+		} else {
+			// Create the tunnel API client
+			proxyAddress := fmt.Sprintf("localhost:%d", *status.LocalPort)
+			m.log.Info("control-plane proxy is connected", "local-addr", proxyAddress)
+
+			if err := m.setTunnelAPIClient(proxyAddress); err != nil {
+				m.log.Error("couldn't create tunnel-api client", "error", err)
+				cancel()
+			}
+		}
 	}
 
 	// Run the sandboxes watcher
@@ -157,6 +190,8 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	sbmWatcher.stop()
 	if m.portForward != nil {
 		m.portForward.Close()
+	} else if m.ctlPlaneProxy != nil {
+		m.ctlPlaneProxy.Close(ctx)
 	}
 	return nil
 }

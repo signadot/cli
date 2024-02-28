@@ -49,9 +49,16 @@ func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.Co
 		}
 	}
 
-	// check port forward status
-	if ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
+	switch ciConfig.ConnectionConfig.Type {
+	case connectcfg.PortForwardLinkType:
+		// check port forward status
 		err := checkPortforwardStatus(status.Portforward)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	case connectcfg.ControlPlaneProxyLinkType:
+		// check control-plane proxy status
+		err := checkControlPlaneProxyStatus(status.ControlPlaneProxy)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -83,6 +90,21 @@ func checkPortforwardStatus(portforward *commonapi.PortForwardStatus) error {
 			}
 			if portforward.Health.LastErrorReason != "" {
 				errorMsg += fmt.Sprintf(" (%q)", portforward.Health.LastErrorReason)
+			}
+		}
+	}
+	return fmt.Errorf(errorMsg)
+}
+
+func checkControlPlaneProxyStatus(ctlPlaneProxy *commonapi.ControlPlaneProxyStatus) error {
+	errorMsg := "failed to establish control-plane proxy"
+	if ctlPlaneProxy != nil {
+		if ctlPlaneProxy.Health != nil {
+			if ctlPlaneProxy.Health.Healthy {
+				return nil
+			}
+			if ctlPlaneProxy.Health.LastErrorReason != "" {
+				errorMsg += fmt.Sprintf(" (%q)", ctlPlaneProxy.Health.LastErrorReason)
 			}
 		}
 	}

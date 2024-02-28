@@ -1,4 +1,4 @@
-package proxy
+package local
 
 import (
 	"context"
@@ -10,19 +10,20 @@ import (
 	"github.com/signadot/cli/internal/config"
 	routegroups "github.com/signadot/go-sdk/client/route_groups"
 	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"github.com/spf13/cobra"
 )
 
-func newConnect(proxyConfig *config.Proxy) *cobra.Command {
-	cfg := &config.ProxyConnect{
-		Proxy: proxyConfig,
+func newProxy(localConfig *config.Local) *cobra.Command {
+	cfg := &config.LocalProxy{
+		Local: localConfig,
 	}
 
 	cmd := &cobra.Command{
-		Use:   "connect [--sandbox SANDBOX|--routegroup ROUTEGROUP|--cluster CLUSTER] --map <target-protocol>://<target-addr>|<bind-addr> [--map <target-protocol>://<target-addr>|<bind-addr>]",
-		Short: "Proxy connections to the specified mappings",
+		Use:   "proxy [--sandbox SANDBOX|--routegroup ROUTEGROUP|--cluster CLUSTER] --map <target-protocol>://<target-addr>|<bind-addr> [--map <target-protocol>://<target-addr>|<bind-addr>]",
+		Short: "Proxy connections based on the specified mappings",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConnect(cmd, cmd.OutOrStdout(), cfg, args)
+			return runProxy(cmd, cmd.OutOrStdout(), cfg, args)
 		},
 	}
 	cfg.AddFlags(cmd)
@@ -30,8 +31,10 @@ func newConnect(proxyConfig *config.Proxy) *cobra.Command {
 	return cmd
 }
 
-func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.ProxyConnect, args []string) error {
-	if err := cfg.InitProxyConfig(); err != nil {
+func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []string) error {
+	ctx := context.Background()
+
+	if err := cfg.InitLocalProxyConfig(); err != nil {
 		return err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -79,19 +82,21 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.ProxyConnect, arg
 	for i := range cfg.ProxyMappings {
 		pm := &cfg.ProxyMappings[i]
 
-		proxyServer, err := NewProxyServer(&proxyConfig{
-			log:        log,
-			cfg:        cfg.Proxy,
-			routingKey: routingKey,
-			cluster:    cluster,
-			mapping:    pm,
-		})
+		ctlPlaneProxy, err := controlplaneproxy.NewProxy(&controlplaneproxy.Config{
+			Log:        log,
+			ProxyURL:   cfg.ProxyURL,
+			TargetURL:  pm.GetTarget(),
+			Cluster:    cluster,
+			RoutingKey: routingKey,
+			BindAddr:   pm.BindAddr,
+		}, cfg.GetAPIKey())
 		if err != nil {
 			return err
 		}
+
 		servers.Add(
-			proxyServer.Start,
-			func(error) { proxyServer.Shutdown(context.Background()) },
+			func() error { ctlPlaneProxy.Run(ctx); return nil },
+			func(error) { ctlPlaneProxy.Close(ctx) },
 		)
 	}
 

@@ -12,6 +12,7 @@ import (
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"github.com/signadot/libconnect/common/portforward"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,6 +32,9 @@ type sbmServer struct {
 	// if nil, no portforward necessary
 	portForward *portforward.PortForward
 
+	// if nil, no control-plane proxy necessary
+	ctlPlaneProxy *controlplaneproxy.Proxy
+
 	// sandboxes
 	sbmWatcher *sbmWatcher
 
@@ -43,15 +47,17 @@ type sbmServer struct {
 }
 
 func newSandboxManagerGRPCServer(log *slog.Logger, ciConfig *config.ConnectInvocationConfig,
-	portForward *portforward.PortForward, sbmWatcher *sbmWatcher, oiu *operatorInfoUpdater,
+	portForward *portforward.PortForward, ctlPlaneProxy *controlplaneproxy.Proxy,
+	sbmWatcher *sbmWatcher, oiu *operatorInfoUpdater,
 	shutdownCh chan struct{}) *sbmServer {
 	srv := &sbmServer{
-		log:         log,
-		oiu:         oiu,
-		ciConfig:    ciConfig,
-		portForward: portForward,
-		sbmWatcher:  sbmWatcher,
-		shutdownCh:  shutdownCh,
+		log:           log,
+		oiu:           oiu,
+		ciConfig:      ciConfig,
+		portForward:   portForward,
+		ctlPlaneProxy: ctlPlaneProxy,
+		sbmWatcher:    sbmWatcher,
+		shutdownCh:    shutdownCh,
 	}
 	return srv
 }
@@ -66,11 +72,12 @@ func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbap
 	}
 
 	resp := &sbapi.StatusResponse{
-		CiConfig:     grpcCIConfig,
-		OperatorInfo: s.oiu.Get(),
-		Portforward:  s.portForwardStatus(),
-		Watcher:      s.watcherStatus(),
-		Sandboxes:    s.sbStatuses(),
+		CiConfig:          grpcCIConfig,
+		OperatorInfo:      s.oiu.Get(),
+		Portforward:       s.portForwardStatus(),
+		ControlPlaneProxy: s.controlPlaneProxyStatus(),
+		Watcher:           s.watcherStatus(),
+		Sandboxes:         s.sbStatuses(),
 	}
 	resp.Hosts, resp.Localnet = s.rootStatus()
 	return resp, nil
@@ -144,6 +151,19 @@ func (s *sbmServer) portForwardStatus() *commonapi.PortForwardStatus {
 		grpcPFStatus.LocalAddress = fmt.Sprintf(":%d", *pfst.LocalPort)
 	}
 	return grpcPFStatus
+}
+
+func (s *sbmServer) controlPlaneProxyStatus() *commonapi.ControlPlaneProxyStatus {
+	grpcCPPStatus := &commonapi.ControlPlaneProxyStatus{}
+	if s.ctlPlaneProxy == nil {
+		return grpcCPPStatus
+	}
+	st := s.ctlPlaneProxy.Status()
+	grpcCPPStatus.Health = commonapi.ToGRPCServiceHealth(&st.ServiceHealth)
+	if st.LocalPort != nil && st.Healthy {
+		grpcCPPStatus.LocalAddress = fmt.Sprintf(":%d", *st.LocalPort)
+	}
+	return grpcCPPStatus
 }
 
 func (s *sbmServer) watcherStatus() *commonapi.WatcherStatus {

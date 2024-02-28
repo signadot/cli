@@ -89,6 +89,8 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 			Username: user.Username,
 		},
 		ConnectionConfig: connConfig,
+		ProxyURL:         cfg.ProxyURL,
+		APIKey:           cfg.GetAPIKey(),
 		Debug:            cfg.LocalConfig.Debug,
 	}
 	if cfg.DumpCIConfig {

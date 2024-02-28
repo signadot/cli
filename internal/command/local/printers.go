@@ -29,23 +29,25 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 	}
 
 	type rawStatus struct {
-		RuntimeConfig    any `json:"runtimeConfig,omitempty"`
-		OperatorInfo     any `json:"operatorInfo,omitempty"`
-		Localnet         any `json:"localnet,omitempty"`
-		Hosts            any `json:"hosts,omitempty"`
-		Portforward      any `json:"portforward,omitempty"`
-		SandboxesWatcher any `json:"sandboxesWatcher,omitempty"`
-		Sandboxes        any `json:"sandboxes,omitempty"`
+		RuntimeConfig     any `json:"runtimeConfig,omitempty"`
+		OperatorInfo      any `json:"operatorInfo,omitempty"`
+		Localnet          any `json:"localnet,omitempty"`
+		Hosts             any `json:"hosts,omitempty"`
+		Portforward       any `json:"portforward,omitempty"`
+		ControlPlaneProxy any `json:"controlPlaneProxy,omitempty"`
+		SandboxesWatcher  any `json:"sandboxesWatcher,omitempty"`
+		Sandboxes         any `json:"sandboxes,omitempty"`
 	}
 
 	rawSt := rawStatus{
-		RuntimeConfig:    getRawRuntimeConfig(cfg, ciConfig),
-		OperatorInfo:     getRawOperatorInfo(cfg, status.OperatorInfo),
-		Localnet:         getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
-		Hosts:            getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
-		Portforward:      getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
-		SandboxesWatcher: getRawWatcher(cfg, status.Watcher, statusMap),
-		Sandboxes:        statusMap["sandboxes"],
+		RuntimeConfig:     getRawRuntimeConfig(cfg, ciConfig),
+		OperatorInfo:      getRawOperatorInfo(cfg, status.OperatorInfo),
+		Localnet:          getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
+		Hosts:             getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
+		Portforward:       getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
+		ControlPlaneProxy: getRawControlPlaneProxy(cfg, ciConfig, status.ControlPlaneProxy, statusMap),
+		SandboxesWatcher:  getRawWatcher(cfg, status.Watcher, statusMap),
+		Sandboxes:         statusMap["sandboxes"],
 	}
 
 	return printer(out, rawSt)
@@ -253,6 +255,44 @@ func getRawPortforward(cfg *config.LocalStatus, ciConfig *config.ConnectInvocati
 	return result
 }
 
+func getRawControlPlaneProxy(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
+	ctlPlaneProxy *commonapi.ControlPlaneProxyStatus, statusMap map[string]any) any {
+	if ciConfig.ConnectionConfig.Type != connectcfg.ControlPlaneProxyLinkType {
+		return ctlPlaneProxy
+	}
+
+	if cfg.Details {
+		// Details view
+		return statusMap["controlPlaneProxy"]
+	}
+
+	// Standard view
+	type PrintableControlPlaneProxy struct {
+		Healthy         bool   `json:"healthy"`
+		LocalAddress    string `json:"localAddress"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintableControlPlaneProxy{
+		Healthy: false,
+	}
+	if ctlPlaneProxy == nil || ctlPlaneProxy.Health == nil {
+		return result
+	}
+	if ctlPlaneProxy.Health.Healthy {
+		result = &PrintableControlPlaneProxy{
+			Healthy:      true,
+			LocalAddress: ctlPlaneProxy.LocalAddress,
+		}
+	} else {
+		result = &PrintableControlPlaneProxy{
+			Healthy:         false,
+			LastErrorReason: ctlPlaneProxy.Health.LastErrorReason,
+		}
+	}
+	return result
+}
+
 func getRawWatcher(cfg *config.LocalStatus, watcher *commonapi.WatcherStatus,
 	statusMap map[string]any) any {
 	if cfg.Details {
@@ -352,8 +392,11 @@ func (p *statusPrinter) printSuccess() {
 	if p.status.OperatorInfo != nil {
 		p.printOperatorInfo()
 	}
-	if p.ciConfig.ConnectionConfig.Type == connectcfg.PortForwardLinkType {
+	switch p.ciConfig.ConnectionConfig.Type {
+	case connectcfg.PortForwardLinkType:
 		p.printPortforwardStatus()
+	case connectcfg.ControlPlaneProxyLinkType:
+		p.printControlPlaneProxyStatus()
 	}
 	if p.ciConfig.WithRootManager {
 		p.printLocalnetStatus()
@@ -374,6 +417,10 @@ func (p *statusPrinter) printOperatorInfo() {
 
 func (p *statusPrinter) printPortforwardStatus() {
 	p.printLine(p.out, 1, fmt.Sprintf("port-forward listening at %q", p.status.Portforward.LocalAddress), "*")
+}
+
+func (p *statusPrinter) printControlPlaneProxyStatus() {
+	p.printLine(p.out, 1, fmt.Sprintf("control-plane proxy listening at %q", p.status.ControlPlaneProxy.LocalAddress), "*")
 }
 
 func (p *statusPrinter) printLocalnetStatus() {
