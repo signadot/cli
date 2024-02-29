@@ -74,6 +74,12 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		connConfig.KubeConfigPath = &kcp
 	}
 
+	// Get control-plane proxy url
+	proxyURL, err := cfg.GetProxyURL()
+	if err != nil {
+		return err
+	}
+
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
 		WithRootManager: !cfg.Unprivileged,
@@ -89,7 +95,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 			Username: user.Username,
 		},
 		ConnectionConfig: connConfig,
-		ProxyURL:         cfg.ProxyURL,
+		ProxyURL:         proxyURL,
 		APIKey:           cfg.GetAPIKey(),
 		Debug:            cfg.LocalConfig.Debug,
 	}
@@ -191,6 +197,7 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 		status      *sbmapi.StatusResponse
 		err         error
 		connectErrs []error
+		sbsOK       bool
 	)
 	defer ticker.Stop()
 	for {
@@ -219,12 +226,14 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 			}
 			goto tick
 		}
+
+		sbsOK = true
 		for i := range status.Sandboxes {
 			sds := status.Sandboxes[i]
 			for j := range sds.LocalWorkloads {
 				lw := sds.LocalWorkloads[j]
 				if lw.TunnelHealth == nil || !lw.TunnelHealth.Healthy {
-					connectErrs = []error{fmt.Errorf("sandbox %s is not ready", sds.Name)}
+					sbsOK = false
 					goto tick
 				}
 			}
@@ -242,7 +251,11 @@ doneWaiting:
 	printLocalStatus(&config.LocalStatus{
 		Local: localConfig.Local,
 	}, out, status)
+
 	if len(connectErrs) == 0 {
+		if !sbsOK {
+			fmt.Fprintf(out, "Successfully connected to cluster but some sandboxes are not ready.\n")
+		}
 		return nil
 	}
 	// here it failed, but the connect background process may still be running
