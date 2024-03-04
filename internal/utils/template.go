@@ -40,7 +40,7 @@ func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelet
 	if err := substTemplate(template, substMap, file); err != nil {
 		return nil, err
 	}
-	return template, nil
+	return *template, nil
 }
 
 func extractName(rpt any) map[string]any {
