@@ -182,7 +182,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 	green := color.New(color.FgGreen).SprintFunc()
 	white := color.New(color.FgHiWhite, color.Bold).SprintFunc()
 	fmt.Fprintf(out, "\nsignadot local connect has been started %s\n", green("✓"))
-	if localConfig.NoWait {
+	if localConfig.Wait == config.ConnectWaitNone {
 		fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
 		return nil
 	}
@@ -253,15 +253,28 @@ doneWaiting:
 	}, out, status)
 
 	if len(connectErrs) == 0 {
-		if !sbsOK {
-			fmt.Fprintf(out, "Successfully connected to cluster but some sandboxes are not ready.\n")
+		switch localConfig.Wait {
+		case config.ConnectWaitConnect:
+			if !sbsOK {
+				fmt.Fprintf(out, "Successfully connected to cluster but some sandboxes are not ready.\n")
+			}
+			return nil
+		case config.ConnectWaitSandboxes:
+			if sbsOK {
+				return nil
+			}
+		default:
+			// only other option is ConnectWaitDone, which is checked
+			// before calling this func.
+			panic("unreachable")
 		}
-		return nil
 	}
-	// here it failed, but the connect background process may still be running
-	// so we disconnect.  Unfortunately, cobra doesn't let you set exit codes
-	// so easily, so a caller would have to parse the error message to determine
-	// whether or not disconnect on connect failure succeeded.
+	// either connectErrs is non-empty or we requested waiting for
+	// sandboxes which aren't ready.  So it failed.  But the connect
+	// background process may still be running so we disconnect.
+	// Unfortunately, cobra doesn't let you set exit codes so easily, so a
+	// caller would have to parse the error message to determine whether or
+	// not disconnect on connect failure succeeded.
 
 	// disconnect step 1: Get the sigandot dir
 	signadotDir, err := system.GetSignadotDir()
