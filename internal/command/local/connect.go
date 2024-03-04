@@ -291,17 +291,23 @@ func checkVersionSkew(localConfig *config.LocalConnect, ciConfig *config.Connect
 	if err != nil {
 		return fmt.Errorf("error parsing cluster operator version, %w", err)
 	}
+	if operatorVer.Prerelease() != "" {
+		// this is a pre-release version, let's treat it as a stable version
+		ov, err := operatorVer.SetPrerelease("")
+		if err != nil {
+			return fmt.Errorf("error removing pre-release from cluster operator version, %w", err)
+		}
+		operatorVer = &ov
+	}
 
 	if ciConfig.ConnectionConfig.Type == connectcfg.ControlPlaneProxyLinkType {
-		// ControlPlaneProxy requires operator > 0.15.0, in the constraint below
-		// we use "> 0.15.1-0" instead of ">= 0.16.0" to catch our pre-release
-		// versions
-		cppConstraint, err := semver.NewConstraint("> 0.15.1-0")
+		// ControlPlaneProxy requires operator > 0.15.0
+		cppConstraint, err := semver.NewConstraint("> 0.15.0")
 		if err != nil {
 			return err // this shouldn't happen
 		}
 		if !cppConstraint.Check(operatorVer) {
-			return fmt.Errorf("The connection type ControlPlaneProxy requires operator > v0.15.0")
+			return fmt.Errorf("The connection type ControlPlaneProxy requires operator >= v0.16.0")
 		}
 	}
 	return nil
