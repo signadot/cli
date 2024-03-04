@@ -8,6 +8,7 @@ import (
 
 	"github.com/oklog/run"
 	"github.com/signadot/cli/internal/config"
+	clusters "github.com/signadot/go-sdk/client/cluster"
 	routegroups "github.com/signadot/go-sdk/client/route_groups"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/libconnect/common/controlplaneproxy"
@@ -67,6 +68,12 @@ func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []
 		cluster = resp.Payload.Spec.Cluster
 		routingKey = resp.Payload.RoutingKey
 	} else {
+		// validate the cluster
+		params := clusters.NewGetClusterParams().
+			WithOrgName(cfg.Org).WithClusterName(cfg.Cluster)
+		if _, err := cfg.Client.Cluster.GetCluster(params, nil); err != nil {
+			return err
+		}
 		cluster = cfg.Cluster
 	}
 
