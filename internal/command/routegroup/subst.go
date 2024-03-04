@@ -2,7 +2,6 @@ package routegroup
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -21,19 +20,9 @@ func loadRouteGroup(file string, tplVals config.TemplateVals, forDelete bool) (*
 }
 
 func unstructuredToRouteGroup(un any) (*models.RouteGroup, error) {
-	var (
-		name string
-		ok   bool
-		spec any
-	)
-	switch x := un.(type) {
-	case map[string]any:
-		name, ok = x["name"].(string)
-		spec = x["spec"]
-	default:
-	}
-	if !ok {
-		return nil, errors.New("missing name and spec fields")
+	name, spec, err := utils.UnstructuredToNameAndSpec(un)
+	if err != nil {
+		return nil, err
 	}
 	d, err := json.Marshal(spec)
 	if err != nil {

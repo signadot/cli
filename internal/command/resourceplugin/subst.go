@@ -2,7 +2,6 @@ package resourceplugin
 
 import (
 	"encoding/json"
-	"errors"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/jsonexact"
@@ -19,19 +18,9 @@ func loadResourcePlugin(file string, tplVals config.TemplateVals, forDelete bool
 }
 
 func unstructuredToResourcePlugin(un any) (*models.ResourcePlugin, error) {
-	var (
-		name string
-		ok   bool
-		spec any
-	)
-	switch x := un.(type) {
-	case map[string]any:
-		name, ok = x["name"].(string)
-		spec = x["spec"]
-	default:
-	}
-	if !ok {
-		return nil, errors.New("missing name or spec fields")
+	name, spec, err := utils.UnstructuredToNameAndSpec(un)
+	if err != nil {
+		return nil, err
 	}
 	d, err := json.Marshal(spec)
 	if err != nil {

@@ -43,6 +43,21 @@ func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelet
 	return *template, nil
 }
 
+func UnstructuredToNameAndSpec(un any) (name string, spec any, err error) {
+	var ok bool
+	switch x := un.(type) {
+	case map[string]any:
+		name, ok = x["name"].(string)
+		spec = x["spec"]
+	default:
+	}
+	if !ok {
+		err = errors.New("missing name or spec fields")
+		return "", nil, err
+	}
+	return
+}
+
 func extractName(rpt any) map[string]any {
 	topLevel, ok := rpt.(map[string]any)
 	if !ok {

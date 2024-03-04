@@ -2,7 +2,6 @@ package sandbox
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -25,19 +24,9 @@ func unstructuredToSandbox(un any) (*models.Sandbox, error) {
 	if err := port2Int(&un); err != nil {
 		return nil, err
 	}
-	var (
-		name string
-		ok   bool
-		spec any
-	)
-	switch x := un.(type) {
-	case map[string]any:
-		name, ok = x["name"].(string)
-		spec = x["spec"]
-	default:
-	}
-	if !ok {
-		return nil, errors.New("missing name or spec fields")
+	name, spec, err := utils.UnstructuredToNameAndSpec(un)
+	if err != nil {
+		return nil, err
 	}
 	d, err := json.Marshal(spec)
 	if err != nil {
