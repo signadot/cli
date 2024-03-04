@@ -8,16 +8,20 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"log/slog"
 
+	"github.com/Masterminds/semver"
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
+	clusters "github.com/signadot/go-sdk/client/cluster"
 	"github.com/signadot/libconnect/common/processes"
+	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/yaml"
 )
@@ -120,6 +124,11 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 	}
 	if isRunning {
 		return fmt.Errorf("signadot is already connected\n")
+	}
+
+	// Check version skew
+	if err := checkVersionSkew(localConfig, ciConfig); err != nil {
+		return err
 	}
 
 	// Run signadot locald
@@ -262,6 +271,46 @@ doneWaiting:
 		return fmt.Errorf("unable to disconnect failing connect: %w", err)
 	}
 	return fmt.Errorf("connect failed and is no longer running")
+}
+
+func checkVersionSkew(localConfig *config.LocalConnect, ciConfig *config.ConnectInvocationConfig) error {
+	// get the cluster from API
+	params := clusters.NewGetClusterParams().
+		WithOrgName(localConfig.Org).WithClusterName(ciConfig.ConnectionConfig.Cluster)
+	clusterInfo, err := localConfig.Client.Cluster.GetCluster(params, nil)
+	if err != nil {
+		return fmt.Errorf("error reading cluster, %w", err)
+	}
+	if clusterInfo.Payload.Operator == nil {
+		return fmt.Errorf("cluster=%s has never connected with Signadot control-plane",
+			ciConfig.ConnectionConfig.Cluster)
+	}
+
+	// parse the operator version
+	operatorVer, err := semver.NewVersion(strings.Split(clusterInfo.Payload.Operator.Version, " ")[0])
+	if err != nil {
+		return fmt.Errorf("error parsing cluster operator version, %w", err)
+	}
+	if operatorVer.Prerelease() != "" {
+		// this is a pre-release version, let's treat it as a stable version
+		ov, err := operatorVer.SetPrerelease("")
+		if err != nil {
+			return fmt.Errorf("error removing pre-release from cluster operator version, %w", err)
+		}
+		operatorVer = &ov
+	}
+
+	if ciConfig.ConnectionConfig.Type == connectcfg.ControlPlaneProxyLinkType {
+		// ControlPlaneProxy requires operator > 0.15.0
+		cppConstraint, err := semver.NewConstraint("> 0.15.0")
+		if err != nil {
+			return err // this shouldn't happen
+		}
+		if !cppConstraint.Check(operatorVer) {
+			return fmt.Errorf("The connection type ControlPlaneProxy requires operator >= v0.16.0")
+		}
+	}
+	return nil
 }
 
 func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {
