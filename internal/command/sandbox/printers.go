@@ -2,12 +2,13 @@ package sandbox
 
 import (
 	"fmt"
+	"github.com/docker/go-units"
+	"github.com/xeonx/timeago"
 	"io"
 	"strconv"
 	"text/tabwriter"
 	"time"
 
-	"github.com/docker/go-units"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/go-sdk/models"
@@ -25,11 +26,16 @@ func printSandboxTable(out io.Writer, sbs []*models.Sandbox) error {
 	t := sdtab.New[sandboxRow](out)
 	t.AddHeader()
 	for _, sb := range sbs {
+		createdAt, err := time.Parse(time.RFC3339, sb.CreatedAt)
+		if err != nil {
+			return err
+		}
+
 		t.AddRow(sandboxRow{
 			Name:        sb.Name,
 			Description: sb.Spec.Description,
 			Cluster:     *sb.Spec.Cluster,
-			Created:     sb.CreatedAt,
+			Created:     timeago.NoMax(timeago.English).Format(createdAt),
 			Status:      readiness(sb.Status),
 		})
 	}
