@@ -74,12 +74,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		connConfig.KubeConfigPath = &kcp
 	}
 
-	// Get control-plane proxy url
-	proxyURL, err := cfg.GetProxyURL()
-	if err != nil {
-		return err
-	}
-
 	// compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
 		WithRootManager: !cfg.Unprivileged,
@@ -95,7 +89,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 			Username: user.Username,
 		},
 		ConnectionConfig: connConfig,
-		ProxyURL:         proxyURL,
+		ProxyURL:         cfg.ProxyURL,
 		APIKey:           cfg.GetAPIKey(),
 		Debug:            cfg.LocalConfig.Debug,
 	}
