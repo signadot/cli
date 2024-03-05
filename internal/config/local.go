@@ -3,12 +3,10 @@ package config
 import (
 	"bytes"
 	"errors"
-	"flag"
 	"fmt"
 	"net/url"
 	"os"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/signadot/libconnect/config"
@@ -118,7 +116,7 @@ type LocalConnect struct {
 	// Flags
 	Cluster      string
 	Unprivileged bool
-	NoWait       bool
+	Wait         ConnectWait
 	WaitTimeout  time.Duration
 
 	// Hidden Flags
@@ -129,44 +127,53 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root privileges")
-	cmd.Flags().BoolVar(&c.NoWait, "no-wait", false, "don't wait for connection healthy")
-	cmd.Flags().AddGoFlag(&flag.Flag{
-		Name: "wait",
-		Value: &waitFlagValue{
-			negPointer: &c.NoWait,
-		},
-		DefValue: "true",
-		Usage:    "wait for the connection to become healthy",
-	})
+	cmd.Flags().Var(&c.Wait, "wait", "status to wait for while connecting {none,connect,sandboxes}")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 10*time.Second, "timeout to wait")
 
 	cmd.Flags().BoolVar(&c.DumpCIConfig, "dump-ci-config", false, "dump connect invocation config")
 	cmd.Flags().MarkHidden("dump-ci-config")
-	cmd.Flags().MarkHidden("wait")
+	cmd.Flags().Lookup("wait").NoOptDefVal = ConnectWaitConnect.String()
 }
 
-type waitFlagValue struct {
-	negPointer *bool
+type ConnectWait int
+
+const (
+	ConnectWaitConnect ConnectWait = iota
+	ConnectWaitSandboxes
+	ConnectWaitNone
+)
+
+func (cw ConnectWait) String() string {
+	return map[ConnectWait]string{
+		ConnectWaitConnect:   "connect",
+		ConnectWaitSandboxes: "sandboxes",
+		ConnectWaitNone:      "none",
+	}[cw]
 }
 
-func (w *waitFlagValue) Set(v string) error {
-	b, err := strconv.ParseBool(v)
+func ParseConnectWait(v string) (ConnectWait, error) {
+	cw, ok := map[string]ConnectWait{
+		"connect":   ConnectWaitConnect,
+		"sandboxes": ConnectWaitSandboxes,
+		"none":      ConnectWaitNone,
+	}[v]
+	if !ok {
+		return 0, fmt.Errorf("unknown connect wait value %q (should be connect, sandboxes, or none)", v)
+	}
+	return cw, nil
+}
+
+func (cw *ConnectWait) Set(v string) error {
+	tmp, err := ParseConnectWait(v)
 	if err != nil {
 		return err
 	}
-	*w.negPointer = !b
+	*cw = tmp
 	return nil
 }
 
-func (w *waitFlagValue) String() string {
-	if w == nil || w.negPointer == nil {
-		return "false"
-	}
-	return fmt.Sprintf("%t", *w.negPointer)
-}
-
-func (w *waitFlagValue) IsBoolFlag() bool {
-	return true
+func (cw *ConnectWait) Type() string {
+	return "string"
 }
 
 type LocalDisconnect struct {
