@@ -2,14 +2,12 @@ package resourceplugin
 
 import (
 	"fmt"
-	"io"
-	"text/tabwriter"
-	"time"
-
-	"github.com/docker/go-units"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
+	"io"
+	"text/tabwriter"
 )
 
 type resourcePluginRow struct {
@@ -35,7 +33,7 @@ func printResourcePluginDetails(cfg *config.ResourcePlugin, out io.Writer, rp *m
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	fmt.Fprintf(tw, "Name:\t%s\n", rp.Name)
-	fmt.Fprintf(tw, "Created:\t%s\n", formatTimestamp(rp.CreatedAt))
+	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(rp.CreatedAt))
 	fmt.Fprintf(tw, "Status:\t%s\n", status(rp.Status))
 
 	if err := tw.Flush(); err != nil {
@@ -53,17 +51,6 @@ func printResourcePluginDetails(cfg *config.ResourcePlugin, out io.Writer, rp *m
 
 func status(status *models.ResourcepluginStatus) string {
 	return fmt.Sprintf("%d resources", len(status.Resources))
-}
-
-func formatTimestamp(in string) string {
-	t, err := time.Parse(time.RFC3339, in)
-	if err != nil {
-		return in
-	}
-	elapsed := units.HumanDuration(time.Since(t))
-	local := t.Local().Format(time.RFC1123)
-
-	return fmt.Sprintf("%s (%s ago)", local, elapsed)
 }
 
 type resourceRow struct {
