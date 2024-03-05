@@ -2,12 +2,14 @@ package sandbox
 
 import (
 	"fmt"
+	"github.com/docker/go-units"
+	"github.com/signadot/cli/internal/utils"
+	"github.com/xeonx/timeago"
 	"io"
 	"strconv"
 	"text/tabwriter"
 	"time"
 
-	"github.com/docker/go-units"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/go-sdk/models"
@@ -25,11 +27,16 @@ func printSandboxTable(out io.Writer, sbs []*models.Sandbox) error {
 	t := sdtab.New[sandboxRow](out)
 	t.AddHeader()
 	for _, sb := range sbs {
+		createdAt, err := time.Parse(time.RFC3339, sb.CreatedAt)
+		if err != nil {
+			return err
+		}
+
 		t.AddRow(sandboxRow{
 			Name:        sb.Name,
 			Description: sb.Spec.Description,
 			Cluster:     *sb.Spec.Cluster,
-			Created:     sb.CreatedAt,
+			Created:     timeago.NoMax(timeago.English).Format(createdAt),
 			Status:      readiness(sb.Status),
 		})
 	}
@@ -43,8 +50,8 @@ func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.Sandbox)
 	fmt.Fprintf(tw, "Name:\t%s\n", sb.Name)
 	fmt.Fprintf(tw, "Description:\t%s\n", sb.Spec.Description)
 	fmt.Fprintf(tw, "Cluster:\t%s\n", *sb.Spec.Cluster)
-	fmt.Fprintf(tw, "Created:\t%s\n", formatTimestamp(sb.CreatedAt))
-	fmt.Fprintf(tw, "Updated:\t%s\n", formatTimestamp(sb.UpdatedAt))
+	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(sb.CreatedAt))
+	fmt.Fprintf(tw, "Updated:\t%s\n", utils.FormatTimestamp(sb.UpdatedAt))
 	fmt.Fprintf(tw, "TTL:\t%s\n", formatTTL(sb))
 	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.SandboxDashboardURL(sb.RoutingKey))
 	fmt.Fprintf(tw, "Status:\t%s (%s: %s)\n", readiness(sb.Status), sb.Status.Reason, sb.Status.Message)
@@ -68,17 +75,6 @@ func readiness(status *models.SandboxReadiness) string {
 		return "Ready"
 	}
 	return "Not Ready"
-}
-
-func formatTimestamp(in string) string {
-	t, err := time.Parse(time.RFC3339, in)
-	if err != nil {
-		return in
-	}
-	elapsed := units.HumanDuration(time.Since(t))
-	local := t.Local().Format(time.RFC1123)
-
-	return fmt.Sprintf("%s (%s ago)", local, elapsed)
 }
 
 func formatTTL(sb *models.Sandbox) string {
