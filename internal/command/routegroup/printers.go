@@ -56,7 +56,7 @@ func printRouteGroupDetails(cfg *config.RouteGroup, out io.Writer, rg *models.Ro
 	fmt.Fprintf(tw, "Routing Key:\t%s\n", rg.RoutingKey)
 	fmt.Fprintf(tw, "Cluster:\t%s\n", rg.Spec.Cluster)
 	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(rg.CreatedAt))
-	fmt.Fprintf(tw, "TTL:\t%s\n", formatTTL(rg.Status.ScheduledDeleteTime))
+	fmt.Fprintf(tw, "TTL:\t%s\n", formatTTL(rg.Spec, rg.Status.ScheduledDeleteTime))
 	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.DashboardURL)
 	fmt.Fprintf(tw, "Status:\t%s (%s: %s)\n", readiness(rg.Status), rg.Status.Reason, rg.Status.Message)
 
@@ -100,19 +100,22 @@ func getSandboxesStatus(cfg *config.RouteGroupList, status *models.RouteGroupSta
 	return fmt.Sprintf("%d/%d", readyCounter, len(matchedSandboxes)), nil
 }
 
-func formatTTL(deletionTime string) string {
-	if len(deletionTime) == 0 {
+func formatTTL(spec *models.RouteGroupSpec, deletionTime string) string {
+	if spec.TTL == nil {
 		return "- (forever)"
+	}
+
+	if deletionTime == "" && spec.TTL.OffsetFrom == "noMatchedSandboxes" {
+		return fmt.Sprintf("%s after no matching sanboxes", utils.GetTTLTimeAgoFromBase(time.Now(), spec.TTL.Duration))
 	}
 
 	t, err := time.Parse(time.RFC3339, deletionTime)
 	if err != nil {
 		return deletionTime
 	}
-	elapsed := timeago.NoMax(timeago.English).Format(t)
 	local := t.Local().Format(time.RFC1123)
 
-	return fmt.Sprintf("%s (%s ago)", local, elapsed)
+	return fmt.Sprintf("%s (%s)", local, timeago.NoMax(timeago.English).Format(t))
 }
 
 type endpointRow struct {
