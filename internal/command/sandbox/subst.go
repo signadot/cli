@@ -24,16 +24,20 @@ func unstructuredToSandbox(un any) (*models.Sandbox, error) {
 	if err := port2Int(&un); err != nil {
 		return nil, err
 	}
-	d, err := json.Marshal(un)
+	name, spec, err := utils.UnstructuredToNameAndSpec(un)
 	if err != nil {
 		return nil, err
 	}
-	var sb models.Sandbox
-	if err := jsonexact.Unmarshal(d, &sb); err != nil {
+	d, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+	sb := &models.Sandbox{Name: name}
+	if err := jsonexact.Unmarshal(d, &sb.Spec); err != nil {
 		return nil, fmt.Errorf("couldn't parse YAML sandbox definition - %s",
 			strings.TrimPrefix(err.Error(), "json: "))
 	}
-	return &sb, nil
+	return sb, nil
 }
 
 // translates all port values to ints if they are strings.
