@@ -21,7 +21,7 @@ func newProxy(localConfig *config.Local) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "proxy [--sandbox SANDBOX|--routegroup ROUTEGROUP|--cluster CLUSTER] --map <target-protocol>://<target-addr>|<bind-addr> [--map <target-protocol>://<target-addr>|<bind-addr>]",
+		Use:   "proxy [--sandbox SANDBOX|--routegroup ROUTEGROUP|--cluster CLUSTER] --map <target-protocol>://<target-addr>|<bind-addr> [--map <target-protocol>://<target-addr>@<bind-addr>]",
 		Short: "Proxy connections based on the specified mappings",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runProxy(cmd, cmd.OutOrStdout(), cfg, args)
