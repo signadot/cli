@@ -279,7 +279,7 @@ func (pms *proxyMappings) String() string {
 
 // Set appends a new argument  to instance of Nargs
 func (pms *proxyMappings) Set(arg string) error {
-	regex := regexp.MustCompile(`^(.+?)://(.+?)@(.+)$`)
+	regex := regexp.MustCompile(`^(.+?)://(.+?)\@(.+)$`)
 	matches := regex.FindStringSubmatch(arg)
 	if matches == nil || len(matches) != 4 {
 		return fmt.Errorf("invalid format, expected \"<target-protocol>://<target-addr>@<bind-addr>\"")
@@ -302,5 +302,5 @@ func (lp *LocalProxy) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&lp.Sandbox, "sandbox", "s", "", "run the proxy in the context of the specificed sandbox")
 	cmd.Flags().StringVarP(&lp.RouteGroup, "routegroup", "r", "", "run the proxy in the context of the specificed routegroup")
 	cmd.Flags().StringVarP(&lp.Cluster, "cluster", "c", "", "target cluster")
-	cmd.Flags().VarP((*proxyMappings)(&lp.ProxyMappings), "map", "m", "--map <target-protocol>://<target-addr>|<bind-addr>")
+	cmd.Flags().VarP((*proxyMappings)(&lp.ProxyMappings), "map", "m", "--map <target-protocol>://<target-addr>@<bind-addr>")
 }
