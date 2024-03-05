@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/jsonexact"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
 )
@@ -17,13 +18,17 @@ func loadResourcePlugin(file string, tplVals config.TemplateVals, forDelete bool
 }
 
 func unstructuredToResourcePlugin(un any) (*models.ResourcePlugin, error) {
-	d, err := json.Marshal(un)
+	name, spec, err := utils.UnstructuredToNameAndSpec(un)
 	if err != nil {
 		return nil, err
 	}
-	var rp models.ResourcePlugin
-	if err := json.Unmarshal(d, &rp); err != nil {
+	d, err := json.Marshal(spec)
+	if err != nil {
 		return nil, err
 	}
-	return &rp, nil
+	rp := &models.ResourcePlugin{Name: name}
+	if err := jsonexact.Unmarshal(d, &rp.Spec); err != nil {
+		return nil, err
+	}
+	return rp, nil
 }

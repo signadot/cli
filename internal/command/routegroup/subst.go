@@ -20,14 +20,18 @@ func loadRouteGroup(file string, tplVals config.TemplateVals, forDelete bool) (*
 }
 
 func unstructuredToRouteGroup(un any) (*models.RouteGroup, error) {
-	d, err := json.Marshal(un)
+	name, spec, err := utils.UnstructuredToNameAndSpec(un)
 	if err != nil {
 		return nil, err
 	}
-	var rg models.RouteGroup
-	if err := jsonexact.Unmarshal(d, &rg); err != nil {
+	d, err := json.Marshal(spec)
+	if err != nil {
+		return nil, err
+	}
+	rg := &models.RouteGroup{Name: name}
+	if err := jsonexact.Unmarshal(d, &rg.Spec); err != nil {
 		return nil, fmt.Errorf("couldn't parse YAML routegroup definition - %s",
 			strings.TrimPrefix(err.Error(), "json: "))
 	}
-	return &rg, nil
+	return rg, nil
 }
