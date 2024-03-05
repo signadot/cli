@@ -260,7 +260,7 @@ func (pm *ProxyMapping) GetTarget() string {
 }
 
 func (pm *ProxyMapping) String() string {
-	return fmt.Sprintf("%s://%s|%s", pm.TargetProto, pm.TargetAddr, pm.BindAddr)
+	return fmt.Sprintf("%s://%s@%s", pm.TargetProto, pm.TargetAddr, pm.BindAddr)
 }
 
 type proxyMappings []ProxyMapping
@@ -279,10 +279,10 @@ func (pms *proxyMappings) String() string {
 
 // Set appends a new argument  to instance of Nargs
 func (pms *proxyMappings) Set(arg string) error {
-	regex := regexp.MustCompile(`^(.+?)://(.+?)\|(.+)$`)
+	regex := regexp.MustCompile(`^(.+?)://(.+?)@(.+)$`)
 	matches := regex.FindStringSubmatch(arg)
 	if matches == nil || len(matches) != 4 {
-		return fmt.Errorf("invalid format, expected \"<target-protocol>://<target-addr>|<bind-addr>\"")
+		return fmt.Errorf("invalid format, expected \"<target-protocol>://<target-addr>@<bind-addr>\"")
 	}
 
 	*pms = append(*pms, ProxyMapping{
