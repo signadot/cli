@@ -11,6 +11,15 @@ if [ ! -z "${DEBUG}" ];
 then set -x
 fi
 
+if ! command -v jq > /dev/null 2>&1; then
+    echo 'Error: jq is not installed and is required.' >&2
+    exit 1
+fi
+if ! command -v curl > /dev/null 2>&1; then
+    echo 'Error: curl is not installed and is required.' >&2
+    exit 1
+fi
+
 _detect_arch() {
     case $(uname -m) in
     amd64|x86_64) echo "amd64"
@@ -64,7 +73,12 @@ rm signadot-cli.tar.gz
 
 if [ -z "$SIGNADOT_CLI_PATH" ]; then
     cli_path="/usr/local/bin/signadot"
-    sudo mv signadot $cli_path
+    # use sudo if it exists
+    if command -v sudo > /dev/null 2>&1; then
+        sudo mv signadot $cli_path
+    else
+        mv signadot $cli_path
+    fi
 else
     cli_path="${SIGNADOT_CLI_PATH%/}" # remove traling / if present
     cli_path="$cli_path/signadot"
