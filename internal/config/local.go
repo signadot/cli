@@ -121,6 +121,7 @@ type LocalConnect struct {
 
 	// Hidden Flags
 	DumpCIConfig bool
+	PProfAddr    string
 }
 
 func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
@@ -133,6 +134,8 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.DumpCIConfig, "dump-ci-config", false, "dump connect invocation config")
 	cmd.Flags().MarkHidden("dump-ci-config")
 	cmd.Flags().Lookup("wait").NoOptDefVal = ConnectWaitConnect.String()
+	cmd.Flags().StringVar(&c.PProfAddr, "pprof", "", "pprof listen address")
+	cmd.Flags().MarkHidden("pprof")
 }
 
 type ConnectWait int
@@ -206,6 +209,9 @@ type LocalProxy struct {
 	RouteGroup    string
 	Cluster       string
 	ProxyMappings []ProxyMapping
+
+	// Hidden Flags
+	PProfAddr string
 }
 
 func (lp *LocalProxy) Validate() error {
@@ -303,4 +309,6 @@ func (lp *LocalProxy) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&lp.RouteGroup, "routegroup", "r", "", "run the proxy in the context of the specificed routegroup")
 	cmd.Flags().StringVarP(&lp.Cluster, "cluster", "c", "", "target cluster")
 	cmd.Flags().VarP((*proxyMappings)(&lp.ProxyMappings), "map", "m", "--map <target-protocol>://<target-addr>@<bind-addr>")
+	cmd.Flags().StringVar(&lp.PProfAddr, "pprof", "", "pprof listen address")
+	cmd.Flags().MarkHidden("pprof")
 }

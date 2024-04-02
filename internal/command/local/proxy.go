@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/oklog/run"
 	"github.com/signadot/cli/internal/config"
@@ -105,6 +107,10 @@ func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []
 			func() error { ctlPlaneProxy.Run(ctx); return nil },
 			func(error) { ctlPlaneProxy.Close(ctx) },
 		)
+	}
+
+	if cfg.PProfAddr != "" {
+		go http.ListenAndServe(cfg.PProfAddr, nil)
 	}
 
 	switch err := servers.Run().(type) {

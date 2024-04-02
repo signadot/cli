@@ -29,6 +29,7 @@ type LocalDaemon struct {
 
 	// Hidden Flags
 	ConnectInvocationConfigFile string
+	PProfAddr                   string
 }
 
 func (ld *LocalDaemon) InitLocalDaemon() error {
@@ -107,4 +108,6 @@ func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "ci-config-file", "", "by-pass calling signadot local connect (hidden)")
 	cmd.Flags().MarkHidden("ci-config-file")
+	cmd.Flags().StringVar(&c.PProfAddr, "pprof", "", "pprof listen address")
+	cmd.Flags().MarkHidden("pprof")
 }

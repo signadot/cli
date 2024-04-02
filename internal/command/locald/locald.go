@@ -8,12 +8,16 @@ import (
 	"syscall"
 	"time"
 
+	"net/http"
+	_ "net/http/pprof"
+
+	"log/slog"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
-	"log/slog"
 )
 
 func New(apiConfig *config.API) *cobra.Command {
@@ -51,12 +55,17 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		if err != nil {
 			return err
 		}
-		var cmd *exec.Cmd
-		if cfg.RootManager {
-			cmd = exec.Command(binary, "locald", "--root-manager")
-		} else {
-			cmd = exec.Command(binary, "locald", "--sandbox-manager")
+		args := []string{"locald"}
+		if cfg.PProfAddr != "" {
+			args = append(args, "--pprof", cfg.PProfAddr)
 		}
+		if cfg.RootManager {
+			args = append(args, "--root-manager")
+		} else {
+			args = append(args, "--sandbox-manager")
+		}
+		cmd := exec.Command(binary, args...)
+
 		cmd.Env = append(cmd.Env,
 			fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
 			fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
@@ -81,6 +90,10 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	defer func() {
 		os.Remove(pidFile)
 	}()
+
+	if cfg.PProfAddr != "" {
+		go http.ListenAndServe(cfg.PProfAddr, nil)
+	}
 
 	// run the corresponding manager
 	if cfg.RootManager {

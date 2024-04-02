@@ -152,14 +152,17 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 				"- configuring networking to direct local traffic to the cluster\n")
 		}
 		// run the root-manager
-		cmd = exec.Command(
-			"sudo",
+		args := []string{
 			"--preserve-env=SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG",
 			binary,
 			"locald",
 			"--daemon",
 			"--root-manager",
-		)
+		}
+		if localConfig.PProfAddr != "" {
+			args = append(args, "--pprof", localConfig.PProfAddr)
+		}
+		cmd = exec.Command("sudo", args...)
 	} else {
 		// run the sandbox-manager
 		cmd = exec.Command(
