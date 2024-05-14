@@ -4,14 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 
-	oaclient "github.com/go-openapi/runtime/client"
 	"github.com/signadot/cli/internal/buildinfo"
-	"github.com/signadot/cli/internal/hack"
 	"github.com/signadot/go-sdk/client"
-	"github.com/signadot/libconnect/common"
+	"github.com/signadot/go-sdk/transport"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 )
@@ -73,45 +69,30 @@ func (a *API) InitAPIConfig() error {
 }
 
 func (a *API) InitAPITransport(apiKey string) error {
-
-	tc := client.DefaultTransportConfig()
-
 	// Allow API URL to be overridden (e.g. for talking to dev/staging).
 	if apiURL := viper.GetString("api_url"); apiURL != "" {
-		u, err := url.Parse(apiURL)
-		if err != nil {
-			return fmt.Errorf("invalid api_url: %w", err)
-		}
-		tc.Host = u.Host
-		tc.Schemes = []string{u.Scheme}
 		a.APIURL = apiURL
 
 	} else {
 		a.APIURL = "https://api.signadot.com"
 	}
+	// Allow defining a custom URL for artifacts (useful for local development).
+	// Empty means using the API URL from above for accessing artifacts.
+	artifactsAPIURL := viper.GetString("artifacts_api_url")
 
-	// Add auth info to every request.
-	transport := oaclient.New(tc.Host, tc.BasePath, tc.Schemes)
-	transport.DefaultAuthentication = oaclient.APIKeyAuth(common.APIKeyHeader, "header", apiKey)
-	transport.SetDebug(a.Debug)
-
-	// Add User-Agent to every request
-	transport.Transport = &userAgent{
-		inner: transport.Transport,
-		agent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
+	// init API transport
+	transport, err := transport.InitAPITransport(&transport.APIConfig{
+		APIKey:          apiKey,
+		APIURL:          a.APIURL,
+		ArtifactsAPIURL: artifactsAPIURL,
+		UserAgent:       fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
+		Debug:           a.Debug,
+	})
+	if err != nil {
+		return err
 	}
 
-	a.Client = client.New(hack.FixAPIErrors(transport), nil)
-
+	// create an API client
+	a.Client = client.New(transport, nil)
 	return nil
-}
-
-type userAgent struct {
-	inner http.RoundTripper
-	agent string
-}
-
-func (ua *userAgent) RoundTrip(r *http.Request) (*http.Response, error) {
-	r.Header.Set("User-Agent", ua.agent)
-	return ua.inner.RoundTrip(r)
 }
