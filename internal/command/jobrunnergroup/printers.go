@@ -2,10 +2,11 @@ package jobrunnergroup
 
 import (
 	"fmt"
-	"github.com/signadot/cli/internal/utils"
-	"github.com/xeonx/timeago"
 	"io"
 	"time"
+
+	"github.com/signadot/cli/internal/utils"
+	"github.com/xeonx/timeago"
 
 	"text/tabwriter"
 
@@ -56,5 +57,5 @@ func printRunnerGroupDetails(cfg *config.JobRunnerGroup, out io.Writer, rg *mode
 }
 
 func readiness(status *models.RunnergroupsStatus) string {
-	return fmt.Sprintf("%d/%d runners ready", status.Pods.Ready+status.Pods.Idle, status.Pods.Ready+status.Pods.NotReady+status.Pods.Idle)
+	return fmt.Sprintf("%d/%d runners ready", status.Pods.Ready, status.Pods.Ready+status.Pods.NotReady)
 }
