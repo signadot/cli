@@ -2,8 +2,9 @@ package jobrunnergroup
 
 import (
 	"fmt"
-	runnergroups "github.com/signadot/go-sdk/client/runner_groups"
 	"io"
+
+	runnergroups "github.com/signadot/go-sdk/client/runner_groups"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"

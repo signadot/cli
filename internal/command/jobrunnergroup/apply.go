@@ -3,12 +3,13 @@ package jobrunnergroup
 import (
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	runnergroups "github.com/signadot/go-sdk/client/runner_groups"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
-	"io"
 )
 
 func newApply(jobrunnergroup *config.JobRunnerGroup) *cobra.Command {
@@ -28,7 +29,7 @@ func newApply(jobrunnergroup *config.JobRunnerGroup) *cobra.Command {
 	return cmd
 }
 
-func apply(cfg *config.JobRunnerGroupApply, out, log io.Writer, args []string) error {
+func apply(cfg *config.JobRunnerGroupApply, out, log io.Writer, _ []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

@@ -2,10 +2,11 @@ package jobs
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/client/jobs"
 	"github.com/spf13/cobra"
-	"io"
 )
 
 func newCancel(job *config.Job) *cobra.Command {

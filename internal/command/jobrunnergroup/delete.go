@@ -3,10 +3,11 @@ package jobrunnergroup
 import (
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/signadot/cli/internal/config"
 	runnergroups "github.com/signadot/go-sdk/client/runner_groups"
 	"github.com/spf13/cobra"
-	"io"
 )
 
 func newDelete(jobrunnergroup *config.JobRunnerGroup) *cobra.Command {

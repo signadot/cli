@@ -2,11 +2,12 @@ package jobs
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/jobs"
 	"github.com/spf13/cobra"
-	"io"
 )
 
 func newList(job *config.Job) *cobra.Command {

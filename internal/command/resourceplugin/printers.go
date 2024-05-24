@@ -2,12 +2,13 @@ package resourceplugin
 
 import (
 	"fmt"
+	"io"
+	"text/tabwriter"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
-	"io"
-	"text/tabwriter"
 )
 
 type resourcePluginRow struct {

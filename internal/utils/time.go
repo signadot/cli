@@ -2,10 +2,11 @@ package utils
 
 import (
 	"fmt"
-	"github.com/docker/go-units"
-	"github.com/xeonx/timeago"
 	"strconv"
 	"time"
+
+	"github.com/docker/go-units"
+	"github.com/xeonx/timeago"
 )
 
 func FormatTimestamp(in string) string {

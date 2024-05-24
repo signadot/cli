@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/command/bug"
 	"github.com/signadot/cli/internal/command/cluster"

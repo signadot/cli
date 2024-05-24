@@ -2,15 +2,16 @@ package jobs
 
 import (
 	"fmt"
+	"io"
+	"sort"
+	"text/tabwriter"
+	"time"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/go-sdk/client/artifacts"
 	"github.com/signadot/go-sdk/models"
 	"github.com/xeonx/timeago"
-	"io"
-	"sort"
-	"text/tabwriter"
-	"time"
 )
 
 type jobRow struct {

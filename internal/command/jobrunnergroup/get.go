@@ -2,11 +2,12 @@ package jobrunnergroup
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	runnergroups "github.com/signadot/go-sdk/client/runner_groups"
 	"github.com/spf13/cobra"
-	"io"
 )
 
 func newGet(jobrunnergroup *config.JobRunnerGroup) *cobra.Command {
