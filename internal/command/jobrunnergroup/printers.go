@@ -57,5 +57,5 @@ func printRunnerGroupDetails(cfg *config.JobRunnerGroup, out io.Writer, rg *mode
 }
 
 func readiness(status *models.RunnergroupsStatus) string {
-	return fmt.Sprintf("%d/%d runners ready", status.Pods.Ready, status.Pods.Ready+status.Pods.NotReady)
+	return fmt.Sprintf("%d/%d pods ready", status.Pods.Ready, status.Pods.Ready+status.Pods.NotReady)
 }
