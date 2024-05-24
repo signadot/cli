@@ -48,16 +48,12 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) e
 
 		environment := ""
 		routingContext := job.Spec.RoutingContext
-		if routingContext != nil {
-			sandboxName := routingContext.Sandbox
-			routeGroupName := routingContext.Routegroup
-			if len(sandboxName) > 0 {
-				environment = fmt.Sprintf("sandbox=%s", sandboxName)
-			}
-
-			if len(routeGroupName) > 0 {
-				environment += fmt.Sprintf("routegroup=%s", routeGroupName)
-			}
+		switch {
+		case routingContext == nil:
+		case len(routingContext.Sandbox) > 0:
+			environment = fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
+		case len(routingContext.Routegroup) > 0:
+			environment += fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
 		}
 
 		t.AddRow(jobRow{
