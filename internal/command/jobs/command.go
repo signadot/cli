@@ -18,7 +18,7 @@ func New(api *config.API) *cobra.Command {
 		newGet(cfg),
 		newList(cfg),
 		newSubmit(cfg),
-		//newDelete(cfg),
+		newCancel(cfg),
 	)
 
 	return cmd

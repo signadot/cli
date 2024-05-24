@@ -22,18 +22,10 @@ func (c *JobSubmit) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 }
 
-//	type JobRunnerGroupDelete struct {
-//		*JobRunnerGroup
-//
-//		// Flags
-//		Filename     string
-//		TemplateVals TemplateVals
-//	}
-//
-//	func (c *JobRunnerGroupDelete) AddFlags(cmd *cobra.Command) {
-//		cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "optional YAML or JSON file containing the original routegroup creation request")
-//		cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
-//	}
+type JobDelete struct {
+	*Job
+}
+
 type JobGet struct {
 	*Job
 }

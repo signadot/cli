@@ -57,8 +57,6 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) e
 			if len(routeGroupName) > 0 {
 				environment += fmt.Sprintf("routegroup=%s", routeGroupName)
 			}
-		} else {
-			environment = "-"
 		}
 
 		t.AddRow(jobRow{
