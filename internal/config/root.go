@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"strconv"
 
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/spf13/cobra"
@@ -79,4 +80,26 @@ func (c *Root) SandboxDashboardURL(id string) *url.URL {
 	u := *c.DashboardURL
 	u.Path = path.Join(u.Path, "sandbox", "id", id)
 	return &u
+}
+
+func (c *Root) RunnerGroupDashboardUrl(name string) *url.URL {
+	u := *c.DashboardURL
+	u.Path = path.Join(u.Path, "testing", "runner-groups", name)
+	return &u
+}
+
+func (c *Root) JobDashboardUrl(name string) *url.URL {
+	u := *c.DashboardURL
+	u.Path = path.Join(u.Path, "testing", "jobs", name)
+	return &u
+}
+
+func (c *Root) ArtifactDownloadUrl(org, jobName string, attemptID int64, fileName string) *url.URL {
+	u := url.URL{
+		Scheme:   "https",
+		Path:     path.Join("api.staging.signadot.com/api/v2/orgs/", org, "artifacts", "jobs", jobName, "attempts", strconv.FormatInt(attemptID, 10), "objects/download"),
+		RawQuery: "path=" + fileName,
+	}
+	return &u
+	//https://api.staging.signadot.com/api/v2/orgs/signadot/artifacts/jobs/first-job/attempts/first-job-0/objects/download?path=/tmp/test.txt
 }

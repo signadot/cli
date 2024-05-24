@@ -2,10 +2,11 @@ package command
 
 import (
 	"fmt"
-
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/command/bug"
 	"github.com/signadot/cli/internal/command/cluster"
+	"github.com/signadot/cli/internal/command/jobrunnergroup"
+	"github.com/signadot/cli/internal/command/jobs"
 	"github.com/signadot/cli/internal/command/local"
 	"github.com/signadot/cli/internal/command/locald"
 	"github.com/signadot/cli/internal/command/resourceplugin"
@@ -39,6 +40,8 @@ func New() *cobra.Command {
 		local.New(cfg),
 		locald.New(cfg),
 		bug.New(cfg),
+		jobrunnergroup.New(cfg),
+		jobs.New(cfg),
 	)
 
 	return cmd
