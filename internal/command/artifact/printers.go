@@ -1,17 +1,16 @@
-package jobs
+package artifact
 
 import (
 	"fmt"
-	"io"
-	"sort"
-	"text/tabwriter"
-	"time"
-
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/go-sdk/client/artifacts"
 	"github.com/signadot/go-sdk/models"
 	"github.com/xeonx/timeago"
+	"io"
+	"sort"
+	"text/tabwriter"
+	"time"
 )
 
 type jobRow struct {
@@ -22,38 +21,42 @@ type jobRow struct {
 	Status      string `sdtab:"STATUS"`
 }
 
-func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) error {
+func printJobTable(cfg *config.JobList, out io.Writer, artifacts []*models.JobsJob) error {
 	t := sdtab.New[jobRow](out)
 	t.AddHeader()
 
-	sort.Slice(jobs, func(i, j int) bool {
-		if jobs[i].Status.Attempts[0].Phase == "queued" {
+	sort.Slice(artifacts, func(i, j int) bool {
+		if artifacts[i].Status.Attempts[0].Phase == "queued" {
 			return true
 		}
 
-		if jobs[j].Status.Attempts[0].Phase == "queued" {
+		if artifacts[j].Status.Attempts[0].Phase == "queued" {
 			return false
 		}
 
-		t1, err1 := time.Parse(time.RFC3339, jobs[i].CreatedAt)
-		t2, err2 := time.Parse(time.RFC3339, jobs[j].CreatedAt)
+		t1, err1 := time.Parse(time.RFC3339, artifacts[i].CreatedAt)
+		t2, err2 := time.Parse(time.RFC3339, artifacts[j].CreatedAt)
 		if err1 != nil || err2 != nil {
 			return false
 		}
 
 		return t2.Before(t1)
 	})
-	for _, job := range jobs {
+	for _, job := range artifacts {
 		startedAt, duration := getStartedAndDuration(job)
 
 		environment := ""
 		routingContext := job.Spec.RoutingContext
-		switch {
-		case routingContext == nil:
-		case len(routingContext.Sandbox) > 0:
-			environment = fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
-		case len(routingContext.Routegroup) > 0:
-			environment += fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
+		if routingContext != nil {
+			sandboxName := routingContext.Sandbox
+			routeGroupName := routingContext.Routegroup
+			if len(sandboxName) > 0 {
+				environment = fmt.Sprintf("sandbox=%s", sandboxName)
+			}
+
+			if len(routeGroupName) > 0 {
+				environment += fmt.Sprintf("routegroup=%s", routeGroupName)
+			}
 		}
 
 		t.AddRow(jobRow{
@@ -75,6 +78,8 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Spec.NamePrefix)
 	fmt.Fprintf(tw, "Generated Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
+	fmt.Fprintln(tw)
+
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Started At:\t%s\n", startedAt)
 	fmt.Fprintf(tw, "Duration:\t%s\n", duration)
@@ -170,7 +175,7 @@ func printArtifacts(cfg *config.Job, out io.Writer, job *models.JobsJob) error {
 	fmt.Fprintf(out, "\nArtifacts\n")
 
 	if len(artifactsList) == 0 {
-		fmt.Fprintln(out, "No artifacts")
+		fmt.Fprintln(out, "No artifact")
 		return nil
 	}
 

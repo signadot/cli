@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/signadot/cli/internal/buildinfo"
+	"github.com/signadot/cli/internal/command/artifact"
 	"github.com/signadot/cli/internal/command/bug"
 	"github.com/signadot/cli/internal/command/cluster"
 	"github.com/signadot/cli/internal/command/jobrunnergroup"
@@ -43,6 +44,7 @@ func New() *cobra.Command {
 		bug.New(cfg),
 		jobrunnergroup.New(cfg),
 		jobs.New(cfg),
+		artifact.New(cfg),
 	)
 
 	return cmd

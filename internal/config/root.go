@@ -101,5 +101,4 @@ func (c *Root) ArtifactDownloadUrl(org, jobName string, attemptID int64, fileNam
 		RawQuery: "path=" + fileName,
 	}
 	return &u
-	//https://api.staging.signadot.com/api/v2/orgs/signadot/artifacts/jobs/first-job/attempts/first-job-0/objects/download?path=/tmp/test.txt
 }
