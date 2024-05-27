@@ -38,8 +38,10 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/mwitkow/grpc-proxy v0.0.0-20230212185441-f345521cb9c9 // indirect
+	github.com/r3labs/sse/v2 v2.10.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240304212257-790db918fca8 // indirect
+	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	k8s.io/kubectl v0.25.12 // indirect
 )
 

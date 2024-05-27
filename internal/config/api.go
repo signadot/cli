@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
+	"github.com/go-openapi/runtime"
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/transport"
@@ -24,8 +24,8 @@ type API struct {
 	// Runtime values
 	Client *client.SignadotAPI `json:"-"`
 
-	apiKey    string
-	userAgent string
+	ApiKey    string
+	UserAgent string
 }
 
 // for error reporting, we select the config that
@@ -63,7 +63,7 @@ func (a *API) init() error {
 	} else {
 		a.MaskedAPIKey = apiKey[:6] + "..."
 	}
-	a.apiKey = apiKey
+	a.ApiKey = apiKey
 
 	a.Org = viper.GetString("org")
 	if a.Org == "" {
@@ -81,7 +81,7 @@ func (a *API) init() error {
 	// Empty means using the API URL from above for accessing artifacts.
 	a.ArtifactsAPIURL = viper.GetString("artifacts_api_url")
 
-	a.userAgent = fmt.Sprintf("signadot-cli:%s", buildinfo.Version)
+	a.UserAgent = fmt.Sprintf("signadot-cli:%s", buildinfo.Version)
 	return nil
 }
 
@@ -94,15 +94,19 @@ func (a *API) InitAPIConfig() error {
 	return a.InitAPITransport()
 }
 
-func (a *API) InitAPITransport() error {
-	// init API transport
-	t, err := transport.InitAPITransport(&transport.APIConfig{
-		APIKey:          a.apiKey,
+func (a *API) getBaseTransport() *transport.APIConfig {
+	return &transport.APIConfig{
+		APIKey:          a.ApiKey,
 		APIURL:          a.APIURL,
 		ArtifactsAPIURL: a.ArtifactsAPIURL,
-		UserAgent:       a.userAgent,
+		UserAgent:       a.UserAgent,
 		Debug:           a.Debug,
-	})
+	}
+}
+
+func (a *API) InitAPITransport() error {
+	// init API transport
+	t, err := transport.InitAPITransport(a.getBaseTransport())
 	if err != nil {
 		return err
 	}
@@ -112,16 +116,21 @@ func (a *API) InitAPITransport() error {
 	return nil
 }
 
-func (a *API) InitAPIConfigWithCustomTransport(getTransport func(apiKey, apiUrl, artifactsUrl, userAgent string) *transport.APIConfig) error {
+func (a *API) APIClientWithCustomTransport(conf *transport.APIConfig, execute func(client *client.SignadotAPI) error) error {
 	if err := a.init(); err != nil {
 		return nil
 	}
 
-	t, err := transport.InitAPITransport(getTransport(a.apiKey, a.APIURL, a.ArtifactsAPIURL, a.userAgent))
+	t, err := transport.InitAPITransport(conf)
 	if err != nil {
 		return err
 	}
 
-	a.Client = client.New(ts, nil)
-	return nil
+	return execute(client.New(t, nil))
+}
+
+func (a *API) OverrideTransportClientConsumers(consumers map[string]runtime.Consumer) *transport.APIConfig {
+	cfg := a.getBaseTransport()
+	cfg.Consumers = consumers
+	return cfg
 }

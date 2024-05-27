@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"github.com/signadot/cli/internal/command/logs"
 
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/command/artifact"
@@ -45,6 +46,7 @@ func New() *cobra.Command {
 		jobrunnergroup.New(cfg),
 		jobs.New(cfg),
 		artifact.New(cfg),
+		logs.New(cfg),
 	)
 
 	return cmd

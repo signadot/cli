@@ -78,6 +78,7 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Started At:\t%s\n", startedAt)
 	fmt.Fprintf(tw, "Duration:\t%s\n", duration)
+	fmt.Fprintf(tw, "Dashboard URL:\t%s\n", cfg.JobDashboardUrl(job.Name))
 
 	if err := printArtifacts(cfg, tw, job); err != nil {
 		return err
@@ -158,7 +159,7 @@ func getArtifacts(cfg *config.Job, job *models.JobsJob) ([]*models.JobArtifact, 
 
 type jobArtifactRow struct {
 	Name string `sdtab:"NAME"`
-	Url  string `sdtab:"URL"`
+	Size string `sdtab:"SIZE"`
 }
 
 func printArtifacts(cfg *config.Job, out io.Writer, job *models.JobsJob) error {
@@ -176,11 +177,37 @@ func printArtifacts(cfg *config.Job, out io.Writer, job *models.JobsJob) error {
 
 	t := sdtab.New[jobArtifactRow](out)
 	t.AddHeader()
+
+	excludeFiles := map[string]bool{"stderr.index": true, "stdout.index": true}
 	for _, artifact := range artifactsList {
+		name := artifact.Path
+
+		if _, ok := excludeFiles[name]; ok {
+			continue
+		}
+
+		if artifact.Space == "system" {
+			name = "@" + name
+		}
+
 		t.AddRow(jobArtifactRow{
-			Name: artifact.Path,
-			Url:  cfg.ArtifactDownloadUrl(cfg.Org, job.Name, job.Status.Attempts[0].ID, artifact.Path).String(),
+			Name: name,
+			Size: byteCountSI(artifact.Size),
 		})
 	}
 	return t.Flush()
+}
+
+func byteCountSI(b int64) string {
+	const unit = 1000
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB",
+		float64(b)/float64(div), "kMGTPE"[exp])
 }
