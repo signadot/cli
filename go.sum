@@ -320,6 +320,8 @@ github.com/signadot/go-sdk v0.3.8-0.20240524154550-b1a43ad9a2c0 h1:bK8z1qD26+MfE
 github.com/signadot/go-sdk v0.3.8-0.20240524154550-b1a43ad9a2c0/go.mod h1:LBc3zdVqtLQpXo78HN/DrMhf6PBcfyhlg/tVRrDL+sg=
 github.com/signadot/go-sdk v0.3.8-0.20240529180930-5352d0cabf47 h1:av5aTGgRth05JoiRZwua5TPs0o9cD6OUHmhKrg8fN6A=
 github.com/signadot/go-sdk v0.3.8-0.20240529180930-5352d0cabf47/go.mod h1:LBc3zdVqtLQpXo78HN/DrMhf6PBcfyhlg/tVRrDL+sg=
+github.com/signadot/go-sdk v0.3.8-0.20240529233641-955e0237e964 h1:S8mXSuI/JcNTkaoXL2L0HDLGgakKffmMMswmZwrLSmM=
+github.com/signadot/go-sdk v0.3.8-0.20240529233641-955e0237e964/go.mod h1:LBc3zdVqtLQpXo78HN/DrMhf6PBcfyhlg/tVRrDL+sg=
 github.com/signadot/libconnect v0.1.1-0.20240306100356-4c865b888453 h1:omG9Iuz5vO0wNvpX/o1sAu+yuHnjHp6okvV9dDRCcd4=
 github.com/signadot/libconnect v0.1.1-0.20240306100356-4c865b888453/go.mod h1:hS/87oYNXxPg5+sSQuHnQgc8q1xEsBIExnbLEeC46+8=
 github.com/spf13/afero v1.9.5 h1:stMpOSZFs//0Lv29HduCmli3GUfpFoF3Y1Q/aXj/wVM=
