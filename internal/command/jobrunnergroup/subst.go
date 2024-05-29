@@ -11,7 +11,7 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
-func loadRunnerGroup(file string, tplVals config.TemplateVals, forDelete bool) (*models.RunnergroupsRunnerGroup, error) {
+func loadRunnerGroup(file string, tplVals config.TemplateVals, forDelete bool) (*models.JobRunnerGroup, error) {
 	template, err := utils.LoadUnstructuredTemplate(file, tplVals, forDelete)
 	if err != nil {
 		return nil, err
@@ -19,7 +19,7 @@ func loadRunnerGroup(file string, tplVals config.TemplateVals, forDelete bool) (
 	return unstructuredToRunnerGroup(template)
 }
 
-func unstructuredToRunnerGroup(un any) (*models.RunnergroupsRunnerGroup, error) {
+func unstructuredToRunnerGroup(un any) (*models.JobRunnerGroup, error) {
 	name, spec, err := utils.UnstructuredToNameAndSpec(un)
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func unstructuredToRunnerGroup(un any) (*models.RunnergroupsRunnerGroup, error) 
 	if err != nil {
 		return nil, err
 	}
-	rg := &models.RunnergroupsRunnerGroup{Name: name}
+	rg := &models.JobRunnerGroup{Name: name}
 	if err := jsonexact.Unmarshal(d, &rg.Spec); err != nil {
 		return nil, fmt.Errorf("couldn't parse YAML jobrunnergroup definition - %s",
 			strings.TrimPrefix(err.Error(), "json: "))

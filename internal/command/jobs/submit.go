@@ -54,7 +54,7 @@ func submit(cfg *config.JobSubmit, out, log io.Writer, args []string) error {
 	return writeOutput(cfg, out, resp)
 }
 
-func writeOutput(cfg *config.JobSubmit, out io.Writer, resp *models.JobsJob) error {
+func writeOutput(cfg *config.JobSubmit, out io.Writer, resp *models.Job) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the job.

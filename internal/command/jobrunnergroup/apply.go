@@ -56,7 +56,7 @@ func apply(cfg *config.JobRunnerGroupApply, out, log io.Writer, _ []string) erro
 	return writeOutput(cfg, out, resp)
 }
 
-func writeOutput(cfg *config.JobRunnerGroupApply, out io.Writer, resp *models.RunnergroupsRunnerGroup) error {
+func writeOutput(cfg *config.JobRunnerGroupApply, out io.Writer, resp *models.JobRunnerGroup) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		return nil

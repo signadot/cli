@@ -23,7 +23,7 @@ type jobRow struct {
 	Status      string `sdtab:"STATUS"`
 }
 
-func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) error {
+func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error {
 	t := sdtab.New[jobRow](out)
 	t.AddHeader()
 
@@ -68,7 +68,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) e
 	return t.Flush()
 }
 
-func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error {
+func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	createdAt, duration := getCreatedAtAndDuration(job)
@@ -92,7 +92,7 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 	return nil
 }
 
-func getStartedAt(job *models.JobsJob) string {
+func getStartedAt(job *models.Job) string {
 	if len(job.Status.Attempts) == 0 {
 		return ""
 	}
@@ -110,7 +110,7 @@ func getStartedAt(job *models.JobsJob) string {
 	return timeago.NoMax(timeago.English).Format(t)
 }
 
-func getCreatedAtAndDuration(job *models.JobsJob) (createdAtStr string, durationStr string) {
+func getCreatedAtAndDuration(job *models.Job) (createdAtStr string, durationStr string) {
 	var createdAt *time.Time
 
 	if len(job.Status.Attempts) == 0 {
@@ -148,7 +148,7 @@ func getCreatedAtAndDuration(job *models.JobsJob) (createdAtStr string, duration
 	return createdAtStr, durationStr
 }
 
-func getJobEnvironment(job *models.JobsJob) string {
+func getJobEnvironment(job *models.Job) string {
 	routingContext := job.Spec.RoutingContext
 
 	if routingContext == nil {
@@ -162,7 +162,7 @@ func getJobEnvironment(job *models.JobsJob) string {
 	return fmt.Sprintf("%s (ROUTEGROUP)", routingContext.Routegroup)
 }
 
-func getArtifacts(cfg *config.Job, job *models.JobsJob) ([]*models.JobArtifact, error) {
+func getArtifacts(cfg *config.Job, job *models.Job) ([]*models.JobArtifact, error) {
 	params := artifacts.NewListJobAttemptArtifactsParams().
 		WithOrgName(cfg.Org).
 		WithJobAttempt(job.Status.Attempts[0].ID).
@@ -181,7 +181,7 @@ type jobArtifactRow struct {
 	Size string `sdtab:"SIZE"`
 }
 
-func printArtifacts(cfg *config.Job, out io.Writer, job *models.JobsJob) error {
+func printArtifacts(cfg *config.Job, out io.Writer, job *models.Job) error {
 	artifactsList, err := getArtifacts(cfg, job)
 	if err != nil {
 		return err

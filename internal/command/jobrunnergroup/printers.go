@@ -22,7 +22,7 @@ type runnerGroupRow struct {
 	Status  string `sdtab:"STATUS"`
 }
 
-func printRunnerGroupTable(cfg *config.JobRunnerGroupList, out io.Writer, rgs []*models.RunnergroupsRunnerGroup) error {
+func printRunnerGroupTable(cfg *config.JobRunnerGroupList, out io.Writer, rgs []*models.JobRunnerGroup) error {
 	t := sdtab.New[runnerGroupRow](out)
 	t.AddHeader()
 	for _, rg := range rgs {
@@ -41,7 +41,7 @@ func printRunnerGroupTable(cfg *config.JobRunnerGroupList, out io.Writer, rgs []
 	return t.Flush()
 }
 
-func printRunnerGroupDetails(cfg *config.JobRunnerGroup, out io.Writer, rg *models.RunnergroupsRunnerGroup) error {
+func printRunnerGroupDetails(cfg *config.JobRunnerGroup, out io.Writer, rg *models.JobRunnerGroup) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	fmt.Fprintf(tw, "Name:\t%s\n", rg.Name)
@@ -56,6 +56,6 @@ func printRunnerGroupDetails(cfg *config.JobRunnerGroup, out io.Writer, rg *mode
 	return nil
 }
 
-func readiness(status *models.RunnergroupsStatus) string {
+func readiness(status *models.JobRunnerGroupStatus) string {
 	return fmt.Sprintf("%d/%d pods ready", status.Pods.Ready, status.Pods.Ready+status.Pods.NotReady)
 }
