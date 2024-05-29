@@ -44,7 +44,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) e
 		return t2.Before(t1)
 	})
 	for _, job := range jobs {
-		startedAt, duration := getStartedAndDuration(job)
+		createdAt, duration := getCreatedAtAndDuration(job)
 
 		environment := ""
 		routingContext := job.Spec.RoutingContext
@@ -59,7 +59,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) e
 		t.AddRow(jobRow{
 			Name:        job.Name,
 			Environment: environment,
-			StartedAt:   startedAt,
+			StartedAt:   createdAt,
 			Duration:    duration,
 			Status:      job.Status.Phase,
 		})
@@ -70,13 +70,12 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.JobsJob) e
 func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
-	startedAt, duration := getStartedAndDuration(job)
+	createdAt, duration := getCreatedAtAndDuration(job)
 
-	fmt.Fprintf(tw, "Job Prefix:\t%s\n", job.Spec.NamePrefix)
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
-	fmt.Fprintf(tw, "Started At:\t%s\n", startedAt)
+	fmt.Fprintf(tw, "Started At:\t%s\n", createdAt)
 	fmt.Fprintf(tw, "Duration:\t%s\n", duration)
 	fmt.Fprintf(tw, "Dashboard URL:\t%s\n", cfg.JobDashboardUrl(job.Name))
 
@@ -91,7 +90,7 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 	return nil
 }
 
-func getStartedAndDuration(job *models.JobsJob) (createdAtStr string, durationStr string) {
+func getCreatedAtAndDuration(job *models.JobsJob) (createdAtStr string, durationStr string) {
 	var createdAt *time.Time
 
 	if len(job.Status.Attempts) == 0 {
