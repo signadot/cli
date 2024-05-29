@@ -10,7 +10,7 @@ func New(api *config.API) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "artifact",
-		Short: "Inspect and manipulate artifact",
+		Short: "List and download artifacts",
 	}
 
 	// Subcommands
