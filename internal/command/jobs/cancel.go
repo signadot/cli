@@ -40,7 +40,7 @@ func jobCancel(cfg *config.JobDelete, log io.Writer, name string) error {
 		return err
 	}
 
-	fmt.Fprintf(log, "Job canceled %q.\n\n", name)
+	fmt.Fprintf(log, "Job %q canceled.\n\n", name)
 
 	return nil
 }

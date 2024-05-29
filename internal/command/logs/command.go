@@ -71,9 +71,16 @@ func list(cfg *config.Logs, out io.Writer) error {
 			case "error":
 				return errors.New(string(event.Data))
 			case "signal":
-				fmt.Println("Connection closed.")
 
-				return nil
+				switch string(event.Data) {
+				case "EOF":
+					fmt.Println("Connection closed.")
+					return nil
+				case "RESTART":
+					fmt.Println("\n\n-----------")
+				default:
+					return nil
+				}
 			}
 		}
 	}

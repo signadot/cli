@@ -72,8 +72,8 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 
 	startedAt, duration := getStartedAndDuration(job)
 
-	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Spec.NamePrefix)
-	fmt.Fprintf(tw, "Generated Job Name:\t%s\n", job.Name)
+	fmt.Fprintf(tw, "Job Prefix:\t%s\n", job.Spec.NamePrefix)
+	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Started At:\t%s\n", startedAt)
@@ -91,8 +91,8 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 	return nil
 }
 
-func getStartedAndDuration(job *models.JobsJob) (startedAtStr string, durationStr string) {
-	var startedAt *time.Time
+func getStartedAndDuration(job *models.JobsJob) (createdAtStr string, durationStr string) {
+	var createdAt *time.Time
 
 	if len(job.Status.Attempts) == 0 {
 		return "", ""
@@ -104,29 +104,29 @@ func getStartedAndDuration(job *models.JobsJob) (startedAtStr string, durationSt
 		return "", ""
 	}
 
-	startedAtRaw := attempt.CreatedAt
-	if len(startedAtRaw) != 0 {
-		t, err := time.Parse(time.RFC3339, startedAtRaw)
+	createdAtRaw := attempt.CreatedAt
+	if len(createdAtRaw) != 0 {
+		t, err := time.Parse(time.RFC3339, createdAtRaw)
 		if err != nil {
 			return "", ""
 		}
 
-		startedAt = &t
-		startedAtStr = timeago.NoMax(timeago.English).Format(t)
+		createdAt = &t
+		createdAtStr = timeago.NoMax(timeago.English).Format(t)
 	}
 
 	finishedAtRaw := attempt.FinishedAt
-	if startedAt != nil && len(finishedAtRaw) != 0 {
+	if createdAt != nil && len(finishedAtRaw) != 0 {
 		finishedAt, err := time.Parse(time.RFC3339, finishedAtRaw)
 		if err != nil {
 			return "", ""
 		}
 
-		durationTime := finishedAt.Sub(*startedAt)
+		durationTime := finishedAt.Sub(*createdAt)
 		durationStr = durationTime.String()
 	}
 
-	return startedAtStr, durationStr
+	return createdAtStr, durationStr
 }
 
 func getJobEnvironment(job *models.JobsJob) string {
