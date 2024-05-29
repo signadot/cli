@@ -17,6 +17,7 @@ import (
 type jobRow struct {
 	Name        string `sdtab:"NAME"`
 	Environment string `sdtab:"ENVIRONMENT"`
+	CreatedAt   string `sdtab:"CREATED AT"`
 	StartedAt   string `sdtab:"STARTED AT"`
 	Duration    string `sdtab:"DURATION"`
 	Status      string `sdtab:"STATUS"`
@@ -75,7 +76,8 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
-	fmt.Fprintf(tw, "Started At:\t%s\n", createdAt)
+	fmt.Fprintf(tw, "Created At:\t%s\n", createdAt)
+	fmt.Fprintf(tw, "Started At:\t%s\n", getStartedAt(job))
 	fmt.Fprintf(tw, "Duration:\t%s\n", duration)
 	fmt.Fprintf(tw, "Dashboard URL:\t%s\n", cfg.JobDashboardUrl(job.Name))
 
@@ -88,6 +90,24 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.JobsJob) error 
 	}
 
 	return nil
+}
+
+func getStartedAt(job *models.JobsJob) string {
+	if len(job.Status.Attempts) == 0 {
+		return ""
+	}
+
+	startedAt := job.Status.Attempts[0].StartedAt
+	if len(startedAt) == 0 {
+		return ""
+	}
+
+	t, err := time.Parse(time.RFC3339, startedAt)
+	if err != nil {
+		return ""
+	}
+
+	return timeago.NoMax(timeago.English).Format(t)
 }
 
 func getCreatedAtAndDuration(job *models.JobsJob) (createdAtStr string, durationStr string) {
