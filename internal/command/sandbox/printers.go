@@ -2,13 +2,14 @@ package sandbox
 
 import (
 	"fmt"
-	"github.com/docker/go-units"
-	"github.com/signadot/cli/internal/utils"
-	"github.com/xeonx/timeago"
 	"io"
 	"strconv"
 	"text/tabwriter"
 	"time"
+
+	"github.com/docker/go-units"
+	"github.com/signadot/cli/internal/utils"
+	"github.com/xeonx/timeago"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"

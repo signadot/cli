@@ -2,12 +2,13 @@ package routegroup
 
 import (
 	"fmt"
-	"github.com/signadot/cli/internal/utils"
-	"github.com/signadot/go-sdk/client/sandboxes"
-	"github.com/xeonx/timeago"
 	"io"
 	"text/tabwriter"
 	"time"
+
+	"github.com/signadot/cli/internal/utils"
+	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/xeonx/timeago"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
+	"github.com/go-openapi/runtime"
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/transport"
@@ -16,12 +16,16 @@ type API struct {
 	Root
 
 	// Config file values
-	Org          string
-	MaskedAPIKey string
-	APIURL       string
+	Org             string
+	MaskedAPIKey    string
+	APIURL          string
+	ArtifactsAPIURL string
 
 	// Runtime values
 	Client *client.SignadotAPI `json:"-"`
+
+	ApiKey    string
+	UserAgent string
 }
 
 // for error reporting, we select the config that
@@ -52,47 +56,81 @@ func (a *API) marshal(marshaller func(interface{}) ([]byte, error)) ([]byte, err
 	return marshaller(t)
 }
 
-func (a *API) InitAPIConfig() error {
+func (a *API) init() error {
 	apiKey := viper.GetString("api_key")
 	if apiKey == "" {
 		return errors.New("Signadot API key must be specified through either the SIGNADOT_API_KEY env var or the 'api_key' field in ~/.signadot/config.yaml")
 	} else {
 		a.MaskedAPIKey = apiKey[:6] + "..."
 	}
+	a.ApiKey = apiKey
 
 	a.Org = viper.GetString("org")
 	if a.Org == "" {
 		return errors.New("Signadot Org name must be specified through either the SIGNADOT_ORG env var or the 'org' field in ~/.signadot/config.yaml")
 	}
 
-	return a.InitAPITransport(apiKey)
-}
-
-func (a *API) InitAPITransport(apiKey string) error {
-	// Allow API URL to be overridden (e.g. for talking to dev/staging).
 	if apiURL := viper.GetString("api_url"); apiURL != "" {
 		a.APIURL = apiURL
 
 	} else {
 		a.APIURL = "https://api.signadot.com"
 	}
+
 	// Allow defining a custom URL for artifacts (useful for local development).
 	// Empty means using the API URL from above for accessing artifacts.
-	artifactsAPIURL := viper.GetString("artifacts_api_url")
+	a.ArtifactsAPIURL = viper.GetString("artifacts_api_url")
 
-	// init API transport
-	transport, err := transport.InitAPITransport(&transport.APIConfig{
-		APIKey:          apiKey,
+	a.UserAgent = fmt.Sprintf("signadot-cli:%s", buildinfo.Version)
+	return nil
+}
+
+func (a *API) InitAPIConfig() error {
+
+	if err := a.init(); err != nil {
+		return err
+	}
+
+	return a.InitAPITransport()
+}
+
+func (a *API) getBaseTransport() *transport.APIConfig {
+	return &transport.APIConfig{
+		APIKey:          a.ApiKey,
 		APIURL:          a.APIURL,
-		ArtifactsAPIURL: artifactsAPIURL,
-		UserAgent:       fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
+		ArtifactsAPIURL: a.ArtifactsAPIURL,
+		UserAgent:       a.UserAgent,
 		Debug:           a.Debug,
-	})
+	}
+}
+
+func (a *API) InitAPITransport() error {
+	// init API transport
+	t, err := transport.InitAPITransport(a.getBaseTransport())
 	if err != nil {
 		return err
 	}
 
 	// create an API client
-	a.Client = client.New(transport, nil)
+	a.Client = client.New(t, nil)
 	return nil
+}
+
+func (a *API) APIClientWithCustomTransport(conf *transport.APIConfig, execute func(client *client.SignadotAPI) error) error {
+	if err := a.init(); err != nil {
+		return nil
+	}
+
+	t, err := transport.InitAPITransport(conf)
+	if err != nil {
+		return err
+	}
+
+	return execute(client.New(t, nil))
+}
+
+func (a *API) OverrideTransportClientConsumers(consumers map[string]runtime.Consumer) *transport.APIConfig {
+	cfg := a.getBaseTransport()
+	cfg.Consumers = consumers
+	return cfg
 }

@@ -7,12 +7,13 @@
 package sandboxmanager
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	api "github.com/signadot/cli/internal/locald/api"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (

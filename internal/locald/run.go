@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"os"
 
+	"log/slog"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald/rootmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
-	"log/slog"
 )
 
 func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {

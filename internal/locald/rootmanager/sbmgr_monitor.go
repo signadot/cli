@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"log/slog"
+
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/libconnect/common/processes"
-	"log/slog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

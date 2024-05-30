@@ -2,12 +2,11 @@ package config
 
 import (
 	"fmt"
-	"net/url"
-	"path"
-
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"net/url"
+	"path"
 )
 
 type Root struct {
@@ -78,5 +77,17 @@ func (c *Root) init() error {
 func (c *Root) SandboxDashboardURL(id string) *url.URL {
 	u := *c.DashboardURL
 	u.Path = path.Join(u.Path, "sandbox", "id", id)
+	return &u
+}
+
+func (c *Root) RunnerGroupDashboardUrl(name string) *url.URL {
+	u := *c.DashboardURL
+	u.Path = path.Join(u.Path, "testing", "runner-groups", name)
+	return &u
+}
+
+func (c *Root) JobDashboardUrl(name string) *url.URL {
+	u := *c.DashboardURL
+	u.Path = path.Join(u.Path, "testing", "jobs", name)
 	return &u
 }
