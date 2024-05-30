@@ -96,8 +96,15 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Created At:\t%s\n", getCreatedAt(job))
-	fmt.Fprintf(tw, "Started At:\t%s\n", createdAt)
-	fmt.Fprintf(tw, "Duration:\t%s\n", duration)
+
+	if len(createdAt) != 0 {
+		fmt.Fprintf(tw, "Started At:\t%s\n", createdAt)
+	}
+
+	if len(duration) != 0 {
+		fmt.Fprintf(tw, "Duration:\t%s\n", duration)
+	}
+
 	fmt.Fprintf(tw, "Dashboard URL:\t%s\n", cfg.JobDashboardUrl(job.Name))
 
 	if err := printArtifacts(cfg, tw, job); err != nil {
