@@ -38,5 +38,5 @@ type JobList struct {
 }
 
 func (c *JobList) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&c.ShowAll, "show-all", "", false, "List all jobs")
+	cmd.Flags().BoolVarP(&c.ShowAll, "all", "", false, "List all jobs")
 }
