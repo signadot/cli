@@ -49,7 +49,7 @@ func submit(cfg *config.JobSubmit, out, log io.Writer, args []string) error {
 	}
 	resp := result.Payload
 
-	fmt.Fprintf(log, "Job submitted as %q on Job Runner Group: %s", resp.Name, resp.Spec.RunnerGroup)
+	fmt.Fprintf(log, "Job %s queued on Job Runner Group: %s\n", resp.Name, resp.Spec.RunnerGroup)
 
 	return writeOutput(cfg, out, resp)
 }
