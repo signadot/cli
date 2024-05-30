@@ -22,6 +22,8 @@ func newList(job *config.Job) *cobra.Command {
 		},
 	}
 
+	cfg.AddFlags(cmd)
+
 	return cmd
 }
 

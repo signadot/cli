@@ -14,6 +14,8 @@ import (
 	"github.com/xeonx/timeago"
 )
 
+const MaxJobListing = 20
+
 type jobRow struct {
 	Name        string `sdtab:"NAME"`
 	Environment string `sdtab:"ENVIRONMENT"`
@@ -44,7 +46,22 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 
 		return t2.Before(t1)
 	})
+
+	counter := 0
 	for _, job := range jobs {
+		if counter == MaxJobListing {
+			break
+		}
+
+		switch {
+		case cfg.ShowCompleted:
+		case !cfg.ShowCompleted && job.Status.Phase != "completed":
+		default:
+			continue
+		}
+
+		counter += 1
+
 		createdAt, duration := getCreatedAtAndDuration(job)
 
 		environment := ""
@@ -63,6 +80,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 			StartedAt:   createdAt,
 			Duration:    duration,
 			Status:      job.Status.Phase,
+			CreatedAt:   getCreatedAt(job),
 		})
 	}
 	return t.Flush()
@@ -76,8 +94,8 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
-	fmt.Fprintf(tw, "Created At:\t%s\n", createdAt)
-	fmt.Fprintf(tw, "Started At:\t%s\n", getStartedAt(job))
+	fmt.Fprintf(tw, "Created At:\t%s\n", getCreatedAt(job))
+	fmt.Fprintf(tw, "Started At:\t%s\n", createdAt)
 	fmt.Fprintf(tw, "Duration:\t%s\n", duration)
 	fmt.Fprintf(tw, "Dashboard URL:\t%s\n", cfg.JobDashboardUrl(job.Name))
 
@@ -92,17 +110,17 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	return nil
 }
 
-func getStartedAt(job *models.Job) string {
+func getCreatedAt(job *models.Job) string {
 	if len(job.Status.Attempts) == 0 {
 		return ""
 	}
 
-	startedAt := job.Status.Attempts[0].StartedAt
-	if len(startedAt) == 0 {
+	createdAt := job.Status.Attempts[0].CreatedAt
+	if len(createdAt) == 0 {
 		return ""
 	}
 
-	t, err := time.Parse(time.RFC3339, startedAt)
+	t, err := time.Parse(time.RFC3339, createdAt)
 	if err != nil {
 		return ""
 	}

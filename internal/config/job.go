@@ -32,4 +32,11 @@ type JobGet struct {
 
 type JobList struct {
 	*Job
+
+	// Flags
+	ShowCompleted bool
+}
+
+func (c *JobList) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&c.ShowCompleted, "show-completed", "", false, "List also jobs with completed status")
 }
