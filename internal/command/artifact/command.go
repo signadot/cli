@@ -15,7 +15,7 @@ func New(api *config.API) *cobra.Command {
 
 	// Subcommands
 	cmd.AddCommand(
-		newGet(cfg),
+		newDownload(cfg),
 	)
 
 	return cmd

@@ -74,7 +74,7 @@ func list(cfg *config.Logs, out io.Writer) error {
 
 				switch string(event.Data) {
 				case "EOF":
-					fmt.Println("Connection closed.")
+					fmt.Println()
 					return nil
 				case "RESTART":
 					fmt.Println("\n\n-----------")

@@ -2,13 +2,11 @@ package config
 
 import (
 	"fmt"
-	"net/url"
-	"path"
-	"strconv"
-
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"net/url"
+	"path"
 )
 
 type Root struct {
@@ -91,14 +89,5 @@ func (c *Root) RunnerGroupDashboardUrl(name string) *url.URL {
 func (c *Root) JobDashboardUrl(name string) *url.URL {
 	u := *c.DashboardURL
 	u.Path = path.Join(u.Path, "testing", "jobs", name)
-	return &u
-}
-
-func (c *Root) ArtifactDownloadUrl(org, jobName string, attemptID int64, fileName string) *url.URL {
-	u := url.URL{
-		Scheme:   "https",
-		Path:     path.Join("api.staging.signadot.com/api/v2/orgs/", org, "artifacts", "jobs", jobName, "attempts", strconv.FormatInt(attemptID, 10), "objects/download"),
-		RawQuery: "path=" + fileName,
-	}
 	return &u
 }

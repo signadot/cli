@@ -9,18 +9,19 @@ import (
 	"github.com/spf13/cobra"
 	"io"
 	"os"
+	"path"
 	"strings"
 )
 
-func newGet(artifact *config.Artifact) *cobra.Command {
+func newDownload(artifact *config.Artifact) *cobra.Command {
 	cfg := &config.ArtifactDownload{Artifact: artifact}
 
 	cmd := &cobra.Command{
-		Use:   "get NAME",
-		Short: "Get job",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "download PATH",
+		Short: "Download job",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return get(cfg, cmd.OutOrStdout(), args[0])
+			return download(cfg, cmd.OutOrStdout(), args[0])
 		},
 	}
 
@@ -29,12 +30,13 @@ func newGet(artifact *config.Artifact) *cobra.Command {
 	return cmd
 }
 
-func get(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) error {
+func download(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
 
-	f, err := os.Create(cfg.OutputFile)
+	outputFilename := getOutputFilename(cfg, artifactPath)
+	f, err := os.Create(outputFilename)
 	if err != nil {
 		return err
 	}
@@ -65,7 +67,7 @@ func get(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) error
 				return err
 			}
 
-			fmt.Fprintf(out, "File saved successfully at %s\n", cfg.OutputFile)
+			fmt.Fprintf(out, "File saved successfully at %s\n", outputFilename)
 
 			return nil
 		})
@@ -75,4 +77,12 @@ func get(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) error
 	}
 
 	return nil
+}
+
+func getOutputFilename(cfg *config.ArtifactDownload, artifactPath string) string {
+	if len(cfg.OutputFile) != 0 {
+		return cfg.OutputFile
+	}
+
+	return path.Base(artifactPath)
 }

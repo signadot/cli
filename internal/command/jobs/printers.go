@@ -54,15 +54,15 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 		}
 
 		switch {
-		case cfg.ShowCompleted:
-		case !cfg.ShowCompleted && job.Status.Phase != "completed":
+		case cfg.ShowAll:
+		case !cfg.ShowAll && job.Status.Phase != "completed" && job.Status.Phase != "canceled":
 		default:
 			continue
 		}
 
 		counter += 1
 
-		createdAt, duration := getCreatedAtAndDuration(job)
+		createdAt, duration := getAttemptCreatedAtAndDuration(job)
 
 		environment := ""
 		routingContext := job.Spec.RoutingContext
@@ -89,9 +89,10 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
-	createdAt, duration := getCreatedAtAndDuration(job)
+	createdAt, duration := getAttemptCreatedAtAndDuration(job)
 
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
+	fmt.Fprintf(tw, "Job Runner Group:\t%s\n", job.Spec.RunnerGroup)
 	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Created At:\t%s\n", getCreatedAt(job))
@@ -111,11 +112,7 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 }
 
 func getCreatedAt(job *models.Job) string {
-	if len(job.Status.Attempts) == 0 {
-		return ""
-	}
-
-	createdAt := job.Status.Attempts[0].CreatedAt
+	createdAt := job.CreatedAt
 	if len(createdAt) == 0 {
 		return ""
 	}
@@ -128,7 +125,7 @@ func getCreatedAt(job *models.Job) string {
 	return timeago.NoMax(timeago.English).Format(t)
 }
 
-func getCreatedAtAndDuration(job *models.Job) (createdAtStr string, durationStr string) {
+func getAttemptCreatedAtAndDuration(job *models.Job) (createdAtStr string, durationStr string) {
 	var createdAt *time.Time
 
 	if len(job.Status.Attempts) == 0 {
@@ -195,7 +192,7 @@ func getArtifacts(cfg *config.Job, job *models.Job) ([]*models.JobArtifact, erro
 }
 
 type jobArtifactRow struct {
-	Name string `sdtab:"NAME"`
+	Path string `sdtab:"PATH"`
 	Size string `sdtab:"SIZE"`
 }
 
@@ -217,18 +214,18 @@ func printArtifacts(cfg *config.Job, out io.Writer, job *models.Job) error {
 
 	excludeFiles := map[string]bool{"stderr.index": true, "stdout.index": true}
 	for _, artifact := range artifactsList {
-		name := artifact.Path
+		path := artifact.Path
 
-		if _, ok := excludeFiles[name]; ok {
+		if _, ok := excludeFiles[path]; ok {
 			continue
 		}
 
 		if artifact.Space == "system" {
-			name = "@" + name
+			path = "@" + path
 		}
 
 		t.AddRow(jobArtifactRow{
-			Name: name,
+			Path: path,
 			Size: byteCountSI(artifact.Size),
 		})
 	}

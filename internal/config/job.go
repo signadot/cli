@@ -34,9 +34,9 @@ type JobList struct {
 	*Job
 
 	// Flags
-	ShowCompleted bool
+	ShowAll bool
 }
 
 func (c *JobList) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&c.ShowCompleted, "show-completed", "", false, "List also jobs with completed status")
+	cmd.Flags().BoolVarP(&c.ShowAll, "show-all", "", false, "List all jobs")
 }
