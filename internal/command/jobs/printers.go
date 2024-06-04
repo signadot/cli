@@ -166,6 +166,7 @@ func getJobEnvironment(job *models.Job) string {
 	routingContext := job.Spec.RoutingContext
 
 	switch {
+	case routingContext == nil:
 	case len(routingContext.Sandbox) > 0:
 		return fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
 	case len(routingContext.Routegroup) > 0:
