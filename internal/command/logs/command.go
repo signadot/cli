@@ -58,7 +58,6 @@ func list(cfg *config.Logs, out io.Writer) error {
 			type Log struct {
 				Message string `json:"message"`
 			}
-			fmt.Printf("\tgot event %s\n", event.Event)
 
 			switch string(event.Event) {
 			case "message":
