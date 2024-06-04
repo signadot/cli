@@ -4,13 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/url"
+
 	"github.com/r3labs/sse/v2"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
-	"io"
-	"net/url"
-	"path"
-	"strings"
 )
 
 func New(api *config.API) *cobra.Command {
@@ -34,12 +33,12 @@ func list(cfg *config.Logs, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-
-	u := url.URL{
-		Scheme:   "https",
-		Path:     path.Join(strings.TrimPrefix(cfg.APIURL, "https://"), "api/v2/orgs", cfg.Org, "/jobs", cfg.Job, "/attempts/0/logs/stream"),
-		RawQuery: "type=" + cfg.Stream,
+	u, err := url.Parse(cfg.APIURL)
+	if err != nil {
+		return err
 	}
+	u.Path = "/api/v2/orgs/" + cfg.Org + "/jobs/" + cfg.Job + "/attempts/0/logs/stream"
+	u.RawQuery = "type=" + cfg.Stream
 
 	events := make(chan *sse.Event)
 
@@ -48,7 +47,7 @@ func list(cfg *config.Logs, out io.Writer) error {
 		"Signadot-Api-Key": cfg.ApiKey,
 	}
 
-	err := client.SubscribeChan("", events)
+	err = client.SubscribeChan("", events)
 	if err != nil {
 		return err
 	}
@@ -59,6 +58,7 @@ func list(cfg *config.Logs, out io.Writer) error {
 			type Log struct {
 				Message string `json:"message"`
 			}
+			fmt.Printf("\tgot event %s\n", event.Event)
 
 			switch string(event.Event) {
 			case "message":
