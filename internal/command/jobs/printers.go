@@ -64,15 +64,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 
 		createdAt, duration := getAttemptCreatedAtAndDuration(job)
 
-		environment := ""
-		routingContext := job.Spec.RoutingContext
-		switch {
-		case routingContext == nil:
-		case len(routingContext.Sandbox) > 0:
-			environment = fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
-		case len(routingContext.Routegroup) > 0:
-			environment += fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
-		}
+		environment := getJobEnvironment(job)
 
 		t.AddRow(jobRow{
 			Name:        job.Name,
@@ -173,15 +165,14 @@ func getAttemptCreatedAtAndDuration(job *models.Job) (createdAtStr string, durat
 func getJobEnvironment(job *models.Job) string {
 	routingContext := job.Spec.RoutingContext
 
-	if routingContext == nil {
-		return "BASELINE"
+	switch {
+	case len(routingContext.Sandbox) > 0:
+		return fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
+	case len(routingContext.Routegroup) > 0:
+		return fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
 	}
 
-	if len(routingContext.Sandbox) > 0 {
-		return fmt.Sprintf("%s (SANDBOX)", routingContext.Sandbox)
-	}
-
-	return fmt.Sprintf("%s (ROUTEGROUP)", routingContext.Routegroup)
+	return ""
 }
 
 func getArtifacts(cfg *config.Job, job *models.Job) ([]*models.JobArtifact, error) {
