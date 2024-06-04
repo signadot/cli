@@ -2,15 +2,16 @@ package artifact
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path"
+	"strings"
+
 	"github.com/go-openapi/runtime"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/client/artifacts"
 	"github.com/spf13/cobra"
-	"io"
-	"os"
-	"path"
-	"strings"
 )
 
 func newDownload(artifact *config.Artifact) *cobra.Command {
@@ -18,7 +19,7 @@ func newDownload(artifact *config.Artifact) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "download PATH",
-		Short: "Download job",
+		Short: "Download job artifacts",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return download(cfg, cmd.OutOrStdout(), args[0])
