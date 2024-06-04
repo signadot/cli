@@ -173,7 +173,7 @@ func getJobEnvironment(job *models.Job) string {
 		return fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
 	}
 
-	return ""
+	return "baseline"
 }
 
 func getArtifacts(cfg *config.Job, job *models.Job) ([]*models.JobArtifact, error) {
