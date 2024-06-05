@@ -2,6 +2,8 @@ package jobs
 
 import (
 	"fmt"
+	"github.com/signadot/cli/internal/command/logs"
+	"github.com/signadot/go-sdk/client/jobs"
 	"io"
 	"sort"
 	"text/tabwriter"
@@ -78,7 +80,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 	return t.Flush()
 }
 
-func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
+func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	createdAt, duration := getAttemptCreatedAtAndDuration(job)
@@ -108,6 +110,59 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	}
 
 	return nil
+}
+
+func waitForJob(cfg *config.JobSubmit, out io.Writer, jobName string) error {
+
+	fmt.Fprintf(out, "Waiting for job execution\n")
+
+	looped := false
+
+	for {
+		j, err := getJob(cfg.Job, jobName)
+		if err != nil {
+			return err
+		}
+
+		switch j.Status.Phase {
+		case "completed":
+			fmt.Fprintf(out, "\n%s\n", j.Status.Attempts[0].State)
+
+			return nil
+		case "queued":
+			if looped {
+				fmt.Fprintf(out, "\033[1A\033[K")
+			}
+
+			fmt.Fprintf(out, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
+		case "running":
+			if looped {
+				fmt.Fprintf(out, "\033[1A\033[K")
+			}
+
+			logsCmd := logs.New(cfg.API)
+			logsCmd.SetArgs([]string{"--job=" + jobName, "--stream=" + cfg.Attach})
+			if err := logsCmd.Execute(); err != nil {
+				return err
+			}
+		case "canceled":
+			fmt.Fprintf(out, "Stopping cause job execution was canceled\n")
+			return nil
+		}
+
+		looped = true
+	}
+
+}
+
+func getJob(cfg *config.Job, jobName string) (*models.Job, error) {
+	params := jobs.NewGetJobParams().WithOrgName(cfg.Org).WithJobName(jobName)
+	resp, err := cfg.Client.Jobs.GetJob(params, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Payload, nil
 }
 
 func getCreatedAt(job *models.Job) string {
@@ -176,7 +231,7 @@ func getJobEnvironment(job *models.Job) string {
 	return "baseline"
 }
 
-func getArtifacts(cfg *config.Job, job *models.Job) ([]*models.JobArtifact, error) {
+func getArtifacts(cfg *config.JobGet, job *models.Job) ([]*models.JobArtifact, error) {
 	params := artifacts.NewListJobAttemptArtifactsParams().
 		WithOrgName(cfg.Org).
 		WithJobAttempt(job.Status.Attempts[0].ID).
@@ -195,7 +250,7 @@ type jobArtifactRow struct {
 	Size string `sdtab:"SIZE"`
 }
 
-func printArtifacts(cfg *config.Job, out io.Writer, job *models.Job) error {
+func printArtifacts(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	artifactsList, err := getArtifacts(cfg, job)
 	if err != nil {
 		return err

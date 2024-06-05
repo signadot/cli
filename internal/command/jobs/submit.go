@@ -20,6 +20,10 @@ func newSubmit(job *config.Job) *cobra.Command {
 		Short: "Create or update a job with variable expansion",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if !cfg.ValidateAttachFlag(cmd) {
+				return fmt.Errorf("value not valid for --attach")
+			}
+
 			return submit(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
@@ -59,6 +63,13 @@ func writeOutput(cfg *config.JobSubmit, out io.Writer, resp *models.Job) error {
 	case config.OutputFormatDefault:
 		// Print info on how to access the job.
 		fmt.Fprintf(out, "\nDashboard page: %v\n\n", cfg.JobDashboardUrl(resp.Name))
+
+		switch cfg.Attach {
+		case "stdout", "stderr":
+			if err := waitForJob(cfg, out, resp.Name); err != nil {
+				return err
+			}
+		}
 
 		return nil
 	case config.OutputFormatJSON:
