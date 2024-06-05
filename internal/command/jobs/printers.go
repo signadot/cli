@@ -5,6 +5,7 @@ import (
 	"github.com/signadot/cli/internal/command/logs"
 	"github.com/signadot/go-sdk/client/jobs"
 	"io"
+	"os"
 	"sort"
 	"text/tabwriter"
 	"time"
@@ -126,7 +127,7 @@ func waitForJob(cfg *config.JobSubmit, out io.Writer, jobName string) error {
 
 		switch j.Status.Phase {
 		case "completed":
-			fmt.Fprintf(out, "\n%s\n", j.Status.Attempts[0].State)
+			os.Exit(int(j.Status.Attempts[0].State.Completed.ExitCode))
 
 			return nil
 		case "queued":
