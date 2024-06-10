@@ -81,7 +81,6 @@ func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
 			case "signal":
 				switch string(event.Data) {
 				case "EOF":
-					out.Write([]byte("\n"))
 					return nil
 				case "RESTART":
 					out.Write([]byte("\n\n--------------------------------------------------"))
