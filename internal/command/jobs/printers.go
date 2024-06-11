@@ -52,11 +52,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 		if counter == MaxJobListing {
 			break
 		}
-
-		switch {
-		case cfg.ShowAll:
-		case !cfg.ShowAll && job.Status.Phase != "completed" && job.Status.Phase != "canceled":
-		default:
+		if !cfg.ShowAll && !isJobPhaseToPrintDefault(job.Status.Phase) {
 			continue
 		}
 
@@ -76,6 +72,19 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 		})
 	}
 	return t.Flush()
+}
+
+func isJobPhaseToPrintDefault(ph string) bool {
+	if ph == "failed" {
+		return false
+	}
+	if ph == "succeeded" {
+		return false
+	}
+	if ph == "canceled" {
+		return false
+	}
+	return true
 }
 
 func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {

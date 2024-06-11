@@ -14,7 +14,7 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
 	github.com/r3labs/sse/v2 v2.10.0
-	github.com/signadot/go-sdk v0.3.8-0.20240529233641-955e0237e964
+	github.com/signadot/go-sdk v0.3.8-0.20240611074325-23ac6a6fc7a6
 	github.com/signadot/libconnect v0.1.1-0.20240306100356-4c865b888453
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
@@ -119,5 +119,4 @@ require (
 
 // Used for local dev
 // replace github.com/signadot/libconnect => ../libconnect/
-
-//replace github.com/signadot/go-sdk => ../go-sdk
+// replace github.com/signadot/go-sdk => ../go-sdk
