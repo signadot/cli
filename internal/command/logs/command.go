@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net/url"
-	"strconv"
 
-	"github.com/r3labs/sse/v2"
+	"github.com/go-openapi/runtime"
+	"github.com/jclem/sseparser"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/go-sdk/client"
+	"github.com/signadot/go-sdk/client/job_logs"
 	"github.com/spf13/cobra"
 )
 
@@ -26,71 +27,101 @@ func New(api *config.API) *cobra.Command {
 	}
 
 	cfg.AddFlags(cmd)
-
 	return cmd
 }
 
-type log struct {
+type event struct {
+	Event string `sse:"event"`
+	Data  string `sse:"data"`
+}
+
+type message struct {
 	Message string `json:"message"`
+	Cursor  string `json:"cursor"`
 }
 
 func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	u, err := url.Parse(cfg.APIURL)
-	if err != nil {
-		return err
-	}
-	u.Path = "/api/v2/orgs/" + cfg.Org + "/jobs/" + cfg.Job + "/attempts/0/logs/stream"
-	u.RawQuery = "type=" + cfg.Stream
+
+	params := job_logs.
+		NewStreamJobAttemptLogsParams().
+		WithContext(ctx).
+		WithTimeout(0).
+		WithOrgName(cfg.Org).
+		WithJobName(cfg.Job).
+		WithJobAttempt(0).
+		WithType(&cfg.Stream)
+
 	if cfg.TailLines > 0 {
-		u.RawQuery += "&tailLines=" + strconv.FormatUint(uint64(cfg.TailLines), 10)
+		taillines := int64(cfg.TailLines)
+		params.WithTailLines(&taillines)
 	}
 
-	events := make(chan *sse.Event)
+	// create a pipe for consuming the SSE stream
+	reader, writer := io.Pipe()
 
-	client := sse.NewClient(u.String())
-	client.Headers = map[string]string{
-		"Signadot-Api-Key": cfg.ApiKey,
-	}
+	return cfg.APIClientWithCustomTransport(
+		cfg.OverrideTransportClientConsumers(map[string]runtime.Consumer{
+			"text/event-stream": runtime.ByteStreamConsumer(),
+		}),
+		func(c *client.SignadotAPI) error {
+			errch := make(chan error)
 
-	err = client.SubscribeChan("", events)
-	if err != nil {
-		return err
-	}
+			go func() {
+				// parse the SSE stream
+				err := parseSSEStream(reader, out)
+				reader.Close()
+				errch <- err
+			}()
 
+			go func() {
+				// read the SSE stream
+				_, err := c.JobLogs.StreamJobAttemptLogs(params, nil, writer)
+				writer.Close()
+				errch <- err
+			}()
+
+			return errors.Join(<-errch, <-errch)
+		})
+}
+
+func parseSSEStream(reader io.Reader, out io.Writer) error {
+	scanner := sseparser.NewStreamScanner(reader)
 	for {
-		select {
-		case event, ok := <-events:
-			if !ok {
+		// Then, we call `UnmarshalNext`, and log each completion chunk, until we
+		// encounter an error or reach the end of the stream.
+		var e event
+		_, err := scanner.UnmarshalNext(&e)
+		if err != nil {
+			if errors.Is(err, sseparser.ErrStreamEOF) {
+				err = nil
+			}
+			return err
+		}
+
+		switch e.Event {
+		case "message":
+			var m message
+			err = json.Unmarshal([]byte(e.Data), &m)
+			if err != nil {
+				return err
+			}
+			if m.Message == "" {
+				continue
+			}
+			out.Write([]byte(m.Message))
+		case "error":
+			return errors.New(string(e.Data))
+		case "signal":
+			switch e.Data {
+			case "EOF":
 				return nil
+			case "RESTART":
+				out.Write([]byte("\n\n-------------------------------------------------------------------------------\n"))
+				out.Write([]byte("WARNING: The job execution has been restarted...\n\n"))
 			}
-
-			switch string(event.Event) {
-			case "message":
-				var log log
-				if err := json.Unmarshal(event.Data, &log); err != nil {
-					return err
-				}
-				out.Write([]byte(log.Message))
-
-			case "error":
-				return errors.New(string(event.Data))
-
-			case "signal":
-				switch string(event.Data) {
-				case "EOF":
-					return nil
-				case "RESTART":
-					out.Write([]byte("\n\n--------------------------------------------------"))
-				default:
-					return nil
-				}
-			}
-
-		case <-ctx.Done():
-			return nil
 		}
 	}
 }
