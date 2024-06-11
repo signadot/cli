@@ -62,10 +62,13 @@ func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
 	// create a pipe for consuming the SSE stream
 	reader, writer := io.Pipe()
 
-	return cfg.APIClientWithCustomTransport(
-		cfg.OverrideTransportClientConsumers(map[string]runtime.Consumer{
-			"text/event-stream": runtime.ByteStreamConsumer(),
-		}),
+	// create a custom transport to treat text/event-stream as a byte stream
+	transportCfg := cfg.GetBaseTransport()
+	transportCfg.Consumers = map[string]runtime.Consumer{
+		"text/event-stream": runtime.ByteStreamConsumer(),
+	}
+
+	return cfg.APIClientWithCustomTransport(transportCfg,
 		func(c *client.SignadotAPI) error {
 			errch := make(chan error)
 
