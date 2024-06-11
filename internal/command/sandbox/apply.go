@@ -144,7 +144,10 @@ func waitForReady(cfg *config.SandboxApply, out io.Writer, sb *models.Sandbox) (
 	spin := spinner.Start(out, "Sandbox status")
 	defer spin.Stop()
 
-	err := poll.Until(cfg.WaitTimeout, func() bool {
+	retry := poll.
+		NewPoll().
+		WithTimeout(cfg.WaitTimeout)
+	err := retry.Until(func() bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.

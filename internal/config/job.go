@@ -2,6 +2,7 @@ package config
 
 import (
 	"github.com/spf13/cobra"
+	"time"
 )
 
 type Job struct {
@@ -14,6 +15,7 @@ type JobSubmit struct {
 	// Flags
 	Filename     string
 	Attach       string
+	WaitTimeout  time.Duration
 	TemplateVals TemplateVals
 }
 
@@ -23,6 +25,8 @@ func (c *JobSubmit) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 
 	cmd.Flags().StringVarP(&c.Attach, "attach", "", "", "Waits until the job runs exits. Accept stdout or stderr as param")
+
+	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout when waiting any retry or connection fails")
 
 	cmd.Flags().Lookup("attach").NoOptDefVal = "stdout"
 }

@@ -3,6 +3,7 @@ package jobs
 import (
 	"fmt"
 	"github.com/signadot/cli/internal/command/logs"
+	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/go-sdk/client/jobs"
 	"io"
 	"os"
@@ -18,6 +19,7 @@ import (
 )
 
 const MaxJobListing = 20
+const TimeBetweenJobRefresh = 10 * time.Second
 
 type jobRow struct {
 	Name        string `sdtab:"NAME"`
@@ -119,17 +121,23 @@ func waitForJob(cfg *config.JobSubmit, out io.Writer, jobName string) error {
 
 	looped := false
 
-	for {
+	retry := poll.
+		NewPoll().
+		WithDelay(TimeBetweenJobRefresh).
+		WithTimeout(cfg.WaitTimeout)
+
+	err := retry.UntilWithError(func() (bool, error) {
 		j, err := getJob(cfg.Job, jobName)
 		if err != nil {
-			return err
+			// We want to keep retrying if the timeout has been exceeded
+			return false, nil
 		}
 
 		switch j.Status.Phase {
 		case "completed":
 			os.Exit(int(j.Status.Attempts[0].State.Completed.ExitCode))
 
-			return nil
+			return true, nil
 		case "queued":
 			if looped {
 				fmt.Fprintf(out, "\033[1A\033[K")
@@ -144,16 +152,19 @@ func waitForJob(cfg *config.JobSubmit, out io.Writer, jobName string) error {
 			logsCmd := logs.New(cfg.API)
 			logsCmd.SetArgs([]string{"--job=" + jobName, "--stream=" + cfg.Attach})
 			if err := logsCmd.Execute(); err != nil {
-				return err
+				return false, err
 			}
 		case "canceled":
 			fmt.Fprintf(out, "Stopping cause job execution was canceled\n")
-			return nil
+			return true, nil
 		}
 
 		looped = true
-	}
 
+		return false, nil
+	})
+
+	return err
 }
 
 func getJob(cfg *config.Job, jobName string) (*models.Job, error) {

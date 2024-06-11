@@ -90,7 +90,11 @@ func waitForDeleted(cfg *config.RouteGroupDelete, log io.Writer, routegroupName 
 	spin := spinner.Start(log, "RouteGroup status")
 	defer spin.Stop()
 
-	err := poll.Until(cfg.WaitTimeout, func() bool {
+	retry := poll.
+		NewPoll().
+		WithTimeout(cfg.WaitTimeout)
+
+	err := retry.Until(func() bool {
 		result, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.

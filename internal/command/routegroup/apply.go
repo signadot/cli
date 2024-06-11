@@ -101,7 +101,11 @@ func waitForReady(cfg *config.RouteGroupApply, out io.Writer, rg *models.RouteGr
 	spin := spinner.Start(out, "Route group status")
 	defer spin.Stop()
 
-	err := poll.Until(cfg.WaitTimeout, func() bool {
+	retry := poll.
+		NewPoll().
+		WithTimeout(cfg.WaitTimeout)
+
+	err := retry.Until(func() bool {
 		result, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.
