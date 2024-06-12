@@ -1,11 +1,13 @@
 package artifact
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/go-openapi/runtime"
 	"github.com/signadot/cli/internal/config"
@@ -22,7 +24,7 @@ func newDownload(artifact *config.Artifact) *cobra.Command {
 		Short: "Download job artifacts",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return download(cfg, cmd.OutOrStdout(), args[0])
+			return download(cmd.Context(), cfg, cmd.OutOrStdout(), args[0])
 		},
 	}
 
@@ -31,7 +33,7 @@ func newDownload(artifact *config.Artifact) *cobra.Command {
 	return cmd
 }
 
-func download(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) error {
+func download(ctx context.Context, cfg *config.ArtifactDownload, out io.Writer, artifactPath string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -42,9 +44,7 @@ func download(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) 
 		return err
 	}
 
-	/*
-		If path starts with @ means is system based, otherwise user
-	*/
+	// If path starts with @ means is system based, otherwise user
 	space := "user"
 	if strings.HasPrefix(artifactPath, "@") {
 		space = "system"
@@ -53,15 +53,22 @@ func download(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) 
 
 	params := artifacts.
 		NewDownloadJobAttemptArtifactParams().
+		WithContext(ctx).
+		WithTimeout(4 * time.Minute).
 		WithOrgName(cfg.Org).
 		WithJobName(cfg.Job).
 		WithJobAttempt(0).
 		WithPath(artifactPath).
 		WithSpace(&space)
 
-	err = cfg.APIClientWithCustomTransport(cfg.OverrideTransportClientConsumers(map[string]runtime.Consumer{
-		runtime.TextMime: runtime.ByteStreamConsumer(),
-	}),
+	// create a custom transport to treat everything as a byte stream
+	transportCfg := cfg.GetBaseTransport()
+	transportCfg.OverrideConsumers = true
+	transportCfg.Consumers = map[string]runtime.Consumer{
+		"*/*": runtime.ByteStreamConsumer(),
+	}
+
+	return cfg.APIClientWithCustomTransport(transportCfg,
 		func(c *client.SignadotAPI) error {
 			_, _, err = c.Artifacts.DownloadJobAttemptArtifact(params, nil, f)
 			if err != nil {
@@ -69,15 +76,8 @@ func download(cfg *config.ArtifactDownload, out io.Writer, artifactPath string) 
 			}
 
 			fmt.Fprintf(out, "File saved successfully at %s\n", outputFilename)
-
 			return nil
 		})
-
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func getOutputFilename(cfg *config.ArtifactDownload, artifactPath string) string {

@@ -57,11 +57,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 		if counter == MaxJobListing {
 			break
 		}
-
-		switch {
-		case cfg.ShowAll:
-		case !cfg.ShowAll && job.Status.Phase != "completed" && job.Status.Phase != "canceled":
-		default:
+		if !cfg.ShowAll && !isJobPhaseToPrintDefault(job.Status.Attempts[0].Phase) {
 			continue
 		}
 
@@ -76,21 +72,35 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 			Environment: environment,
 			StartedAt:   createdAt,
 			Duration:    duration,
-			Status:      job.Status.Phase,
+			Status:      job.Status.Attempts[0].Phase,
 			CreatedAt:   getCreatedAt(job),
 		})
 	}
 	return t.Flush()
 }
 
-func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
+
+func isJobPhaseToPrintDefault(ph string) bool {
+	if ph == "failed" {
+		return false
+	}
+	if ph == "succeeded" {
+		return false
+	}
+	if ph == "canceled" {
+		return false
+	}
+	return true
+}
+
+func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	createdAt, duration := getAttemptCreatedAtAndDuration(job)
 
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Job Runner Group:\t%s\n", job.Spec.RunnerGroup)
-	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
+	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Attempts[0].Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Created At:\t%s\n", getCreatedAt(job))
 
