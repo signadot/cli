@@ -52,7 +52,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 		if counter == MaxJobListing {
 			break
 		}
-		if !cfg.ShowAll && !isJobPhaseToPrintDefault(job.Status.Phase) {
+		if !cfg.ShowAll && !isJobPhaseToPrintDefault(job.Status.Attempts[0].Phase) {
 			continue
 		}
 
@@ -67,7 +67,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 			Environment: environment,
 			StartedAt:   createdAt,
 			Duration:    duration,
-			Status:      job.Status.Phase,
+			Status:      job.Status.Attempts[0].Phase,
 			CreatedAt:   getCreatedAt(job),
 		})
 	}
@@ -94,7 +94,7 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Job Runner Group:\t%s\n", job.Spec.RunnerGroup)
-	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Phase)
+	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Attempts[0].Phase)
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Created At:\t%s\n", getCreatedAt(job))
 
