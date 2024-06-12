@@ -75,6 +75,9 @@ func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
 			go func() {
 				// parse the SSE stream
 				err := parseSSEStream(reader, out)
+				if errors.Is(err, io.ErrClosedPipe) {
+					err = nil // ignore ErrClosedPipe error
+				}
 				reader.Close()
 				errch <- err
 			}()
@@ -82,6 +85,9 @@ func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
 			go func() {
 				// read the SSE stream
 				_, err := c.JobLogs.StreamJobAttemptLogs(params, nil, writer)
+				if errors.Is(err, io.ErrClosedPipe) {
+					err = nil // ignore ErrClosedPipe error
+				}
 				writer.Close()
 				errch <- err
 			}()
