@@ -1,6 +1,8 @@
 module github.com/signadot/cli
 
-go 1.21
+go 1.21.0
+
+toolchain go1.21.3
 
 require (
 	github.com/Masterminds/semver v1.5.0
@@ -10,11 +12,11 @@ require (
 	github.com/goccy/go-yaml v1.10.0
 	github.com/golang/protobuf v1.5.4
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/jclem/sseparser v0.5.0
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/r3labs/sse/v2 v2.10.0
-	github.com/signadot/go-sdk v0.3.8-0.20240611155903-828a6f4c3c91
+	github.com/signadot/go-sdk v0.3.8-0.20240612174838-f3123693033c
 	github.com/signadot/libconnect v0.1.1-0.20240306100356-4c865b888453
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/viper v1.11.0
@@ -39,9 +41,9 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.2.0 // indirect
 	github.com/mwitkow/grpc-proxy v0.0.0-20230212185441-f345521cb9c9 // indirect
+	github.com/prataprc/goparsec v0.0.0-20211219142520-daac0e635e7e // indirect
 	golang.org/x/sync v0.7.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240304212257-790db918fca8 // indirect
-	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	k8s.io/kubectl v0.25.12 // indirect
 )
 
