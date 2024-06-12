@@ -54,7 +54,7 @@ func download(ctx context.Context, cfg *config.ArtifactDownload, out io.Writer, 
 	params := artifacts.
 		NewDownloadJobAttemptArtifactParams().
 		WithContext(ctx).
-		WithTimeout(2 * time.Minute).
+		WithTimeout(4 * time.Minute).
 		WithOrgName(cfg.Org).
 		WithJobName(cfg.Job).
 		WithJobAttempt(0).
