@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/go-openapi/runtime"
+
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/transport"
@@ -86,7 +86,6 @@ func (a *API) init() error {
 }
 
 func (a *API) InitAPIConfig() error {
-
 	if err := a.init(); err != nil {
 		return err
 	}
@@ -94,7 +93,7 @@ func (a *API) InitAPIConfig() error {
 	return a.InitAPITransport()
 }
 
-func (a *API) getBaseTransport() *transport.APIConfig {
+func (a *API) GetBaseTransport() *transport.APIConfig {
 	return &transport.APIConfig{
 		APIKey:          a.ApiKey,
 		APIURL:          a.APIURL,
@@ -106,7 +105,7 @@ func (a *API) getBaseTransport() *transport.APIConfig {
 
 func (a *API) InitAPITransport() error {
 	// init API transport
-	t, err := transport.InitAPITransport(a.getBaseTransport())
+	t, err := transport.InitAPITransport(a.GetBaseTransport())
 	if err != nil {
 		return err
 	}
@@ -116,21 +115,15 @@ func (a *API) InitAPITransport() error {
 	return nil
 }
 
-func (a *API) APIClientWithCustomTransport(conf *transport.APIConfig, execute func(client *client.SignadotAPI) error) error {
+func (a *API) APIClientWithCustomTransport(conf *transport.APIConfig,
+	execute func(client *client.SignadotAPI) error) error {
 	if err := a.init(); err != nil {
-		return nil
+		return err
 	}
 
 	t, err := transport.InitAPITransport(conf)
 	if err != nil {
 		return err
 	}
-
 	return execute(client.New(t, nil))
-}
-
-func (a *API) OverrideTransportClientConsumers(consumers map[string]runtime.Consumer) *transport.APIConfig {
-	cfg := a.getBaseTransport()
-	cfg.Consumers = consumers
-	return cfg
 }
