@@ -1,15 +1,15 @@
 package jobs
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"io"
-
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/jobs"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
+	"io"
 )
 
 func newSubmit(job *config.Job) *cobra.Command {
@@ -24,7 +24,7 @@ func newSubmit(job *config.Job) *cobra.Command {
 				return fmt.Errorf("value not valid for --attach")
 			}
 
-			return submit(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return submit(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 
@@ -33,7 +33,7 @@ func newSubmit(job *config.Job) *cobra.Command {
 	return cmd
 }
 
-func submit(cfg *config.JobSubmit, out, log io.Writer, args []string) error {
+func submit(ctx context.Context, cfg *config.JobSubmit, out, log io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -55,10 +55,10 @@ func submit(cfg *config.JobSubmit, out, log io.Writer, args []string) error {
 
 	fmt.Fprintf(log, "Job %s queued on Job Runner Group: %s\n", resp.Name, resp.Spec.RunnerGroup)
 
-	return writeOutput(cfg, out, resp)
+	return writeOutput(ctx, cfg, out, resp)
 }
 
-func writeOutput(cfg *config.JobSubmit, out io.Writer, resp *models.Job) error {
+func writeOutput(ctx context.Context, cfg *config.JobSubmit, out io.Writer, resp *models.Job) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the job.
@@ -66,7 +66,7 @@ func writeOutput(cfg *config.JobSubmit, out io.Writer, resp *models.Job) error {
 
 		switch cfg.Attach {
 		case "stdout", "stderr":
-			if err := waitForJob(cfg, out, resp.Name); err != nil {
+			if err := waitForJob(ctx, cfg, out, resp.Name); err != nil {
 				return err
 			}
 		}

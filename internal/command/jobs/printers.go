@@ -5,6 +5,7 @@ import (
 	"github.com/signadot/cli/internal/command/logs"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/go-sdk/client/jobs"
+	"golang.org/x/net/context"
 	"io"
 	"os"
 	"sort"
@@ -79,7 +80,6 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 	return t.Flush()
 }
 
-
 func isJobPhaseToPrintDefault(ph string) bool {
 	if ph == "failed" {
 		return false
@@ -93,7 +93,7 @@ func isJobPhaseToPrintDefault(ph string) bool {
 	return true
 }
 
-func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
+func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	createdAt, duration := getAttemptCreatedAtAndDuration(job)
@@ -125,7 +125,7 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	return nil
 }
 
-func waitForJob(cfg *config.JobSubmit, out io.Writer, jobName string) error {
+func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobName string) error {
 
 	fmt.Fprintf(out, "Waiting for job execution\n")
 
@@ -136,18 +136,28 @@ func waitForJob(cfg *config.JobSubmit, out io.Writer, jobName string) error {
 		WithDelay(TimeBetweenJobRefresh).
 		WithTimeout(cfg.WaitTimeout)
 
-	err := retry.UntilWithError(func() (bool, error) {
+	lastCursor := ""
+
+	err := retry.Until(func() bool {
 		j, err := getJob(cfg.Job, jobName)
 		if err != nil {
-			// We want to keep retrying if the timeout has been exceeded
-			return false, nil
+			fmt.Fprintf(out, "Error getting job: %s", err.Error())
+
+			// We want to keep retrying if the timeout has not been exceeded
+			return false
 		}
 
-		switch j.Status.Phase {
-		case "completed":
-			os.Exit(int(j.Status.Attempts[0].State.Completed.ExitCode))
+		attempt := j.Status.Attempts[0]
+		switch attempt.Phase {
+		case "failed":
+			os.Exit(int(attempt.State.Failed.ExitCode))
 
-			return true, nil
+			return true
+
+		case "succeeded":
+			os.Exit(int(attempt.State.Succeeded.ExitCode))
+
+			return true
 		case "queued":
 			if looped {
 				fmt.Fprintf(out, "\033[1A\033[K")
@@ -159,19 +169,20 @@ func waitForJob(cfg *config.JobSubmit, out io.Writer, jobName string) error {
 				fmt.Fprintf(out, "\033[1A\033[K")
 			}
 
-			logsCmd := logs.New(cfg.API)
-			logsCmd.SetArgs([]string{"--job=" + jobName, "--stream=" + cfg.Attach})
-			if err := logsCmd.Execute(); err != nil {
-				return false, err
+			lastCursor, err = logs.ShowLogs(ctx, cfg.API, out, jobName, cfg.Attach, lastCursor, 0)
+
+			if err != nil {
+				fmt.Fprintf(out, "Error getting logs: %s", err.Error())
 			}
+
 		case "canceled":
 			fmt.Fprintf(out, "Stopping cause job execution was canceled\n")
-			return true, nil
+			return true
 		}
 
 		looped = true
 
-		return false, nil
+		return false
 	})
 
 	return err
