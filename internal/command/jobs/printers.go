@@ -134,7 +134,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 	retry := poll.
 		NewPoll().
 		WithDelay(TimeBetweenJobRefresh).
-		WithTimeout(cfg.WaitTimeout)
+		WithTimeout(cfg.Timeout)
 
 	lastCursor := ""
 

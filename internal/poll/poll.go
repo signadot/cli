@@ -43,7 +43,7 @@ func (p *Poll) UntilWithError(fn func() (bool, error)) error {
 	start := time.Now()
 
 	for {
-		if time.Since(start) >= p.timeout {
+		if p.timeout > 0 && time.Since(start) >= p.timeout {
 			return fmt.Errorf("timed out after %v", p.timeout)
 		}
 

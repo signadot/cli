@@ -15,7 +15,7 @@ type JobSubmit struct {
 	// Flags
 	Filename     string
 	Attach       string
-	WaitTimeout  time.Duration
+	Timeout      time.Duration
 	TemplateVals TemplateVals
 }
 
@@ -26,7 +26,7 @@ func (c *JobSubmit) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVarP(&c.Attach, "attach", "", "", "Waits until the job runs exits. Accept stdout or stderr as param")
 
-	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout when waiting any retry or connection fails")
+	cmd.Flags().DurationVar(&c.Timeout, "timeout", 0, "Timeout when waiting any retry or connection fails. If timeout is 0, will wait for completion or cancellation")
 
 	cmd.Flags().Lookup("attach").NoOptDefVal = "stdout"
 }
