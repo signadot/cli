@@ -24,9 +24,9 @@ func (c *JobSubmit) AddFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("filename")
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 
-	cmd.Flags().StringVarP(&c.Attach, "attach", "", "", "Waits until the job runs exits. Accept stdout or stderr as param")
+	cmd.Flags().StringVarP(&c.Attach, "attach", "", "", "waits until the job is completed, displaying the selected stream (accepted values: stdout or stderr)")
 
-	cmd.Flags().DurationVar(&c.Timeout, "timeout", 0, "Timeout when waiting any retry or connection fails. If timeout is 0, will wait for completion or cancellation")
+	cmd.Flags().DurationVar(&c.Timeout, "timeout", 0, "timeout when waiting for the job to be started, if 0 is specified, no timeout will be applied and the command will wait until completion or cancellation of the job (default 0)")
 
 	cmd.Flags().Lookup("attach").NoOptDefVal = "stdout"
 }
