@@ -91,7 +91,11 @@ func waitForDeleted(cfg *config.SandboxDelete, log io.Writer, sandboxName string
 	spin := spinner.Start(log, "Sandbox status")
 	defer spin.Stop()
 
-	err := poll.Until(cfg.WaitTimeout, func() bool {
+	retry := poll.
+		NewPoll().
+		WithTimeout(cfg.WaitTimeout)
+
+	err := retry.Until(func() bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.

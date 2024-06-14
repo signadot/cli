@@ -22,7 +22,8 @@ func New(api *config.API) *cobra.Command {
 		Short: "Display job logs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return display(cmd.Context(), cfg, cmd.OutOrStdout())
+			_, err := ShowLogs(cmd.Context(), cfg.API, cmd.OutOrStdout(), cfg.Job, cfg.Stream, "", int(cfg.TailLines))
+			return err
 		},
 	}
 
@@ -40,23 +41,23 @@ type message struct {
 	Cursor  string `json:"cursor"`
 }
 
-func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
-	if err := cfg.InitAPIConfig(); err != nil {
-		return err
-	}
-
+func ShowLogs(ctx context.Context, cfg *config.API, out io.Writer, jobName, stream, cursor string, tailLines int) (string, error) {
 	params := job_logs.
 		NewStreamJobAttemptLogsParams().
 		WithContext(ctx).
 		WithTimeout(0).
 		WithOrgName(cfg.Org).
-		WithJobName(cfg.Job).
+		WithJobName(jobName).
 		WithJobAttempt(0).
-		WithType(&cfg.Stream)
+		WithType(&stream)
 
-	if cfg.TailLines > 0 {
-		taillines := int64(cfg.TailLines)
+	if tailLines > 0 {
+		taillines := int64(tailLines)
 		params.WithTailLines(&taillines)
+	}
+
+	if cursor != "" {
+		params.WithCursor(&cursor)
 	}
 
 	// create a pipe for consuming the SSE stream
@@ -68,13 +69,16 @@ func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
 		"text/event-stream": runtime.ByteStreamConsumer(),
 	}
 
-	return cfg.APIClientWithCustomTransport(transportCfg,
+	var lastCursor string
+
+	err := cfg.APIClientWithCustomTransport(transportCfg,
 		func(c *client.SignadotAPI) error {
+			var err error
 			errch := make(chan error)
 
 			go func() {
 				// parse the SSE stream
-				err := parseSSEStream(reader, out)
+				lastCursor, err = parseSSEStream(reader, out)
 				if errors.Is(err, io.ErrClosedPipe) {
 					err = nil // ignore ErrClosedPipe error
 				}
@@ -94,10 +98,14 @@ func display(ctx context.Context, cfg *config.Logs, out io.Writer) error {
 
 			return errors.Join(<-errch, <-errch)
 		})
+
+	return lastCursor, err
 }
 
-func parseSSEStream(reader io.Reader, out io.Writer) error {
+func parseSSEStream(reader io.Reader, out io.Writer) (string, error) {
 	scanner := sseparser.NewStreamScanner(reader)
+	var lastCursor string
+
 	for {
 		// Then, we call `UnmarshalNext`, and log each completion chunk, until we
 		// encounter an error or reach the end of the stream.
@@ -107,7 +115,7 @@ func parseSSEStream(reader io.Reader, out io.Writer) error {
 			if errors.Is(err, sseparser.ErrStreamEOF) {
 				err = nil
 			}
-			return err
+			return lastCursor, err
 		}
 
 		switch e.Event {
@@ -115,18 +123,20 @@ func parseSSEStream(reader io.Reader, out io.Writer) error {
 			var m message
 			err = json.Unmarshal([]byte(e.Data), &m)
 			if err != nil {
-				return err
+				return lastCursor, err
 			}
 			if m.Message == "" {
 				continue
 			}
 			out.Write([]byte(m.Message))
+
+			lastCursor = m.Cursor
 		case "error":
-			return errors.New(string(e.Data))
+			return lastCursor, errors.New(string(e.Data))
 		case "signal":
 			switch e.Data {
 			case "EOF":
-				return nil
+				return lastCursor, nil
 			case "RESTART":
 				out.Write([]byte("\n\n-------------------------------------------------------------------------------\n"))
 				out.Write([]byte("WARNING: The job execution has been restarted...\n\n"))

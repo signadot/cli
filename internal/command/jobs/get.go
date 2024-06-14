@@ -6,7 +6,6 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/go-sdk/client/jobs"
 	"github.com/spf13/cobra"
 )
 
@@ -29,19 +28,18 @@ func get(cfg *config.JobGet, out io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	params := jobs.NewGetJobParams().WithOrgName(cfg.Org).WithJobName(name)
-	resp, err := cfg.Client.Jobs.GetJob(params, nil)
+	job, err := getJob(cfg.Job, name)
 	if err != nil {
 		return err
 	}
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printJobDetails(cfg.Job, out, resp.Payload)
+		return printJobDetails(cfg, out, job)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, resp.Payload)
+		return print.RawJSON(out, job)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, resp.Payload)
+		return print.RawYAML(out, job)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}

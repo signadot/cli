@@ -2,7 +2,12 @@ package jobs
 
 import (
 	"fmt"
+	"github.com/signadot/cli/internal/command/logs"
+	"github.com/signadot/cli/internal/poll"
+	"github.com/signadot/go-sdk/client/jobs"
+	"golang.org/x/net/context"
 	"io"
+	"os"
 	"sort"
 	"text/tabwriter"
 	"time"
@@ -15,6 +20,7 @@ import (
 )
 
 const MaxJobListing = 20
+const MaxTimeBetweenRefresh = 10 * time.Second
 
 type jobRow struct {
 	Name        string `sdtab:"NAME"`
@@ -74,20 +80,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 	return t.Flush()
 }
 
-func isJobPhaseToPrintDefault(ph string) bool {
-	if ph == "failed" {
-		return false
-	}
-	if ph == "succeeded" {
-		return false
-	}
-	if ph == "canceled" {
-		return false
-	}
-	return true
-}
-
-func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
+func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	createdAt, duration := getAttemptCreatedAtAndDuration(job)
@@ -119,6 +112,110 @@ func printJobDetails(cfg *config.Job, out io.Writer, job *models.Job) error {
 	return nil
 }
 
+func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobName string) error {
+
+	fmt.Fprintf(out, "Waiting for job execution\n")
+
+	looped := false
+
+	delayTime := 2 * time.Second
+
+	retry := poll.
+		NewPoll().
+		WithDelay(delayTime).
+		WithTimeout(cfg.Timeout)
+
+	lastCursor := ""
+
+	err := retry.Until(func() bool {
+		j, err := getJob(cfg.Job, jobName)
+		if err != nil {
+			fmt.Fprintf(out, "Error getting job: %s", err.Error())
+
+			// We want to keep retrying if the timeout has not been exceeded
+			return false
+		}
+
+		// Increases the time, so if the queue is empty will be likely to start seeing the logs right away without
+		// any bigger delay
+		if delayTime < MaxTimeBetweenRefresh {
+			delayTime = (1 * time.Second) + delayTime
+			retry.WithDelay(delayTime)
+		}
+
+		attempt := j.Status.Attempts[0]
+		switch attempt.Phase {
+		case "succeed":
+			return true
+		case "failed":
+			handleFailedJobPhase(out, j)
+			return true
+		case "queued":
+			if looped {
+				fmt.Fprintf(out, "\033[1A\033[K")
+			}
+
+			fmt.Fprintf(out, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
+			return false
+		case "running":
+			if looped {
+				fmt.Fprintf(out, "\033[1A\033[K")
+			}
+
+			newCursor, err := logs.ShowLogs(ctx, cfg.API, out, jobName, cfg.Attach, lastCursor, 0)
+			if err != nil {
+				fmt.Fprintf(out, "Error getting logs: %s\n", err.Error())
+			} else {
+				lastCursor = newCursor
+			}
+
+			if j, err = getJob(cfg.Job, jobName); err == nil {
+				switch j.Status.Attempts[0].Phase {
+				case "failed":
+					handleFailedJobPhase(out, j)
+					return true
+				case "succeeded":
+					return true
+				}
+			}
+
+		case "canceled":
+			fmt.Fprintf(out, "Stopping cause job execution was canceled\n")
+			return true
+		}
+
+		looped = true
+
+		return false
+	})
+
+	return err
+}
+
+func handleFailedJobPhase(out io.Writer, job *models.Job) {
+	failedStatus := job.Status.Attempts[0].State.Failed
+	if failedStatus.Message != "" {
+		fmt.Fprintf(out, "Error: %s\n", failedStatus.Message)
+	}
+
+	exitCode := 1
+	if failedStatus.ExitCode != nil && *failedStatus.ExitCode != 0 {
+		exitCode = int(*failedStatus.ExitCode)
+	}
+
+	os.Exit(exitCode)
+}
+
+func getJob(cfg *config.Job, jobName string) (*models.Job, error) {
+	params := jobs.NewGetJobParams().WithOrgName(cfg.Org).WithJobName(jobName)
+	resp, err := cfg.Client.Jobs.GetJob(params, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Payload, nil
+}
+
 func getCreatedAt(job *models.Job) string {
 	createdAt := job.CreatedAt
 	if len(createdAt) == 0 {
@@ -133,59 +230,7 @@ func getCreatedAt(job *models.Job) string {
 	return timeago.NoMax(timeago.English).Format(t)
 }
 
-func getAttemptCreatedAtAndDuration(job *models.Job) (createdAtStr string, durationStr string) {
-	var createdAt *time.Time
-
-	if len(job.Status.Attempts) == 0 {
-		return "", ""
-	}
-
-	attempt := job.Status.Attempts[0]
-
-	if attempt.Phase == "queued" {
-		return "", ""
-	}
-
-	createdAtRaw := attempt.CreatedAt
-	if len(createdAtRaw) != 0 {
-		t, err := time.Parse(time.RFC3339, createdAtRaw)
-		if err != nil {
-			return "", ""
-		}
-
-		createdAt = &t
-		createdAtStr = timeago.NoMax(timeago.English).Format(t)
-	}
-
-	finishedAtRaw := attempt.FinishedAt
-	if createdAt != nil && len(finishedAtRaw) != 0 {
-		finishedAt, err := time.Parse(time.RFC3339, finishedAtRaw)
-		if err != nil {
-			return "", ""
-		}
-
-		durationTime := finishedAt.Sub(*createdAt)
-		durationStr = durationTime.String()
-	}
-
-	return createdAtStr, durationStr
-}
-
-func getJobEnvironment(job *models.Job) string {
-	routingContext := job.Spec.RoutingContext
-
-	switch {
-	case routingContext == nil:
-	case len(routingContext.Sandbox) > 0:
-		return fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
-	case len(routingContext.Routegroup) > 0:
-		return fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
-	}
-
-	return "baseline"
-}
-
-func getArtifacts(cfg *config.Job, job *models.Job) ([]*models.JobArtifact, error) {
+func getArtifacts(cfg *config.JobGet, job *models.Job) ([]*models.JobArtifact, error) {
 	params := artifacts.NewListJobAttemptArtifactsParams().
 		WithOrgName(cfg.Org).
 		WithJobAttempt(job.Status.Attempts[0].ID).
@@ -204,7 +249,7 @@ type jobArtifactRow struct {
 	Size string `sdtab:"SIZE"`
 }
 
-func printArtifacts(cfg *config.Job, out io.Writer, job *models.Job) error {
+func printArtifacts(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	artifactsList, err := getArtifacts(cfg, job)
 	if err != nil {
 		return err
@@ -238,18 +283,4 @@ func printArtifacts(cfg *config.Job, out io.Writer, job *models.Job) error {
 		})
 	}
 	return t.Flush()
-}
-
-func byteCountSI(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
