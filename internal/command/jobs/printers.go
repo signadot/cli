@@ -199,7 +199,7 @@ func handleFailedJobPhase(out io.Writer, job *models.Job) {
 	}
 
 	exitCode := 1
-	if failedStatus.ExitCode != nil {
+	if failedStatus.ExitCode != nil && *failedStatus.ExitCode != 0 {
 		exitCode = int(*failedStatus.ExitCode)
 	}
 
