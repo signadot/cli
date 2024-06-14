@@ -169,10 +169,11 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 				fmt.Fprintf(out, "\033[1A\033[K")
 			}
 
-			lastCursor, err = logs.ShowLogs(ctx, cfg.API, out, jobName, cfg.Attach, lastCursor, 0)
-
+			newCursor, err := logs.ShowLogs(ctx, cfg.API, out, jobName, cfg.Attach, lastCursor, 0)
 			if err != nil {
-				fmt.Fprintf(out, "Error getting logs: %s", err.Error())
+				fmt.Fprintf(out, "Error getting logs: %s\n", err.Error())
+			} else {
+				lastCursor = newCursor
 			}
 
 		case "canceled":
