@@ -149,15 +149,6 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 
 		attempt := j.Status.Attempts[0]
 		switch attempt.Phase {
-		case "failed":
-			os.Exit(int(attempt.State.Failed.ExitCode))
-
-			return true
-
-		case "succeeded":
-			os.Exit(int(attempt.State.Succeeded.ExitCode))
-
-			return true
 		case "queued":
 			if looped {
 				fmt.Fprintf(out, "\033[1A\033[K")
@@ -174,6 +165,20 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 				fmt.Fprintf(out, "Error getting logs: %s\n", err.Error())
 			} else {
 				lastCursor = newCursor
+			}
+
+			if j, err = getJob(cfg.Job, jobName); err == nil {
+				switch j.Status.Attempts[0].Phase {
+				case "failed":
+					exitCode := attempt.State.Failed.ExitCode
+					if exitCode != nil {
+						os.Exit(int(*exitCode))
+					}
+
+					return true
+				case "succeeded":
+					return true
+				}
 			}
 
 		case "canceled":
