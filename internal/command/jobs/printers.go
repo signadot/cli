@@ -20,7 +20,7 @@ import (
 )
 
 const MaxJobListing = 20
-const TimeBetweenJobRefresh = 10 * time.Second
+const MaxTimeBetweenRefresh = 10 * time.Second
 
 type jobRow struct {
 	Name        string `sdtab:"NAME"`
@@ -80,19 +80,6 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 	return t.Flush()
 }
 
-func isJobPhaseToPrintDefault(ph string) bool {
-	if ph == "failed" {
-		return false
-	}
-	if ph == "succeeded" {
-		return false
-	}
-	if ph == "canceled" {
-		return false
-	}
-	return true
-}
-
 func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
@@ -131,9 +118,11 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 
 	looped := false
 
+	delayTime := 2 * time.Second
+
 	retry := poll.
 		NewPoll().
-		WithDelay(TimeBetweenJobRefresh).
+		WithDelay(delayTime).
 		WithTimeout(cfg.Timeout)
 
 	lastCursor := ""
@@ -147,14 +136,27 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 			return false
 		}
 
+		// Increases the time, so if the queue is empty will be likely to start seeing the logs right away without
+		// any bigger delay
+		if delayTime < MaxTimeBetweenRefresh {
+			delayTime = (1 * time.Second) + delayTime
+			retry.WithDelay(delayTime)
+		}
+
 		attempt := j.Status.Attempts[0]
 		switch attempt.Phase {
+		case "succeed":
+			return true
+		case "failed":
+			handleFailedJobPhase(out, j)
+			return true
 		case "queued":
 			if looped {
 				fmt.Fprintf(out, "\033[1A\033[K")
 			}
 
 			fmt.Fprintf(out, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
+			return false
 		case "running":
 			if looped {
 				fmt.Fprintf(out, "\033[1A\033[K")
@@ -170,11 +172,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 			if j, err = getJob(cfg.Job, jobName); err == nil {
 				switch j.Status.Attempts[0].Phase {
 				case "failed":
-					exitCode := attempt.State.Failed.ExitCode
-					if exitCode != nil {
-						os.Exit(int(*exitCode))
-					}
-
+					handleFailedJobPhase(out, j)
 					return true
 				case "succeeded":
 					return true
@@ -192,6 +190,20 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 	})
 
 	return err
+}
+
+func handleFailedJobPhase(out io.Writer, job *models.Job) {
+	failedStatus := job.Status.Attempts[0].State.Failed
+	if failedStatus.Message != "" {
+		fmt.Fprintf(out, "Error: %s\n", failedStatus.Message)
+	}
+
+	exitCode := 1
+	if failedStatus.ExitCode != nil {
+		exitCode = int(*failedStatus.ExitCode)
+	}
+
+	os.Exit(exitCode)
 }
 
 func getJob(cfg *config.Job, jobName string) (*models.Job, error) {
@@ -216,58 +228,6 @@ func getCreatedAt(job *models.Job) string {
 	}
 
 	return timeago.NoMax(timeago.English).Format(t)
-}
-
-func getAttemptCreatedAtAndDuration(job *models.Job) (createdAtStr string, durationStr string) {
-	var createdAt *time.Time
-
-	if len(job.Status.Attempts) == 0 {
-		return "", ""
-	}
-
-	attempt := job.Status.Attempts[0]
-
-	if attempt.Phase == "queued" {
-		return "", ""
-	}
-
-	createdAtRaw := attempt.CreatedAt
-	if len(createdAtRaw) != 0 {
-		t, err := time.Parse(time.RFC3339, createdAtRaw)
-		if err != nil {
-			return "", ""
-		}
-
-		createdAt = &t
-		createdAtStr = timeago.NoMax(timeago.English).Format(t)
-	}
-
-	finishedAtRaw := attempt.FinishedAt
-	if createdAt != nil && len(finishedAtRaw) != 0 {
-		finishedAt, err := time.Parse(time.RFC3339, finishedAtRaw)
-		if err != nil {
-			return "", ""
-		}
-
-		durationTime := finishedAt.Sub(*createdAt)
-		durationStr = durationTime.String()
-	}
-
-	return createdAtStr, durationStr
-}
-
-func getJobEnvironment(job *models.Job) string {
-	routingContext := job.Spec.RoutingContext
-
-	switch {
-	case routingContext == nil:
-	case len(routingContext.Sandbox) > 0:
-		return fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
-	case len(routingContext.Routegroup) > 0:
-		return fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
-	}
-
-	return "baseline"
 }
 
 func getArtifacts(cfg *config.JobGet, job *models.Job) ([]*models.JobArtifact, error) {
@@ -323,18 +283,4 @@ func printArtifacts(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 		})
 	}
 	return t.Flush()
-}
-
-func byteCountSI(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
