@@ -87,7 +87,24 @@ func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Job Runner Group:\t%s\n", job.Spec.RunnerGroup)
-	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Attempts[0].Phase)
+	fmt.Fprintf(tw, "Status:\t%s\n", getJobStatus(job))
+	if state := job.Status.Attempts[0].State; state != nil {
+		switch {
+		case state.Queued != nil:
+			fmt.Fprintf(tw, "Message:\t%s\n", state.Queued.Message)
+		case state.Running != nil:
+			fmt.Fprintf(tw, "Runner Pod:\t%s/%s\n", state.Running.PodNamespace, state.Running.PodName)
+		case state.Canceled != nil:
+			fmt.Fprintf(tw, "Canceled By:\t%s\n", state.Canceled.CanceledBy)
+			fmt.Fprintf(tw, "Message:\t%s\n", state.Canceled.Message)
+		case state.Failed != nil:
+			if state.Failed.ExitCode != nil {
+				fmt.Fprintf(tw, "Exit Code:\t%d\n", *state.Failed.ExitCode)
+			}
+			fmt.Fprintf(tw, "Message:\t%s\n", state.Failed.Message)
+		}
+	}
+
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Created At:\t%s\n", getCreatedAt(job))
 
