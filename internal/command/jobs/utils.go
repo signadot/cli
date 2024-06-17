@@ -72,6 +72,22 @@ func getJobEnvironment(job *models.Job) string {
 	return "baseline"
 }
 
+func getJobStatus(job *models.Job) string {
+	switch job.Status.Attempts[0].Phase {
+	case "queued":
+		return "Queued"
+	case "running":
+		return "Running"
+	case "failed":
+		return "Failed"
+	case "succeeded":
+		return "Succeeded"
+	case "canceled":
+		return "Canceled"
+	}
+	return "Unknown"
+}
+
 func byteCountSI(b int64) string {
 	const unit = 1000
 	if b < unit {
