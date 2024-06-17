@@ -84,10 +84,21 @@ func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	createdAt, duration := getAttemptCreatedAtAndDuration(job)
+	attempt := job.Status.Attempts[0]
+	failedState := attempt.State.Failed
 
 	fmt.Fprintf(tw, "Job Name:\t%s\n", job.Name)
 	fmt.Fprintf(tw, "Job Runner Group:\t%s\n", job.Spec.RunnerGroup)
-	fmt.Fprintf(tw, "Status:\t%s\n", job.Status.Attempts[0].Phase)
+	fmt.Fprintf(tw, "Status:\t%s\n", attempt.Phase)
+
+	if failedState != nil && failedState.ExitCode != nil {
+		fmt.Fprintf(tw, "Exit code:\t%d\n", *failedState.ExitCode)
+	}
+
+	if failedState != nil && len(failedState.Message) > 0 {
+		fmt.Fprintf(tw, "Exit reason:\t%s\n", failedState.Message)
+	}
+
 	fmt.Fprintf(tw, "Environment:\t%s\n", getJobEnvironment(job))
 	fmt.Fprintf(tw, "Created At:\t%s\n", getCreatedAt(job))
 
