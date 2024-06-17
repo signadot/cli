@@ -1,21 +1,22 @@
 package jobs
 
 import (
+	"errors"
 	"fmt"
-	"github.com/signadot/cli/internal/command/logs"
-	"github.com/signadot/cli/internal/poll"
-	"github.com/signadot/go-sdk/client/jobs"
-	"golang.org/x/net/context"
 	"io"
 	"os"
 	"sort"
 	"text/tabwriter"
 	"time"
 
+	"github.com/signadot/cli/internal/command/logs"
+	"github.com/signadot/cli/internal/poll"
+	"golang.org/x/net/context"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"
-	"github.com/signadot/go-sdk/client/artifacts"
 	"github.com/signadot/go-sdk/models"
+	"github.com/signadot/go-sdk/utils"
 	"github.com/xeonx/timeago"
 )
 
@@ -129,12 +130,7 @@ func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 	return nil
 }
 
-func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobName string) error {
-
-	fmt.Fprintf(out, "Waiting for job execution\n")
-
-	looped := false
-
+func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer, jobName string) error {
 	delayTime := 2 * time.Second
 
 	retry := poll.
@@ -142,19 +138,25 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 		WithDelay(delayTime).
 		WithTimeout(cfg.Timeout)
 
-	lastCursor := ""
+	lastOutCursor := ""
+	lastErrCursor := ""
+	looped := false
 
 	err := retry.Until(func() bool {
+		defer func() {
+			looped = true
+		}()
+
 		j, err := getJob(cfg.Job, jobName)
 		if err != nil {
-			fmt.Fprintf(out, "Error getting job: %s", err.Error())
+			fmt.Fprintf(errW, "Error getting job: %s", err.Error())
 
 			// We want to keep retrying if the timeout has not been exceeded
 			return false
 		}
 
-		// Increases the time, so if the queue is empty will be likely to start seeing the logs right away without
-		// any bigger delay
+		// Increases the time, so if the queue is empty will be likely to start
+		// seeing the logs right away without any bigger delay
 		if delayTime < MaxTimeBetweenRefresh {
 			delayTime = (1 * time.Second) + delayTime
 			retry.WithDelay(delayTime)
@@ -164,44 +166,72 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 		switch attempt.Phase {
 		case "succeed":
 			return true
+
 		case "failed":
-			handleFailedJobPhase(out, j)
+			handleFailedJobPhase(errW, j)
 			return true
+
 		case "queued":
 			if looped {
-				fmt.Fprintf(out, "\033[1A\033[K")
+				clearLastLine(outW)
 			}
 
-			fmt.Fprintf(out, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
+			fmt.Fprintf(outW, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
 			return false
+
 		case "running":
 			if looped {
-				fmt.Fprintf(out, "\033[1A\033[K")
+				clearLastLine(outW)
 			}
 
-			newCursor, err := logs.ShowLogs(ctx, cfg.API, out, jobName, cfg.Attach, lastCursor, 0)
+			errch := make(chan error)
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			go func() {
+				// stream stdout
+				cursor, err := logs.ShowLogs(ctx, cfg.API, outW, jobName, utils.LogTypeStdout, lastOutCursor, 0)
+				if err == nil {
+					lastOutCursor = cursor
+				} else if errors.Is(err, context.Canceled) {
+					err = nil // ignore context cancelations
+				}
+				cancel() // this will cause the stderr stream to terminate
+				errch <- err
+			}()
+
+			go func() {
+				// stream stderr
+				cursor, err := logs.ShowLogs(ctx, cfg.API, errW, jobName, utils.LogTypeStderr, lastErrCursor, 0)
+				if err == nil {
+					lastErrCursor = cursor
+				} else if errors.Is(err, context.Canceled) {
+					err = nil // ignore context cancelations
+				}
+				cancel() // this will make the stdout stream to terminate
+				errch <- err
+			}()
+
+			err = errors.Join(<-errch, <-errch) // wait until both streams terminate
 			if err != nil {
-				fmt.Fprintf(out, "Error getting logs: %s\n", err.Error())
-			} else {
-				lastCursor = newCursor
+				fmt.Fprintf(errW, "Error getting logs: %s\n", err.Error())
 			}
 
 			if j, err = getJob(cfg.Job, jobName); err == nil {
 				switch j.Status.Attempts[0].Phase {
 				case "failed":
-					handleFailedJobPhase(out, j)
+					handleFailedJobPhase(errW, j)
 					return true
 				case "succeeded":
 					return true
 				}
 			}
+			return false
 
 		case "canceled":
-			fmt.Fprintf(out, "Stopping cause job execution was canceled\n")
+			fmt.Fprintf(outW, "The job execution was canceled\n")
 			return true
 		}
-
-		looped = true
 
 		return false
 	})
@@ -209,10 +239,14 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, out io.Writer, jobNa
 	return err
 }
 
-func handleFailedJobPhase(out io.Writer, job *models.Job) {
+func clearLastLine(w io.Writer) {
+	fmt.Fprintf(w, "\033[1A\033[K")
+}
+
+func handleFailedJobPhase(errW io.Writer, job *models.Job) {
 	failedStatus := job.Status.Attempts[0].State.Failed
 	if failedStatus.Message != "" {
-		fmt.Fprintf(out, "Error: %s\n", failedStatus.Message)
+		fmt.Fprintf(errW, "Error: %s\n", failedStatus.Message)
 	}
 
 	exitCode := 1
@@ -221,16 +255,6 @@ func handleFailedJobPhase(out io.Writer, job *models.Job) {
 	}
 
 	os.Exit(exitCode)
-}
-
-func getJob(cfg *config.Job, jobName string) (*models.Job, error) {
-	params := jobs.NewGetJobParams().WithOrgName(cfg.Org).WithJobName(jobName)
-	resp, err := cfg.Client.Jobs.GetJob(params, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp.Payload, nil
 }
 
 func getCreatedAt(job *models.Job) string {
@@ -245,20 +269,6 @@ func getCreatedAt(job *models.Job) string {
 	}
 
 	return timeago.NoMax(timeago.English).Format(t)
-}
-
-func getArtifacts(cfg *config.JobGet, job *models.Job) ([]*models.JobArtifact, error) {
-	params := artifacts.NewListJobAttemptArtifactsParams().
-		WithOrgName(cfg.Org).
-		WithJobAttempt(job.Status.Attempts[0].ID).
-		WithJobName(job.Name)
-
-	resp, err := cfg.Client.Artifacts.ListJobAttemptArtifacts(params, nil)
-	if err != nil {
-		return []*models.JobArtifact{}, nil
-	}
-
-	return resp.Payload, nil
 }
 
 type jobArtifactRow struct {

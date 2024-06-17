@@ -11,6 +11,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/client/job_logs"
+	"github.com/signadot/go-sdk/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -22,13 +23,29 @@ func New(api *config.API) *cobra.Command {
 		Short: "Display job logs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := ShowLogs(cmd.Context(), cfg.API, cmd.OutOrStdout(), cfg.Job, cfg.Stream, "", int(cfg.TailLines))
-			return err
+			return showLogs(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), cfg)
 		},
 	}
 
 	cfg.AddFlags(cmd)
 	return cmd
+}
+
+func showLogs(ctx context.Context, outW, errW io.Writer, cfg *config.Logs) error {
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
+	}
+
+	var w io.Writer
+	switch cfg.Stream {
+	case utils.LogTypeStderr:
+		w = errW
+	default:
+		w = outW
+	}
+
+	_, err := ShowLogs(ctx, cfg.API, w, cfg.Job, cfg.Stream, "", int(cfg.TailLines))
+	return err
 }
 
 type event struct {
