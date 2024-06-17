@@ -2,10 +2,38 @@ package jobs
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/go-sdk/client/artifacts"
+	"github.com/signadot/go-sdk/client/jobs"
 	"github.com/signadot/go-sdk/models"
 	"github.com/xeonx/timeago"
-	"time"
 )
+
+func getJob(cfg *config.Job, jobName string) (*models.Job, error) {
+	params := jobs.NewGetJobParams().WithOrgName(cfg.Org).WithJobName(jobName)
+	resp, err := cfg.Client.Jobs.GetJob(params, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Payload, nil
+}
+
+func getArtifacts(cfg *config.JobGet, job *models.Job) ([]*models.JobArtifact, error) {
+	params := artifacts.NewListJobAttemptArtifactsParams().
+		WithOrgName(cfg.Org).
+		WithJobAttempt(job.Status.Attempts[0].ID).
+		WithJobName(job.Name)
+
+	resp, err := cfg.Client.Artifacts.ListJobAttemptArtifacts(params, nil)
+	if err != nil {
+		return []*models.JobArtifact{}, nil
+	}
+
+	return resp.Payload, nil
+}
 
 func isJobPhaseToPrintDefault(ph string) bool {
 	if ph == "failed" {

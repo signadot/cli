@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/jobs"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
-	"io"
 )
 
 func newSubmit(job *config.Job) *cobra.Command {
@@ -17,23 +18,18 @@ func newSubmit(job *config.Job) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "submit -f FILENAME [ --set var1=val1 --set var2=val2 ... ]",
-		Short: "Create or update a job with variable expansion",
+		Short: "Submit a job with variable expansion",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !cfg.ValidateAttachFlag(cmd) {
-				return fmt.Errorf("value not valid for --attach")
-			}
-
-			return submit(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return submit(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 
 	cfg.AddFlags(cmd)
-
 	return cmd
 }
 
-func submit(ctx context.Context, cfg *config.JobSubmit, out, log io.Writer, args []string) error {
+func submit(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -53,29 +49,25 @@ func submit(ctx context.Context, cfg *config.JobSubmit, out, log io.Writer, args
 	}
 	resp := result.Payload
 
-	fmt.Fprintf(log, "Job %s queued on Job Runner Group: %s\n", resp.Name, resp.Spec.RunnerGroup)
-
-	return writeOutput(ctx, cfg, out, resp)
+	return writeOutput(ctx, cfg, outW, errW, resp)
 }
 
-func writeOutput(ctx context.Context, cfg *config.JobSubmit, out io.Writer, resp *models.Job) error {
+func writeOutput(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer, resp *models.Job) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the job.
-		fmt.Fprintf(out, "\nDashboard page: %v\n\n", cfg.JobDashboardUrl(resp.Name))
+		fmt.Fprintf(outW, "Job %s queued on Job Runner Group: %s\n", resp.Name, resp.Spec.RunnerGroup)
+		fmt.Fprintf(outW, "\nDashboard page: %v\n\n", cfg.JobDashboardUrl(resp.Name))
 
-		switch cfg.Attach {
-		case "stdout", "stderr":
-			if err := waitForJob(ctx, cfg, out, resp.Name); err != nil {
-				return err
-			}
+		var err error
+		if cfg.Attach {
+			err = waitForJob(ctx, cfg, outW, errW, resp.Name)
 		}
-
-		return nil
+		return err
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, resp)
+		return print.RawJSON(outW, resp)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, resp)
+		return print.RawYAML(outW, resp)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
