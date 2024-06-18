@@ -51,7 +51,7 @@ func apply(cfg *config.JobRunnerGroupApply, out, log io.Writer, _ []string) erro
 	}
 	resp := result.Payload
 
-	fmt.Fprintf(log, "Created runner %q (%q)\n\n", req.Name, cfg.RunnerGroupDashboardUrl(req.Name))
+	fmt.Fprintf(log, "Applied runner %q (%q)\n\n", req.Name, cfg.RunnerGroupDashboardUrl(req.Name))
 
 	return writeOutput(cfg, out, resp)
 }
