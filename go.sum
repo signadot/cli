@@ -302,12 +302,6 @@ github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFR
 github.com/rogpeppe/go-internal v1.11.0 h1:cWPaGQEPrBb5/AsnsZesgZZ9yb1OQ+GOISoDNXVBh4M=
 github.com/rogpeppe/go-internal v1.11.0/go.mod h1:ddIwULY96R17DhadqLgMfk9H9tvdUzkipdSkR5nkCZA=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/signadot/go-sdk v0.3.8-0.20240612140005-9c306a9dc373 h1:Lalacny/LWwQh7/s9Cxg8wBYOsjE/uyOL9ZZwqBiai0=
-github.com/signadot/go-sdk v0.3.8-0.20240612140005-9c306a9dc373/go.mod h1:LBc3zdVqtLQpXo78HN/DrMhf6PBcfyhlg/tVRrDL+sg=
-github.com/signadot/go-sdk v0.3.8-0.20240612174838-f3123693033c h1:kpIAGzeq5EwI/9Q0BoW7NVqvUv73aN5zBYmPLQwj6LM=
-github.com/signadot/go-sdk v0.3.8-0.20240612174838-f3123693033c/go.mod h1:LBc3zdVqtLQpXo78HN/DrMhf6PBcfyhlg/tVRrDL+sg=
-github.com/signadot/go-sdk v0.3.8-0.20240613204513-c1f3144365e6 h1:lrEEoUIrgtCzDetR9tZxZv+X9GJPPhuyZC4ywAaAqlY=
-github.com/signadot/go-sdk v0.3.8-0.20240613204513-c1f3144365e6/go.mod h1:LBc3zdVqtLQpXo78HN/DrMhf6PBcfyhlg/tVRrDL+sg=
 github.com/signadot/go-sdk v0.3.8-0.20240619132244-0243d9aa771b h1:SG0k8wdPwWappf6VvFzZYy4S8KSyFFmGg9fDOQl5Jsg=
 github.com/signadot/go-sdk v0.3.8-0.20240619132244-0243d9aa771b/go.mod h1:tsMT56xXXxo7O6oA2hop01WXGXxJln+jBbFSRrQxvZQ=
 github.com/signadot/libconnect v0.1.1-0.20240306100356-4c865b888453 h1:omG9Iuz5vO0wNvpX/o1sAu+yuHnjHp6okvV9dDRCcd4=
@@ -349,8 +343,7 @@ github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
-go.mongodb.org/mongo-driver v1.15.0 h1:rJCKC8eEliewXjZGf0ddURtl7tTVy1TK3bfl0gkUSLc=
-go.mongodb.org/mongo-driver v1.15.0/go.mod h1:Vzb0Mk/pa7e6cWw85R4F/endUC3u0U9jGcNU603k65c=
+go.mongodb.org/mongo-driver v1.15.1 h1:l+RvoUOoMXFmADTLfYDm7On9dRm7p4T80/lEQM+r7HU=
 go.mongodb.org/mongo-driver v1.15.1/go.mod h1:Vzb0Mk/pa7e6cWw85R4F/endUC3u0U9jGcNU603k65c=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
