@@ -35,7 +35,7 @@ func printRunnerGroupTable(cfg *config.JobRunnerGroupList, out io.Writer, rgs []
 			Name:    rg.Name,
 			Cluster: rg.Spec.Cluster,
 			Created: timeago.NoMax(timeago.English).Format(createdAt),
-			Status:  readiness(rg.Status),
+			Status:  readiness(rg),
 		})
 	}
 	return t.Flush()
@@ -46,7 +46,7 @@ func printRunnerGroupDetails(cfg *config.JobRunnerGroup, out io.Writer, rg *mode
 
 	fmt.Fprintf(tw, "Name:\t%s\n", rg.Name)
 	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(rg.CreatedAt))
-	fmt.Fprintf(tw, "Status:\t%s\n", readiness(rg.Status))
+	fmt.Fprintf(tw, "Status:\t%s\n", readiness(rg))
 	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.RunnerGroupDashboardUrl(rg.Name))
 
 	if err := tw.Flush(); err != nil {
@@ -56,9 +56,12 @@ func printRunnerGroupDetails(cfg *config.JobRunnerGroup, out io.Writer, rg *mode
 	return nil
 }
 
-func readiness(status *models.JobRunnerGroupStatus) string {
-	if status == nil || status.Pods == nil {
+func readiness(rg *models.JobRunnerGroup) string {
+	if rg.DeletedAt != "" {
+		return "draining"
+	}
+	if rg.Status == nil || rg.Status.Pods == nil {
 		return "-"
 	}
-	return fmt.Sprintf("%d/%d pods ready", status.Pods.Ready, status.Pods.Ready+status.Pods.NotReady)
+	return fmt.Sprintf("%d/%d pods ready", rg.Status.Pods.Ready, rg.Status.Pods.Ready+rg.Status.Pods.NotReady)
 }
