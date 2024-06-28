@@ -164,7 +164,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 
 		attempt := j.Status.Attempts[0]
 		switch attempt.Phase {
-		case "succeed":
+		case "succeeded":
 			return true
 
 		case "failed":
