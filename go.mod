@@ -1,8 +1,6 @@
 module github.com/signadot/cli
 
-go 1.21.0
-
-toolchain go1.21.3
+go 1.22
 
 require (
 	github.com/Masterminds/semver v1.5.0
