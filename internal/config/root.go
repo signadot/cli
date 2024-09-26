@@ -74,9 +74,9 @@ func (c *Root) init() error {
 	return nil
 }
 
-func (c *Root) SandboxDashboardURL(id string) *url.URL {
+func (c *Root) SandboxDashboardURL(name string) *url.URL {
 	u := *c.DashboardURL
-	u.Path = path.Join(u.Path, "sandbox", "id", id)
+	u.Path = path.Join(u.Path, "sandbox", "name", name)
 	return &u
 }
 

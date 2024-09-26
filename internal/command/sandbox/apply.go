@@ -118,7 +118,7 @@ func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the sandbox.
-		sbURL := cfg.SandboxDashboardURL(resp.RoutingKey)
+		sbURL := cfg.SandboxDashboardURL(resp.Name)
 		fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
 
 		if len(resp.Endpoints) > 0 {
