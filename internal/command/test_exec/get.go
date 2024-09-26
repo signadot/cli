@@ -15,7 +15,7 @@ func newGet(txConfig *config.TestExec) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "get <name>",
-		Short: "get a test execution",
+		Short: "Get a test execution",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return get(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)

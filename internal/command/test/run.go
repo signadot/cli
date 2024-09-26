@@ -18,7 +18,7 @@ func newRun(tConfig *config.Test) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "run <name>",
-		Short: "run a test",
+		Short: "Run a test",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)

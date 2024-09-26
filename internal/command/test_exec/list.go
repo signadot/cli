@@ -18,8 +18,8 @@ func newList(txConfig *config.TestExec) *cobra.Command {
 		TestExec: txConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "list test executions",
+		Use:   "list <test-name>",
+		Short: "List test executions for a test",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
