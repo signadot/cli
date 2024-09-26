@@ -19,7 +19,7 @@ func newList(tstConfig *config.Test) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "list tests",
+		Short: "List tests",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)

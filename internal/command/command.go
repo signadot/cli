@@ -3,9 +3,6 @@ package command
 import (
 	"fmt"
 
-	"github.com/signadot/cli/internal/command/logs"
-	"github.com/signadot/cli/internal/command/test"
-
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/command/artifact"
 	"github.com/signadot/cli/internal/command/bug"
@@ -14,9 +11,12 @@ import (
 	"github.com/signadot/cli/internal/command/jobs"
 	"github.com/signadot/cli/internal/command/local"
 	"github.com/signadot/cli/internal/command/locald"
+	"github.com/signadot/cli/internal/command/logs"
 	"github.com/signadot/cli/internal/command/resourceplugin"
 	"github.com/signadot/cli/internal/command/routegroup"
 	"github.com/signadot/cli/internal/command/sandbox"
+	"github.com/signadot/cli/internal/command/test"
+	"github.com/signadot/cli/internal/command/test_exec"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -50,6 +50,7 @@ func New() *cobra.Command {
 		artifact.New(cfg),
 		logs.New(cfg),
 		test.New(cfg),
+		test_exec.New(cfg),
 	)
 
 	return cmd

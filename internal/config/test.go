@@ -36,6 +36,17 @@ type TestDelete struct {
 	TemplateVals TemplateVals
 }
 
-type RunTest struct {
+type TestRun struct {
 	*Test
+
+	Cluster    string
+	Sandbox    string
+	RouteGroup string
+}
+
+func (cfg *TestRun) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&cfg.Cluster, "cluster", "c", "", "cluster name (required)")
+	cmd.MarkFlagRequired("cluster")
+	cmd.Flags().StringVarP(&cfg.Sandbox, "sandbox", "s", "", "sandbox")
+	cmd.Flags().StringVarP(&cfg.RouteGroup, "routegroup", "r", "", "routegroup")
 }
