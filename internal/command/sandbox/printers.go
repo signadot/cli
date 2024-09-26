@@ -54,7 +54,7 @@ func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.Sandbox)
 	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(sb.CreatedAt))
 	fmt.Fprintf(tw, "Updated:\t%s\n", utils.FormatTimestamp(sb.UpdatedAt))
 	fmt.Fprintf(tw, "TTL:\t%s\n", formatTTL(sb))
-	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.SandboxDashboardURL(sb.RoutingKey))
+	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.SandboxDashboardURL(sb.Name))
 	fmt.Fprintf(tw, "Status:\t%s (%s: %s)\n", readiness(sb.Status), sb.Status.Reason, sb.Status.Message)
 
 	if err := tw.Flush(); err != nil {
