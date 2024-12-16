@@ -15,7 +15,7 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
 	github.com/signadot/go-sdk v0.3.8-0.20241010091443-672fcb43f38f
-	github.com/signadot/libconnect v0.1.1-0.20241010091708-b65ab108c9ee
+	github.com/signadot/libconnect v0.1.1-0.20241216082842-b86b881d98f8
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
@@ -37,7 +37,7 @@ require (
 	github.com/prataprc/goparsec v0.0.0-20211219142520-daac0e635e7e // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241007155032-5fefd90f89a9 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20241104194629-dd2ea8efbc28 // indirect
 	k8s.io/kubectl v0.31.1 // indirect
 )
 
