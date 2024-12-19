@@ -2,6 +2,7 @@ package rootmanager
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"log/slog"
@@ -125,6 +126,23 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 		if status.ControlPlaneProxy.LocalAddress != mon.tpLocalAddr {
 			mon.log.Info("control-plane proxy is ready", "addr", status.ControlPlaneProxy.LocalAddress, "was", mon.tpLocalAddr)
 			mon.tpLocalAddr = status.ControlPlaneProxy.LocalAddress
+			restartSvcs = true
+		}
+	}
+	if !restartSvcs {
+		// the grpc check for connecting to the tunnel proxy does not suffice
+		// because it has built-in retries and may re-use a connection while
+		// we are unable to establish a new connection.  So, we also check
+		// the agent health endpoint
+		cli := &http.Client{
+			Transport: &http.Transport{},
+		}
+		resp, err := cli.Get("agent.signadot.svc:8088/healthz")
+		if err != nil {
+			mon.log.Error("unable to reach agent health endpoint, restarting services", "error", err)
+			restartSvcs = true
+		} else if resp.StatusCode != 200 {
+			mon.log.Error("unable to reach agent health endpoint, restarting services", "status code", resp.StatusCode)
 			restartSvcs = true
 		}
 	}

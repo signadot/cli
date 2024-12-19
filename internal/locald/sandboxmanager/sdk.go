@@ -17,7 +17,7 @@ import (
 
 var (
 	ErrSandboxManagerUnavailable = errors.New(
-		"sandboxmanager is not running, start it with \"signadot local connect\"")
+		`sandboxmanager is not running, start it with "signadot local connect"`)
 )
 
 func GetStatus() (*sbmapi.StatusResponse, error) {
