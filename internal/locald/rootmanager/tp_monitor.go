@@ -2,6 +2,7 @@ package rootmanager
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 
 	"log/slog"
@@ -128,16 +129,40 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 			restartSvcs = true
 		}
 	}
-
-	if restartSvcs {
-		// Restart localnet
-		mon.root.stopLocalnetService()
-		mon.root.runLocalnetService(ctx, mon.tpLocalAddr, mon.ipMap)
-
-		// Restart etc hosts
-		mon.root.stopEtcHostsService()
-		mon.root.runEtcHostsService(ctx, mon.tpLocalAddr, mon.ipMap)
+	if !restartSvcs {
+		if mon.root == nil || mon.root.root == nil || mon.root.root.etcHostsSVC == nil || !mon.root.root.etcHostsSVC.Status().Healthy {
+			return false
+		}
 	}
-	mon.starting = false
-	return true
+	if !restartSvcs {
+		// the grpc check for connecting to the tunnel proxy does not suffice
+		// because it has built-in retries and may re-use a connection while
+		// we are unable to establish a new connection.  So, we also check
+		// the agent-metrics endpoint.
+		cli := &http.Client{
+			Transport: &http.Transport{},
+			Timeout:   10 * time.Second,
+		}
+		resp, err := cli.Get("http://agent-metrics.signadot.svc:9090/metrics")
+		if err != nil {
+			mon.log.Error("unable to reach agent-metrics, restarting services", "error", err)
+			//fmt.Printf("unable to reach agent-metrics: %v", err)
+			restartSvcs = true
+		} else {
+			resp.Body.Close()
+		}
+	}
+	if !restartSvcs {
+		mon.starting = false
+		return true
+	}
+
+	// Restart localnet
+	mon.root.stopLocalnetService()
+	mon.root.runLocalnetService(ctx, mon.tpLocalAddr, mon.ipMap)
+
+	// Restart etc hosts
+	mon.root.stopEtcHostsService()
+	mon.root.runEtcHostsService(ctx, mon.tpLocalAddr, mon.ipMap)
+	return false
 }
