@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
@@ -36,6 +37,9 @@ func submit(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer) er
 	if cfg.Filename == "" {
 		return errors.New("must specify job request file with '-f' flag")
 	}
+	if cfg.Wait && cfg.Attach {
+		return errors.New("cannot specify both --attach and --wait")
+	}
 	req, err := loadJob(cfg.Filename, cfg.TemplateVals, false /*forDelete */)
 	if err != nil {
 		return err
@@ -48,15 +52,63 @@ func submit(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer) er
 		return err
 	}
 	resp := result.Payload
+	if cfg.Wait {
+		job, err := waitJob(ctx, cfg, resp.Name)
+		if err != nil {
+			writeOutput(ctx, cfg, outW, errW, resp)
+			return fmt.Errorf("error waiting for job %q: %w", resp.Name, err)
+		}
+		resp = job
+	}
 
-	return writeOutput(ctx, cfg, outW, errW, resp)
+	err = writeOutput(ctx, cfg, outW, errW, resp)
+	if err != nil {
+		return err
+	}
+	if cfg.Wait {
+		switch ph := resp.Status.Attempts[0].Phase; ph {
+		case "canceled", "failed":
+			return fmt.Errorf("job %q %s", resp.Name, ph)
+		}
+	}
+	return nil
+}
+
+func waitJob(ctx context.Context, cfg *config.JobSubmit, name string) (*models.Job, error) {
+
+	ticker := time.NewTicker(time.Second / 5)
+	defer ticker.Stop()
+	params := &jobs.GetJobParams{
+		JobName: name,
+		OrgName: cfg.Org,
+		Context: ctx,
+	}
+	for {
+		res, err := cfg.Client.Jobs.GetJob(params, nil)
+		if err != nil {
+			return nil, err
+		}
+		attempts := res.Payload.Status.Attempts
+		if len(attempts) == 0 {
+			return nil, fmt.Errorf("no attempts in job %q", name)
+		}
+		switch attempts[0].Phase {
+		case "failed", "succeeded", "canceled":
+			return res.Payload, nil
+		}
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 }
 
 func writeOutput(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer, resp *models.Job) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the job.
-		fmt.Fprintf(outW, "Job %s queued on Job Runner Group: %s\n", resp.Name, resp.Spec.RunnerGroup)
+		fmt.Fprintf(outW, "Job %s %s on Job Runner Group: %s\n", resp.Name, resp.Status.Attempts[0].Phase, resp.Spec.RunnerGroup)
 		fmt.Fprintf(outW, "\nDashboard page: %v\n\n", cfg.JobDashboardUrl(resp.Name))
 
 		var err error
