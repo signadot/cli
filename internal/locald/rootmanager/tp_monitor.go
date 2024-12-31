@@ -130,11 +130,16 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 		}
 	}
 	if !restartSvcs {
-		if mon.root == nil || mon.root.root == nil || mon.root.root.etcHostsSVC == nil || !mon.root.root.etcHostsSVC.Status().Healthy {
+		rootMgr := mon.root.root
+		if rootMgr == nil {
 			return false
 		}
-	}
-	if !restartSvcs {
+		if rootMgr.localnetSVC == nil || rootMgr.localnetSVC.Status().Healthy {
+			return false
+		}
+		if rootMgr.etcHostsSVC == nil || !rootMgr.etcHostsSVC.Status().Healthy {
+			return false
+		}
 		// the grpc check for connecting to the tunnel proxy does not suffice
 		// because it has built-in retries and may re-use a connection while
 		// we are unable to establish a new connection.  So, we also check
