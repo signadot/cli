@@ -76,8 +76,13 @@ func submit(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer) er
 
 func waitJob(ctx context.Context, cfg *config.JobSubmit, name string) (*models.Job, error) {
 
-	ticker := time.NewTicker(time.Second / 5)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	if cfg.Timeout != 0 {
+		ctxTimeout, cancel := context.WithTimeout(ctx, cfg.Timeout)
+		defer cancel()
+		ctx = ctxTimeout
+	}
 	params := &jobs.GetJobParams{
 		JobName: name,
 		OrgName: cfg.Org,
