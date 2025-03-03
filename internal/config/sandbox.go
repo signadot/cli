@@ -54,3 +54,25 @@ type SandboxGet struct {
 type SandboxList struct {
 	*Sandbox
 }
+
+type SandboxMakeLocal struct {
+	*Sandbox
+
+	// Flags
+	Name         string
+	Cluster      string
+	Workload     string
+	Unprivileged bool
+	PortMappings []string
+}
+
+func (c *SandboxMakeLocal) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&c.Workload, "workload", "w", "", "workload to be forked")
+	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "cluster associated with the sandbox")
+	cmd.Flags().StringArrayVar(&c.PortMappings, "port-mapping", []string{}, "workload to be forked")
+	cmd.Flags().StringVar(&c.Name, "name", "", "name of the generated sandbox")
+
+	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "Provide mappings from workload ports to tcp addresses to which the local workstation can listen")
+
+	cmd.MarkFlagRequired("cluster")
+}
