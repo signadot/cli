@@ -70,13 +70,11 @@ func LoadConfig(startPath string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read .signadot/config.yaml: %w", err)
 	}
-	fmt.Printf("Config contents: %s\n", string(data))
 
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse .signadot/config.yaml: %w", err)
 	}
-	fmt.Printf("Parsed config: %+v\n", cfg)
 
 	if len(cfg.SmartTests) == 0 {
 		return nil, fmt.Errorf("smart_tests is required in .signadot/config.yaml")
