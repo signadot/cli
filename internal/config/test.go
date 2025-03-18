@@ -45,8 +45,7 @@ type TestRun struct {
 }
 
 func (cfg *TestRun) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&cfg.Cluster, "cluster", "c", "", "cluster name (required)")
-	cmd.MarkFlagRequired("cluster")
+	cmd.Flags().StringVarP(&cfg.Cluster, "cluster", "c", "", "cluster name (required for test execution)")
 	cmd.Flags().StringVarP(&cfg.Sandbox, "sandbox", "s", "", "sandbox")
 	cmd.Flags().StringVarP(&cfg.RouteGroup, "routegroup", "r", "", "routegroup")
 }
