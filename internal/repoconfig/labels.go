@@ -3,6 +3,7 @@ package repoconfig
 import (
 	"bufio"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,7 @@ func readLabels(filePath string) (map[string]string, error) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
-			continue // Skip empty lines and comments
+			continue
 		}
 
 		parts := strings.SplitN(line, "=", 2)
@@ -44,28 +45,16 @@ func readLabels(filePath string) (map[string]string, error) {
 	return labels, nil
 }
 
-// mergeLabels merges two label maps, with the second map taking precedence
-func mergeLabels(base, override map[string]string) map[string]string {
-	result := make(map[string]string)
-	for k, v := range base {
-		result[k] = v
-	}
-	for k, v := range override {
-		result[k] = v
-	}
-	return result
-}
-
 // buildLabelsCache walks the repository root and builds a cache of directory labels
 func buildLabelsCache(repoRoot string) (map[string]map[string]string, error) {
 	dirLabelsCache := make(map[string]map[string]string)
 
-	err := filepath.Walk(repoRoot, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() {
+		if !d.IsDir() {
 			return nil
 		}
 
@@ -74,33 +63,32 @@ func buildLabelsCache(repoRoot string) (map[string]map[string]string, error) {
 			return fmt.Errorf("failed to get relative path: %w", err)
 		}
 
-		// Skip if we've already processed this directory
 		if _, exists := dirLabelsCache[relDir]; exists {
 			return nil
 		}
 
-		// Start with an empty label set
 		labels := make(map[string]string)
 
 		// If this is not the root directory, get parent's labels first
 		if relDir != "." {
 			parentDir := filepath.Dir(relDir)
 			if parentLabels, exists := dirLabelsCache[parentDir]; exists {
-				labels = mergeLabels(make(map[string]string), parentLabels)
+				for k, v := range parentLabels {
+					labels[k] = v
+				}
 			}
 		}
 
 		// Read and merge this directory's labels
 		labelsFile := filepath.Join(path, ".labels")
 		currentLabels, err := readLabels(labelsFile)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("failed to read labels from %s: %w", labelsFile, err)
 		}
-		if currentLabels != nil {
-			labels = mergeLabels(labels, currentLabels)
+		for k, v := range currentLabels {
+			labels[k] = v
 		}
 
-		// Store in cache
 		dirLabelsCache[relDir] = labels
 		return nil
 	})
