@@ -28,13 +28,13 @@ func readLabels(filePath string) (map[string]string, error) {
 			continue
 		}
 
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
 			return nil, fmt.Errorf("invalid label format in %s: %q", filePath, line)
 		}
 
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
 		labels[key] = value
 	}
 

@@ -58,14 +58,12 @@ func findGitRepoRoot(startPath string) (string, error) {
 
 // LoadConfig reads the .signadot/config.yaml file from the git repository root
 func LoadConfig(startPath string) (*Config, error) {
-	// Find git repository root
 	repoRoot, err := findGitRepoRoot(startPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find git repository root: %w", err)
 	}
 
 	configPath := filepath.Join(repoRoot, ".signadot", "config.yaml")
-	fmt.Printf("Reading config from: %s\n", configPath)
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read .signadot/config.yaml: %w", err)
@@ -93,85 +91,94 @@ func sortPathsByLength(paths []string) []string {
 	return sorted
 }
 
+// processTestFile handles a single test file, adding it to the testFileMap if valid
+func processTestFile(repoRoot string, path string, dirLabelsCache map[string]map[string]string, runID string, testFileMap map[string]TestFile) error {
+	relPath, err := filepath.Rel(repoRoot, path)
+	if err != nil {
+		return fmt.Errorf("failed to get relative path: %w", err)
+	}
+
+	if _, exists := testFileMap[relPath]; exists {
+		return nil
+	}
+
+	dirPath := filepath.Dir(relPath)
+	var labels map[string]string
+	if dirLabels, exists := dirLabelsCache[dirPath]; exists {
+		labels = dirLabels
+	} else {
+		labels = make(map[string]string)
+	}
+
+	labels["signadot.com/run-id"] = runID
+
+	testFileMap[relPath] = TestFile{
+		Path:   relPath,
+		Labels: labels,
+	}
+
+	return nil
+}
+
+// walkTestDirectory processes all test files in a directory
+func walkTestDirectory(repoRoot, testsDir string, dirLabelsCache map[string]map[string]string, runID string, testFileMap map[string]TestFile) error {
+	absTestsDir := filepath.Join(repoRoot, testsDir)
+
+	if _, err := os.Stat(absTestsDir); os.IsNotExist(err) {
+		return fmt.Errorf("tests directory %q does not exist: %w", absTestsDir, err)
+	}
+
+	err := filepath.Walk(absTestsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if !isTestFile(path) {
+			return nil
+		}
+
+		return processTestFile(repoRoot, path, dirLabelsCache, runID, testFileMap)
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to walk tests directory %q: %w", absTestsDir, err)
+	}
+
+	return nil
+}
+
 // FindTestFiles finds all test files in the tests directories
 func FindTestFiles(startPath string, cfg *Config) ([]TestFile, error) {
-	// Find git repository root
 	repoRoot, err := findGitRepoRoot(startPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find git repository root: %w", err)
 	}
 
-	// Generate a run ID for this execution
 	runID := generateRunID()
 
-	// Build the directory labels cache
 	dirLabelsCache, err := buildLabelsCache(repoRoot)
 	if err != nil {
 		return nil, err
 	}
 
-	// Use a map to deduplicate files by their full path
 	testFileMap := make(map[string]TestFile)
 
-	// Sort paths by length to process parent directories first
-	sortedPaths := sortPathsByLength(cfg.SmartTests)
+	cleanPaths := make([]string, len(cfg.SmartTests))
+	for i, path := range cfg.SmartTests {
+		cleanPaths[i] = filepath.Clean(path)
+	}
+	sortedPaths := sortPathsByLength(cleanPaths)
 
-	// Collect test files using the cached labels
 	for _, testsDir := range sortedPaths {
-		absTestsDir := filepath.Join(repoRoot, testsDir)
-
-		// Check if directory exists
-		if _, err := os.Stat(absTestsDir); os.IsNotExist(err) {
-			return nil, fmt.Errorf("tests directory %q does not exist", absTestsDir)
-		}
-
-		err := filepath.Walk(absTestsDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
-			}
-
-			// Skip directories and non-test files
-			if info.IsDir() || !isTestFile(path) {
-				return nil
-			}
-
-			// Get relative path from repository root
-			relPath, err := filepath.Rel(repoRoot, path)
-			if err != nil {
-				return fmt.Errorf("failed to get relative path: %w", err)
-			}
-
-			// If we've already seen this file, skip it
-			if _, exists := testFileMap[relPath]; exists {
-				return nil
-			}
-
-			// Get directory labels from cache
-			dirPath := filepath.Dir(relPath)
-			var labels map[string]string
-			if dirLabels, exists := dirLabelsCache[dirPath]; exists {
-				labels = dirLabels
-			} else {
-				labels = make(map[string]string)
-			}
-
-			// Add the run ID label
-			labels["signadot.com/run-id"] = runID
-
-			testFileMap[relPath] = TestFile{
-				Path:   relPath,
-				Labels: labels,
-			}
-
-			return nil
-		})
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to walk tests directory %q: %w", absTestsDir, err)
+		if err := walkTestDirectory(repoRoot, testsDir, dirLabelsCache, runID, testFileMap); err != nil {
+			return nil, err
 		}
 	}
 
-	// Convert map to slice
 	var allTestFiles []TestFile
 	for _, tf := range testFileMap {
 		allTestFiles = append(allTestFiles, tf)
@@ -180,8 +187,7 @@ func FindTestFiles(startPath string, cfg *Config) ([]TestFile, error) {
 	return allTestFiles, nil
 }
 
-// isTestFile checks if a file is a test file
 func isTestFile(path string) bool {
 	ext := filepath.Ext(path)
-	return ext == ".star" // Add other test file extensions as needed
+	return ext == ".star"
 }
