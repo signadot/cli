@@ -124,3 +124,57 @@ func TestFileDiscovery(t *testing.T) {
 		}
 	}
 }
+
+func TestDirectFilePathInConfig(t *testing.T) {
+	// Create a config with only a direct file path
+	cfg := &Config{
+		SmartTests: []string{
+			"tests/fixtures/smart-tests-git/backend/test.star",
+		},
+	}
+
+	// Find test files
+	testFiles, err := FindTestFiles("tests/fixtures/smart-tests-git", cfg)
+	if err != nil {
+		t.Fatalf("FindTestFiles failed: %v", err)
+	}
+
+	// Create a map of actual test files for easier lookup
+	actualFiles := make(map[string]struct{})
+	for _, tf := range testFiles {
+		t.Logf("Found file: %s", tf.Path)
+		actualFiles[tf.Path] = struct{}{}
+	}
+
+	// We expect to find only the directly specified file
+	expectedFiles := []string{
+		"tests/fixtures/smart-tests-git/backend/test.star",
+	}
+
+	// Verify the expected file is found
+	for _, expectedPath := range expectedFiles {
+		if _, exists := actualFiles[expectedPath]; !exists {
+			t.Errorf("Expected file %s not found", expectedPath)
+		}
+	}
+
+	// Verify no unexpected files are found
+	if len(actualFiles) != len(expectedFiles) {
+		t.Errorf("Found %d files, expected exactly %d file (only the directly specified file)",
+			len(actualFiles), len(expectedFiles))
+
+		// Print unexpected files
+		for path := range actualFiles {
+			if path != expectedFiles[0] {
+				t.Errorf("Unexpected file found: %s", path)
+			}
+		}
+	}
+
+	// Verify file extension
+	for path := range actualFiles {
+		if filepath.Ext(path) != ".star" {
+			t.Errorf("File %s has unexpected extension", path)
+		}
+	}
+}

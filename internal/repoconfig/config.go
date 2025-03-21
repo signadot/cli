@@ -173,9 +173,24 @@ func FindTestFiles(startPath string, cfg *Config) ([]TestFile, error) {
 	}
 	sortedPaths := sortPathsByLength(cleanPaths)
 
-	for _, testsDir := range sortedPaths {
-		if err := walkTestDirectory(repoRoot, testsDir, dirLabelsCache, runID, testFileMap); err != nil {
-			return nil, err
+	for _, path := range sortedPaths {
+		absPath := filepath.Join(repoRoot, path)
+		fileInfo, err := os.Stat(absPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat path %q: %w", path, err)
+		}
+
+		if fileInfo.IsDir() {
+			if err := walkTestDirectory(repoRoot, path, dirLabelsCache, runID, testFileMap); err != nil {
+				return nil, err
+			}
+		} else {
+			if !isTestFile(absPath) {
+				continue
+			}
+			if err := processTestFile(repoRoot, absPath, dirLabelsCache, runID, testFileMap); err != nil {
+				return nil, err
+			}
 		}
 	}
 
