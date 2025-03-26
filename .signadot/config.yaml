@@ -1,0 +1,3 @@
+smart_tests:
+- tests/fixtures/smart-tests-git/backend
+- tests/fixtures/smart-tests-git/frontend
