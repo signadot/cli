@@ -10,7 +10,7 @@ func New(api *config.API) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "synthetic",
 		Short:   "Signadot synthetic tests",
-		Aliases: []string{"t"},
+		Aliases: []string{"st"},
 		Hidden:  true,
 	}
 
