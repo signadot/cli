@@ -2,49 +2,49 @@ package config
 
 import "github.com/spf13/cobra"
 
-type Test struct {
+type Synthetic struct {
 	*API
 }
 
-type TestApply struct {
-	*Test
+type SyntheticApply struct {
+	*Synthetic
 
 	Filename     string
 	TemplateVals TemplateVals
 }
 
-func (cfg *TestApply) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&cfg.Filename, "filename", "f", "", "YAML or JSON file containing the sandbox creation request")
+func (cfg *SyntheticApply) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&cfg.Filename, "filename", "f", "", "YAML or JSON file containing the synthetic test creation request")
 	cmd.MarkFlagRequired("filename")
 	cmd.Flags().Var(&cfg.TemplateVals, "set", "--set var=val")
 }
 
-type TestGet struct {
-	*Test
+type SyntheticGet struct {
+	*Synthetic
 }
 
-type TestList struct {
-	*Test
+type SyntheticList struct {
+	*Synthetic
 
 	// TODO query params
 }
 
-type TestDelete struct {
-	*Test
+type SyntheticDelete struct {
+	*Synthetic
 
 	Filename     string
 	TemplateVals TemplateVals
 }
 
-type TestRun struct {
-	*Test
+type SyntheticRun struct {
+	*Synthetic
 
 	Cluster    string
 	Sandbox    string
 	RouteGroup string
 }
 
-func (cfg *TestRun) AddFlags(cmd *cobra.Command) {
+func (cfg *SyntheticRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&cfg.Cluster, "cluster", "c", "", "cluster name (required for test execution)")
 	cmd.Flags().StringVarP(&cfg.Sandbox, "sandbox", "s", "", "sandbox")
 	cmd.Flags().StringVarP(&cfg.RouteGroup, "routegroup", "r", "", "routegroup")

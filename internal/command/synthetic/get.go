@@ -1,4 +1,4 @@
-package test
+package synthetic
 
 import (
 	"errors"
@@ -9,13 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGet(tstConfig *config.Test) *cobra.Command {
-	cfg := &config.TestGet{
-		Test: tstConfig,
+func newGet(tstConfig *config.Synthetic) *cobra.Command {
+	cfg := &config.SyntheticGet{
+		Synthetic: tstConfig,
 	}
 	cmd := &cobra.Command{
 		Use:   "get <name>",
-		Short: "Get a test",
+		Short: "Get a synthetic test",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return get(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -25,7 +25,7 @@ func newGet(tstConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func get(cfg *config.TestGet, wOut, wErr io.Writer, args []string) error {
+func get(cfg *config.SyntheticGet, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

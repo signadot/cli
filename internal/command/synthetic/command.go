@@ -1,4 +1,4 @@
-package test
+package synthetic
 
 import (
 	"github.com/signadot/cli/internal/config"
@@ -6,10 +6,10 @@ import (
 )
 
 func New(api *config.API) *cobra.Command {
-	cfg := &config.Test{API: api}
+	cfg := &config.Synthetic{API: api}
 	cmd := &cobra.Command{
-		Use:     "test",
-		Short:   "Signadot tests",
+		Use:     "synthetic",
+		Short:   "Signadot synthetic tests",
 		Aliases: []string{"t"},
 		Hidden:  true,
 	}

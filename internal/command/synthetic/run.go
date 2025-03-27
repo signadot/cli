@@ -1,27 +1,25 @@
-package test
+package synthetic
 
 import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/signadot/cli/internal/command/test_exec"
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/cli/internal/repoconfig"
 	"github.com/signadot/go-sdk/client/test_executions"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
-func newRun(tConfig *config.Test) *cobra.Command {
-	cfg := &config.TestRun{
-		Test: tConfig,
+func newRun(tConfig *config.Synthetic) *cobra.Command {
+	cfg := &config.SyntheticRun{
+		Synthetic: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "run [name]",
-		Short: "Run a test",
-		Args:  cobra.MaximumNArgs(1),
+		Use:   "run <name>",
+		Short: "Run a synthetic test",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
@@ -30,43 +28,9 @@ func newRun(tConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func run(cfg *config.TestRun, wOut, wErr io.Writer, args []string) error {
+func run(cfg *config.SyntheticRun, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
-	}
-
-	// If no arguments provided, try to read from .signadot/config
-	if len(args) == 0 {
-		// Get current directory
-		cwd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get current directory: %w", err)
-		}
-
-		// Load config
-		config, err := repoconfig.LoadConfig(cwd)
-		if err != nil {
-			return fmt.Errorf("failed to load .signadot/config.yaml: %w", err)
-		}
-
-		// Find test files
-		testFiles, err := repoconfig.FindTestFiles(cwd, config)
-		if err != nil {
-			return fmt.Errorf("failed to find test files: %w", err)
-		}
-
-		// Print test files
-		fmt.Fprintf(wOut, "Found %d test files:\n", len(testFiles))
-		for _, tf := range testFiles {
-			fmt.Fprintf(wOut, "  %s\n", tf.Path)
-			if len(tf.Labels) > 0 {
-				fmt.Fprintf(wOut, "    Labels:\n")
-				for k, v := range tf.Labels {
-					fmt.Fprintf(wOut, "      %s=%s\n", k, v)
-				}
-			}
-		}
-		return nil
 	}
 
 	// Handle single test execution
