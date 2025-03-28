@@ -55,7 +55,6 @@ func list(cfg *config.TestExecList, wOut, wErr io.Writer, args []string) error {
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-	return nil
 }
 
 type testExecRow struct {

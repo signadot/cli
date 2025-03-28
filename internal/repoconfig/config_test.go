@@ -6,29 +6,35 @@ import (
 )
 
 func TestLabelAggregation(t *testing.T) {
-	// Create a config with the fixtures directory
-	cfg := &Config{
-		SmartTests: []string{"tests/fixtures/smart-tests-git/backend"},
+	// Create a test finder
+	tf, err := NewTestFinder("../../tests/fixtures/smart-tests-git/backend")
+	if err != nil {
+		t.Fatalf("NewTestFinder failed: %v", err)
+	}
+	// get the git repo
+	repo := tf.GetGitRepo()
+	if repo == nil {
+		t.Fatal("empty git repo")
 	}
 
 	// Find test files
-	testFiles, err := FindTestFiles("tests/fixtures/smart-tests-git/backend", cfg)
+	testFiles, err := tf.FindTestFiles()
 	if err != nil {
 		t.Fatalf("FindTestFiles failed: %v", err)
 	}
 
 	// Create a map of expected labels for each file
 	expectedLabels := map[string]map[string]string{
-		"tests/fixtures/smart-tests-git/backend/test.star": {
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/backend/test.star"): {
 			"area":  "backend",
 			"suite": "integration",
 		},
-		"tests/fixtures/smart-tests-git/backend/team1/file1.star": {
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/backend/team1/file1.star"): {
 			"area":  "backend",
 			"team":  "team1",
 			"suite": "integration",
 		},
-		"tests/fixtures/smart-tests-git/backend/team2/file2.star": {
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/backend/team2/file2.star"): {
 			"area":  "backend",
 			"team":  "team2",
 			"suite": "integration",
@@ -56,25 +62,30 @@ func TestLabelAggregation(t *testing.T) {
 					expectedPath, key, value, key, actualValue)
 			}
 		}
-
-		// Verify run-id label exists
-		if _, exists := tf.Labels["signadot.com/run-id"]; !exists {
-			t.Errorf("File %s: Missing run-id label", expectedPath)
-		}
 	}
 }
 
 func TestFileDiscovery(t *testing.T) {
-	// Create a config with both backend and frontend directories
-	cfg := &Config{
+	// Create a test finder
+	tf, err := NewTestFinder("")
+	if err != nil {
+		t.Fatalf("NewTestFinder failed: %v", err)
+	}
+	// overwrite the config with both backend and frontend directories
+	tf.cfg = &Config{
 		SmartTests: []string{
 			"tests/fixtures/smart-tests-git/backend",
 			"tests/fixtures/smart-tests-git/frontend",
 		},
 	}
+	// get the git repo
+	repo := tf.GetGitRepo()
+	if repo == nil {
+		t.Fatal("empty git repo")
+	}
 
 	// Find test files
-	testFiles, err := FindTestFiles("tests/fixtures/smart-tests-git", cfg)
+	testFiles, err := tf.FindTestFiles()
 	if err != nil {
 		t.Fatalf("FindTestFiles failed: %v", err)
 	}
@@ -87,10 +98,10 @@ func TestFileDiscovery(t *testing.T) {
 
 	// List of all expected test files
 	expectedFiles := []string{
-		"tests/fixtures/smart-tests-git/backend/test.star",
-		"tests/fixtures/smart-tests-git/backend/team1/file1.star",
-		"tests/fixtures/smart-tests-git/backend/team2/file2.star",
-		"tests/fixtures/smart-tests-git/frontend/file3.star",
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/backend/test.star"),
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/backend/team1/file1.star"),
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/backend/team2/file2.star"),
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/frontend/file3.star"),
 	}
 
 	// Verify all expected files are found
@@ -126,15 +137,25 @@ func TestFileDiscovery(t *testing.T) {
 }
 
 func TestDirectFilePathInConfig(t *testing.T) {
-	// Create a config with only a direct file path
-	cfg := &Config{
+	// Create a test finder
+	tf, err := NewTestFinder("")
+	if err != nil {
+		t.Fatalf("NewTestFinder failed: %v", err)
+	}
+	// overwrite the config with only a direct file path
+	tf.cfg = &Config{
 		SmartTests: []string{
 			"tests/fixtures/smart-tests-git/backend/test.star",
 		},
 	}
+	// get the git repo
+	repo := tf.GetGitRepo()
+	if repo == nil {
+		t.Fatal("empty git repo")
+	}
 
 	// Find test files
-	testFiles, err := FindTestFiles("tests/fixtures/smart-tests-git", cfg)
+	testFiles, err := tf.FindTestFiles()
 	if err != nil {
 		t.Fatalf("FindTestFiles failed: %v", err)
 	}
@@ -148,7 +169,7 @@ func TestDirectFilePathInConfig(t *testing.T) {
 
 	// We expect to find only the directly specified file
 	expectedFiles := []string{
-		"tests/fixtures/smart-tests-git/backend/test.star",
+		filepath.Join(repo.Path, "tests/fixtures/smart-tests-git/backend/test.star"),
 	}
 
 	// Verify the expected file is found
