@@ -63,11 +63,11 @@ func run(cfg *config.SyntheticRun, wOut, wErr io.Writer, args []string) error {
 			rc.Routegroup = cfg.RouteGroup
 		}
 	}
-	params := test_executions.NewCreateTestExecutionParams().
+	params := test_executions.NewCreateTestExecutionForTestParams().
 		WithOrgName(cfg.Org).
 		WithTestName(name).
 		WithData(txSpec)
-	result, err := cfg.Client.TestExecutions.CreateTestExecution(params, nil)
+	result, err := cfg.Client.TestExecutions.CreateTestExecutionForTest(params, nil)
 	if err != nil {
 		return err
 	}

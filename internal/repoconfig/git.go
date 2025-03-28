@@ -56,9 +56,9 @@ func FindGitRepo(startPath string) (*GitRepo, error) {
 	}, nil
 }
 
-// GetRelativePathFromGitRoot returns the relative path of a directory within the git root directory.
-// For example, if git root is "/aa/bb/cc/" and the directory is "aa/bb/cc/dd/ee",
-// it will return "dd/ee".
+// GetRelativePathFromGitRoot returns the relative path of a directory within
+// the git root directory. For example, if git root is "/aa/bb/cc/" and the
+// directory is "/aa/bb/cc/dd/ee", it will return "dd/ee".
 func GetRelativePathFromGitRoot(gitRoot, dirPath string) (string, error) {
 	// Clean both paths to handle any trailing slashes or ".." components
 	gitRoot = filepath.Clean(gitRoot)
