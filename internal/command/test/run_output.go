@@ -10,6 +10,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/models"
 	"github.com/theckman/yacspin"
 )
@@ -258,4 +259,26 @@ func checksPassedFailed(cks *models.TestexecutionsChecks) (int, int) {
 		failed++
 	}
 	return passed, failed
+}
+
+func structuredOutput(cfg *config.TestRun, outW io.Writer, runID string,
+	txs []*models.TestExecution) error {
+	type output struct {
+		RunID      string `json:"runID"`
+		Executions []*models.TestExecution
+	}
+
+	o := output{
+		RunID:      runID,
+		Executions: txs,
+	}
+
+	switch cfg.OutputFormat {
+	case config.OutputFormatJSON:
+		return print.RawJSON(outW, o)
+	case config.OutputFormatYAML:
+		return print.RawYAML(outW, o)
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
+	}
 }

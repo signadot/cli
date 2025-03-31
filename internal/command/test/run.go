@@ -99,10 +99,11 @@ func run(ctx context.Context, cfg *config.TestRun, wOut, wErr io.Writer,
 			// render the test executions summary
 			out.renderTestXsSummary(txs)
 		}
+		return nil
 	}
 
-	_ = txs
-	return nil
+	// render the structured output
+	return structuredOutput(cfg, wOut, runID, txs)
 }
 
 func validateRun(cfg *config.TestRun) error {
