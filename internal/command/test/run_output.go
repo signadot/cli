@@ -118,13 +118,13 @@ func (o *defaultRunOutput) renderTestXsSummary(txs []*models.TestExecution) {
 	fmt.Fprint(o.wOut, "* Executions\n")
 	fmt.Fprint(o.wOut, "\t"+o.getExecutionsDetails(txs)+"\n")
 
-	diffMsg := o.getDiffsDetails(txs)
+	diffMsg := getDiffsDetails(txs...)
 	if diffMsg != "" {
 		fmt.Fprint(o.wOut, "* Diffs\n")
 		fmt.Fprint(o.wOut, "\t"+diffMsg+"\n")
 	}
 
-	checksMsg := o.getChecksDetails(txs)
+	checksMsg := getChecksDetails(txs...)
 	if checksMsg != "" {
 		fmt.Fprint(o.wOut, "* Checks\n")
 		fmt.Fprint(o.wOut, "\t"+checksMsg+"\n")
@@ -165,7 +165,7 @@ func (o *defaultRunOutput) getExecutionsDetails(txs []*models.TestExecution) str
 	return details
 }
 
-func (o *defaultRunOutput) getDiffsDetails(txs []*models.TestExecution) string {
+func getDiffsDetails(txs ...*models.TestExecution) string {
 	var caps, red, yellow, green int64
 	for _, tx := range txs {
 		if tx.Results == nil || tx.Results.TrafficDiff == nil {
@@ -199,7 +199,7 @@ func (o *defaultRunOutput) getDiffsDetails(txs []*models.TestExecution) string {
 	}
 }
 
-func (o *defaultRunOutput) getChecksDetails(txs []*models.TestExecution) string {
+func getChecksDetails(txs ...*models.TestExecution) string {
 	var passed, failed int
 	for _, tx := range txs {
 		if tx.Results == nil || tx.Results.Checks == nil {
