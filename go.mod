@@ -20,6 +20,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
+	github.com/whilp/git-urls v1.0.0
 	github.com/xeonx/timeago v1.0.0-rc5
 	golang.org/x/net v0.35.0
 	golang.org/x/term v0.29.0
