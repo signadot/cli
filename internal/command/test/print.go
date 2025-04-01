@@ -115,6 +115,7 @@ func getResults(tx *models.TestExecution) string {
 
 type testExecRow struct {
 	Name      string `sdtab:"NAME"`
+	Source    string `sdtab:"SOURCE"`
 	Phase     string `sdtab:"PHASE"`
 	CreatedAt string `sdtab:"CREATED"`
 }
@@ -124,8 +125,13 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 	tab.AddHeader()
 	for _, item := range txs {
 		tx := item.Execution
+		source := "hosted"
+		if tx.Spec != nil && tx.Spec.EmbeddedSpec != nil {
+			source = "external"
+		}
 		tab.AddRow(testExecRow{
 			Name:      tx.Name,
+			Source:    source,
 			CreatedAt: tx.CreatedAt,
 			Phase:     tx.Status.Phase,
 		})

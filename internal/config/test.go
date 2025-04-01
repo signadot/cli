@@ -47,6 +47,7 @@ type TestList struct {
 	RepoPath       string
 	RepoCommitSHA  string
 	ExecutionPhase string
+	Labels         []string
 }
 
 func (c *TestList) AddFlags(cmd *cobra.Command) {
@@ -57,6 +58,7 @@ func (c *TestList) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.RepoPath, "repo-path", "", "Filter test executions by repository path")
 	cmd.Flags().StringVar(&c.RepoCommitSHA, "repo-commit-sha", "", "Filter test executions by repository commit SHA")
 	cmd.Flags().StringVar(&c.ExecutionPhase, "phase", "", "Filter test executions by phase (one of 'pending', 'in_progress', 'succeeded', 'canceled' or 'failed')")
+	cmd.Flags().StringArrayVar(&c.Labels, "label", []string{}, "Filter test executions by label in the format key:value (can be specified multiple times)")
 }
 
 type TestCancel struct {

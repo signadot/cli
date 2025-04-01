@@ -58,6 +58,9 @@ func list(cfg *config.TestList, wOut, wErr io.Writer, args []string) error {
 	if cfg.ExecutionPhase != "" {
 		params.WithExecutionPhase(&cfg.ExecutionPhase)
 	}
+	if len(cfg.Labels) > 0 {
+		params.WithLabel(cfg.Labels)
+	}
 	result, err := cfg.Client.TestExecutions.QueryTestExecutions(params, nil)
 	if err != nil {
 		return err
