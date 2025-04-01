@@ -17,7 +17,6 @@ import (
 	"github.com/signadot/cli/internal/command/sandbox"
 	"github.com/signadot/cli/internal/command/synthetic"
 	"github.com/signadot/cli/internal/command/test"
-	"github.com/signadot/cli/internal/command/test_exec"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -54,7 +53,6 @@ func New() *cobra.Command {
 
 		// hidden commands
 		synthetic.New(cfg),
-		test_exec.New(cfg),
 	)
 
 	return cmd

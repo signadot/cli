@@ -85,7 +85,7 @@ func run(ctx context.Context, cfg *config.TestRun, wOut, wErr io.Writer,
 		}
 	} else {
 		// get tests executions
-		txs, err = getTestExecutionsForRunID(ctx, cfg, runID)
+		txs, err = getTestExecutionsForRunID(ctx, cfg.Test, runID)
 		if err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ func waitForTests(ctx context.Context, cfg *config.TestRun,
 
 	for {
 		// get all test executions
-		txs, err := getTestExecutionsForRunID(ctx, cfg, runID)
+		txs, err := getTestExecutionsForRunID(ctx, cfg.Test, runID)
 		if err != nil {
 			return nil, err
 		}
@@ -271,7 +271,7 @@ func waitForTests(ctx context.Context, cfg *config.TestRun,
 	}
 }
 
-func getTestExecutionsForRunID(ctx context.Context, cfg *config.TestRun,
+func getTestExecutionsForRunID(ctx context.Context, cfg *config.Test,
 	runID string) ([]*models.TestExecution, error) {
 	var (
 		pageSize int64 = 100
