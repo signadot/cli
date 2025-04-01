@@ -1,4 +1,4 @@
-package test
+package synthetic
 
 import (
 	"errors"
@@ -13,13 +13,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newList(tstConfig *config.Test) *cobra.Command {
-	cfg := &config.TestList{
-		Test: tstConfig,
+func newList(tstConfig *config.Synthetic) *cobra.Command {
+	cfg := &config.SyntheticList{
+		Synthetic: tstConfig,
 	}
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List tests",
+		Short: "List synthetic tests",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -29,7 +29,7 @@ func newList(tstConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func list(cfg *config.TestList, wOut, wErr io.Writer, args []string) error {
+func list(cfg *config.SyntheticList, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -52,7 +52,6 @@ func list(cfg *config.TestList, wOut, wErr io.Writer, args []string) error {
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-	return nil
 }
 
 type testRow struct {
