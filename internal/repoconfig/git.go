@@ -3,8 +3,10 @@ package repoconfig
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
+	giturls "github.com/whilp/git-urls"
 )
 
 type GitRepo struct {
@@ -46,6 +48,15 @@ func FindGitRepo(startPath string) (*GitRepo, error) {
 	if len(remotes) > 0 {
 		// Use the first remote's URL
 		remoteURL = remotes[0].Config().URLs[0]
+
+		// Normalize the URL
+		// E.g.:
+		// git@github.com:signadot/cli.git -> github.com/signadot/cli
+		// https://github.com/signadot/cli -> github.com/signadot/cli
+		remoteURL, err = normalizeGitRepo(remoteURL)
+		if err != nil {
+			return nil, fmt.Errorf("could not normalize git remote URL: %w", err)
+		}
 	}
 
 	return &GitRepo{
@@ -71,4 +82,16 @@ func GetRelativePathFromGitRoot(gitRoot, dirPath string) (string, error) {
 	}
 
 	return relPath, nil
+}
+
+func normalizeGitRepo(url string) (string, error) {
+	// In case of URLs like git@github.com:signadot/cli.git, this will convert
+	// it to a standard SSH URL, e.g.:
+	// ssh://git@github.com/signadot/cli.git
+	u, err := giturls.Parse(url)
+	if err != nil {
+		return "", err
+	}
+	// Get the host + the path (triming the .git suffix if exists)
+	return filepath.Join(u.Host, strings.TrimSuffix(u.Path, ".git")), nil
 }
