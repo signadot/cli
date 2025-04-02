@@ -1,4 +1,4 @@
-package synthetic
+package hostedtest
 
 import (
 	"encoding/json"
@@ -15,13 +15,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newApply(testConfig *config.Synthetic) *cobra.Command {
-	cfg := &config.SyntheticApply{
-		Synthetic: testConfig,
+func newApply(testConfig *config.HostedTest) *cobra.Command {
+	cfg := &config.HostedTestApply{
+		HostedTest: testConfig,
 	}
 	cmd := &cobra.Command{
 		Use:   "apply -f FILENAME [ --set var1=val1 --set var2=val2 ... ]",
-		Short: "Create or update a synthetic test with variable expansion",
+		Short: "Create or update a hosted test with variable expansion",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -31,7 +31,7 @@ func newApply(testConfig *config.Synthetic) *cobra.Command {
 	return cmd
 }
 
-func apply(cfg *config.SyntheticApply, wOut, wErr io.Writer, args []string) error {
+func apply(cfg *config.HostedTestApply, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

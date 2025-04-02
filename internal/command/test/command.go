@@ -11,7 +11,6 @@ func New(api *config.API) *cobra.Command {
 		Use:     "test",
 		Short:   "Signadot tests",
 		Aliases: []string{"t"},
-		Hidden:  true,
 	}
 
 	run := newRun(cfg)

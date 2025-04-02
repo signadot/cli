@@ -7,6 +7,7 @@ import (
 	"github.com/signadot/cli/internal/command/artifact"
 	"github.com/signadot/cli/internal/command/bug"
 	"github.com/signadot/cli/internal/command/cluster"
+	"github.com/signadot/cli/internal/command/hostedtest"
 	"github.com/signadot/cli/internal/command/jobrunnergroup"
 	"github.com/signadot/cli/internal/command/jobs"
 	"github.com/signadot/cli/internal/command/local"
@@ -15,7 +16,6 @@ import (
 	"github.com/signadot/cli/internal/command/resourceplugin"
 	"github.com/signadot/cli/internal/command/routegroup"
 	"github.com/signadot/cli/internal/command/sandbox"
-	"github.com/signadot/cli/internal/command/synthetic"
 	"github.com/signadot/cli/internal/command/test"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
@@ -52,7 +52,7 @@ func New() *cobra.Command {
 		test.New(cfg),
 
 		// hidden commands
-		synthetic.New(cfg),
+		hostedtest.New(cfg),
 	)
 
 	return cmd
