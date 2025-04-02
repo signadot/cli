@@ -1,22 +1,37 @@
 package config
 
-import "github.com/spf13/cobra"
+import (
+	"time"
 
+	"github.com/spf13/cobra"
+)
+
+// Test represents the configuration for the test command
 type Test struct {
 	*API
 }
 
-type TestApply struct {
+// TestRun represents the configuration for running a test
+type TestRun struct {
 	*Test
-
-	Filename     string
-	TemplateVals TemplateVals
+	Directory  string
+	Cluster    string
+	Sandbox    string
+	RouteGroup string
+	Publish    bool
+	Timeout    time.Duration
+	Wait       bool
 }
 
-func (cfg *TestApply) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&cfg.Filename, "filename", "f", "", "YAML or JSON file containing the sandbox creation request")
-	cmd.MarkFlagRequired("filename")
-	cmd.Flags().Var(&cfg.TemplateVals, "set", "--set var=val")
+// AddFlags adds the flags for the test run command
+func (c *TestRun) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&c.Directory, "directory", "d", "", "Base directory for finding tests")
+	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "Cluster where to run tests")
+	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "Sandbox where to run tests")
+	cmd.Flags().StringVar(&c.RouteGroup, "route-group", "", "Route group where to run tests")
+	cmd.Flags().BoolVar(&c.Publish, "publish", false, "Publish test results")
+	cmd.Flags().DurationVar(&c.Timeout, "timeout", 0, "timeout when waiting for the tests to complete, if 0 is specified, no timeout will be applied (default 0)")
+	cmd.Flags().BoolVar(&c.Wait, "wait", false, "waits until the tests are completed")
 }
 
 type TestGet struct {
@@ -25,27 +40,32 @@ type TestGet struct {
 
 type TestList struct {
 	*Test
-
-	// TODO query params
+	TestName       string
+	RunID          string
+	Sandbox        string
+	Repo           string
+	RepoPath       string
+	RepoCommitSHA  string
+	ExecutionPhase string
+	Labels         []string
 }
 
-type TestDelete struct {
+func (c *TestList) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.TestName, "test-name", "", "Filter test executions by test name")
+	cmd.Flags().StringVar(&c.RunID, "run-id", "", "Filter test executions by run ID")
+	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "Filter test executions by sandbox name")
+	cmd.Flags().StringVar(&c.Repo, "repo", "", "Filter test executions by repository name")
+	cmd.Flags().StringVar(&c.RepoPath, "repo-path", "", "Filter test executions by repository path")
+	cmd.Flags().StringVar(&c.RepoCommitSHA, "repo-commit-sha", "", "Filter test executions by repository commit SHA")
+	cmd.Flags().StringVar(&c.ExecutionPhase, "phase", "", "Filter test executions by phase (one of 'pending', 'in_progress', 'succeeded', 'canceled' or 'failed')")
+	cmd.Flags().StringArrayVar(&c.Labels, "label", []string{}, "Filter test executions by label in the format key:value (can be specified multiple times)")
+}
+
+type TestCancel struct {
 	*Test
-
-	Filename     string
-	TemplateVals TemplateVals
+	RunID string
 }
 
-type TestRun struct {
-	*Test
-
-	Cluster    string
-	Sandbox    string
-	RouteGroup string
-}
-
-func (cfg *TestRun) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&cfg.Cluster, "cluster", "c", "", "cluster name (required for test execution)")
-	cmd.Flags().StringVarP(&cfg.Sandbox, "sandbox", "s", "", "sandbox")
-	cmd.Flags().StringVarP(&cfg.RouteGroup, "routegroup", "r", "", "routegroup")
+func (c *TestCancel) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.RunID, "run-id", "", "Cancel all test executions of this run ID")
 }

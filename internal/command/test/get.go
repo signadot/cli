@@ -5,17 +5,17 @@ import (
 	"io"
 
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/go-sdk/client/tests"
+	"github.com/signadot/go-sdk/client/test_executions"
 	"github.com/spf13/cobra"
 )
 
-func newGet(tstConfig *config.Test) *cobra.Command {
+func newGet(tConfig *config.Test) *cobra.Command {
 	cfg := &config.TestGet{
-		Test: tstConfig,
+		Test: tConfig,
 	}
 	cmd := &cobra.Command{
 		Use:   "get <name>",
-		Short: "Get a test",
+		Short: "Get a test execution",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return get(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -29,14 +29,16 @@ func get(cfg *config.TestGet, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	name := args[0]
-	params := tests.NewGetTestParams().WithOrgName(cfg.Org).WithTestName(name)
-	result, err := cfg.Client.Tests.GetTest(params, nil)
+	execName := args[0]
+
+	params := test_executions.NewGetTestExecutionParams().WithOrgName(cfg.Org).
+		WithExecutionName(execName)
+	result, err := cfg.Client.TestExecutions.GetTestExecution(params, nil)
 	if err != nil {
 		return err
 	}
 	if !result.IsSuccess() {
 		return errors.New(result.Error())
 	}
-	return printTest(cfg.OutputFormat, wOut, result.Payload)
+	return PrintTestExecution(cfg.OutputFormat, wOut, result.Payload)
 }

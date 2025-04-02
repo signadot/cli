@@ -11,17 +11,18 @@ func New(api *config.API) *cobra.Command {
 		Use:     "test",
 		Short:   "Signadot tests",
 		Aliases: []string{"t"},
-		Hidden:  true,
 	}
 
-	apply := newApply(cfg)
-	get := newGet(cfg)
-	lst := newList(cfg)
-	del := newDelete(cfg)
 	run := newRun(cfg)
+	get := newGet(cfg)
+	list := newList(cfg)
+	cancel := newCancel(cfg)
 
 	// Subcommands
-	cmd.AddCommand(run, get, lst, del, apply)
+	cmd.AddCommand(run)
+	cmd.AddCommand(get)
+	cmd.AddCommand(list)
+	cmd.AddCommand(cancel)
 
 	return cmd
 }
