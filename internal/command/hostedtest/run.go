@@ -1,4 +1,4 @@
-package synthetic
+package hostedtest
 
 import (
 	"errors"
@@ -12,13 +12,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRun(tConfig *config.Synthetic) *cobra.Command {
-	cfg := &config.SyntheticRun{
-		Synthetic: tConfig,
+func newRun(tConfig *config.HostedTest) *cobra.Command {
+	cfg := &config.HostedTestRun{
+		HostedTest: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "run <name>",
-		Short: "Run a synthetic test",
+		Use:   "run <n>",
+		Short: "Run a hosted test",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -28,7 +28,7 @@ func newRun(tConfig *config.Synthetic) *cobra.Command {
 	return cmd
 }
 
-func run(cfg *config.SyntheticRun, wOut, wErr io.Writer, args []string) error {
+func run(cfg *config.HostedTestRun, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

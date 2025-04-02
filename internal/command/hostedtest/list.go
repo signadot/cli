@@ -1,4 +1,4 @@
-package synthetic
+package hostedtest
 
 import (
 	"errors"
@@ -13,13 +13,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newList(tstConfig *config.Synthetic) *cobra.Command {
-	cfg := &config.SyntheticList{
-		Synthetic: tstConfig,
+func newList(tstConfig *config.HostedTest) *cobra.Command {
+	cfg := &config.HostedTestList{
+		HostedTest: tstConfig,
 	}
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List synthetic tests",
+		Short: "List hosted tests",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -29,7 +29,7 @@ func newList(tstConfig *config.Synthetic) *cobra.Command {
 	return cmd
 }
 
-func list(cfg *config.SyntheticList, wOut, wErr io.Writer, args []string) error {
+func list(cfg *config.HostedTestList, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
