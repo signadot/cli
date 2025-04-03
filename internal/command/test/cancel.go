@@ -16,8 +16,9 @@ func newCancel(tConfig *config.Test) *cobra.Command {
 		Test: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "cancel-execution [<name> | --run-id <run-ID>]",
-		Short: "Cancel test executions (with alias cancelx)",
+		Use:     "cancel-execution [<name> | --run-id <run-ID>]",
+		Aliases: []string{"cancelx"},
+		Short:   "Cancel test executions (with alias cancelx)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cancel(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
