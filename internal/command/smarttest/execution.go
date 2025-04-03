@@ -10,8 +10,9 @@ func newExecution(tConfig *config.SmartTest) *cobra.Command {
 		SmartTest: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "execution",
-		Short: "Work with smart test executions",
+		Use:     "execution",
+		Aliases: []string{"x"},
+		Short:   "Work with smart test executions",
 	}
 	get := newGet(cfg)
 	list := newList(cfg)
