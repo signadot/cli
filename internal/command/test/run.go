@@ -77,7 +77,7 @@ func run(ctx context.Context, cfg *config.TestRun, wOut, wErr io.Writer,
 	}
 
 	var txs []*models.TestExecution
-	if cfg.Wait {
+	if !cfg.NoWait {
 		// wait until all test execution have completed
 		txs, err = waitForTests(ctx, cfg, runID, out)
 		if err != nil {
@@ -95,7 +95,7 @@ func run(ctx context.Context, cfg *config.TestRun, wOut, wErr io.Writer,
 		// render the latest status of test executions
 		out.renderTestXsTable(txs, "")
 
-		if cfg.Wait {
+		if !cfg.NoWait {
 			// render the test executions summary
 			out.renderTestXsSummary(txs)
 		}
@@ -196,6 +196,9 @@ func triggerTests(cfg *config.TestRun, runID string,
 		spec.TestName = tf.Name
 		// define the labels
 		spec.Labels = tf.Labels
+		for k, v := range cfg.Labels {
+			spec.Labels[k] = v
+		}
 		// define the script
 		scriptContent, err := os.ReadFile(tf.Path)
 		if err != nil {
