@@ -1,4 +1,4 @@
-package test
+package smarttest
 
 import (
 	"context"
@@ -18,13 +18,13 @@ import (
 type defaultRunOutput struct {
 	sync.Mutex
 
-	cfg   *config.TestRun
+	cfg   *config.SmartTestRun
 	wOut  io.Writer
 	runID string
 	txs   []*models.TestExecution
 }
 
-func newDefaultRunOutput(cfg *config.TestRun, wOut io.Writer, runID string) *defaultRunOutput {
+func newDefaultRunOutput(cfg *config.SmartTestRun, wOut io.Writer, runID string) *defaultRunOutput {
 	return &defaultRunOutput{
 		cfg:   cfg,
 		wOut:  wOut,
@@ -261,7 +261,7 @@ func checksPassedFailed(cks *models.TestexecutionsChecks) (int, int) {
 	return passed, failed
 }
 
-func structuredOutput(cfg *config.TestRun, outW io.Writer, runID string,
+func structuredOutput(cfg *config.SmartTestRun, outW io.Writer, runID string,
 	txs []*models.TestExecution) error {
 	type output struct {
 		RunID      string `json:"runID"`

@@ -1,4 +1,4 @@
-package test
+package smarttest
 
 import (
 	"errors"
@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newList(tConfig *config.Test) *cobra.Command {
-	cfg := &config.TestList{
-		Test: tConfig,
+func newList(tConfig *config.SmartTest) *cobra.Command {
+	cfg := &config.SmartTestList{
+		SmartTest: tConfig,
 	}
 	cmd := &cobra.Command{
 		Use:     "list-executions [--test-name <test-name> | --run-id <run-ID>]",
@@ -27,7 +27,7 @@ func newList(tConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func list(cfg *config.TestList, wOut, wErr io.Writer, args []string) error {
+func list(cfg *config.SmartTestList, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

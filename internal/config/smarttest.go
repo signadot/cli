@@ -10,14 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Test represents the configuration for the test command
-type Test struct {
+// SmartTest represents the configuration for the test command
+type SmartTest struct {
 	*API
 }
 
-// TestRun represents the configuration for running a test
-type TestRun struct {
-	*Test
+// SmartTestRun represents the configuration for running a test
+type SmartTestRun struct {
+	*SmartTest
 	Directory  string
 	Labels     RunLabels
 	Cluster    string
@@ -60,7 +60,7 @@ func (tl RunLabels) Type() string {
 }
 
 // AddFlags adds the flags for the test run command
-func (c *TestRun) AddFlags(cmd *cobra.Command) {
+func (c *SmartTestRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Directory, "directory", "d", "", "Base directory for finding tests")
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "Cluster where to run tests")
 	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "Sandbox where to run tests")
@@ -73,12 +73,12 @@ func (c *TestRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Var(c.Labels, "set-label", "set a label in form key:value for all test executions in the run")
 }
 
-type TestGet struct {
-	*Test
+type SmartTestGet struct {
+	*SmartTest
 }
 
-type TestList struct {
-	*Test
+type SmartTestList struct {
+	*SmartTest
 	TestName       string
 	RunID          string
 	Sandbox        string
@@ -89,7 +89,7 @@ type TestList struct {
 	Labels         []string
 }
 
-func (c *TestList) AddFlags(cmd *cobra.Command) {
+func (c *SmartTestList) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.TestName, "test-name", "", "Filter test executions by test name")
 	cmd.Flags().StringVar(&c.RunID, "run-id", "", "Filter test executions by run ID")
 	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "Filter test executions by sandbox name")
@@ -100,11 +100,11 @@ func (c *TestList) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVar(&c.Labels, "label", []string{}, "Filter test executions by label in the format key:value (can be specified multiple times)")
 }
 
-type TestCancel struct {
-	*Test
+type SmartTestCancel struct {
+	*SmartTest
 	RunID string
 }
 
-func (c *TestCancel) AddFlags(cmd *cobra.Command) {
+func (c *SmartTestCancel) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.RunID, "run-id", "", "Cancel all test executions of this run ID")
 }

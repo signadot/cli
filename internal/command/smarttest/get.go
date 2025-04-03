@@ -1,4 +1,4 @@
-package test
+package smarttest
 
 import (
 	"errors"
@@ -9,9 +9,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGet(tConfig *config.Test) *cobra.Command {
-	cfg := &config.TestGet{
-		Test: tConfig,
+func newGet(tConfig *config.SmartTest) *cobra.Command {
+	cfg := &config.SmartTestGet{
+		SmartTest: tConfig,
 	}
 	cmd := &cobra.Command{
 		Use:     "get-execution <name>",
@@ -26,7 +26,7 @@ func newGet(tConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func get(cfg *config.TestGet, wOut, wErr io.Writer, args []string) error {
+func get(cfg *config.SmartTestGet, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

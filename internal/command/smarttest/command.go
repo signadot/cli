@@ -1,4 +1,4 @@
-package test
+package smarttest
 
 import (
 	"github.com/signadot/cli/internal/config"
@@ -6,11 +6,11 @@ import (
 )
 
 func New(api *config.API) *cobra.Command {
-	cfg := &config.Test{API: api}
+	cfg := &config.SmartTest{API: api}
 	cmd := &cobra.Command{
-		Use:     "test",
-		Short:   "Signadot tests",
-		Aliases: []string{"t"},
+		Use:     "smart-test",
+		Short:   "Signadot smart tests",
+		Aliases: []string{"st"},
 	}
 
 	run := newRun(cfg)
