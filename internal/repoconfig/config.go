@@ -2,7 +2,6 @@ package repoconfig
 
 import (
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 
@@ -19,19 +18,6 @@ type TestFile struct {
 	Name   string            // Test name
 	Path   string            // Full path relative to base directory
 	Labels map[string]string // Labels from all parent directories
-}
-
-// GenerateRunID creates a random alphanumeric string for the run
-func GenerateRunID() string {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	const length = 8
-
-	// Generate random string
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
 }
 
 // LoadConfig reads the .signadot/config.yaml file from the git repository root

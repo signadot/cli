@@ -9,7 +9,7 @@ spec:
   - name: "local-route"
     from:
       kind: Deployment
-      namespace: hotrod
+      namespace: hotrod-devmesh
       name: route
     mappings:
     - port: 8083
@@ -17,7 +17,7 @@ spec:
   defaultRouteGroup:
     endpoints: 
     - name: route-endpoint
-      target: http://route.hotrod.svc:8083
+      target: http://route.hotrod-devmesh.svc:8083
     - name: frontend-endpoint
-      target: http://frontend.hotrod.svc:8080
+      target: http://frontend.hotrod-devmesh.svc:8080
 
