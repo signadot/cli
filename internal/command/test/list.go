@@ -16,8 +16,8 @@ func newList(tConfig *config.Test) *cobra.Command {
 		Test: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "list [--test-name <test-name> | --run-id <run-ID>]",
-		Short: "List test executions",
+		Use:   "list-executions [--test-name <test-name> | --run-id <run-ID>]",
+		Short: "List test executions (with alias listx)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},

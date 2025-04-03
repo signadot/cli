@@ -14,9 +14,10 @@ func newGet(tConfig *config.Test) *cobra.Command {
 		Test: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "get <name>",
-		Short: "Get a test execution",
-		Args:  cobra.ExactArgs(1),
+		Use:     "get-execution <name>",
+		Short:   "Get a test execution (with alias getx)",
+		Aliases: []string{"getx"},
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return get(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
