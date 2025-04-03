@@ -12,17 +12,17 @@ type TestFinder struct {
 	repo     *GitRepo
 	basePath string
 
-	dirLabelsCache map[string]map[string]string
+	dirLabelsCache LabelsCache
 }
 
-func NewTestFinder(inputDir string) (*TestFinder, error) {
+func NewTestFinder(inputPath string) (*TestFinder, error) {
 	var tf *TestFinder
 
-	if inputDir != "" {
+	if inputPath != "" {
 		// use the provided dir as the base for finding tests
 
 		// make the input dir absolute
-		basePath, err := filepath.Abs(inputDir)
+		basePath, err := filepath.Abs(inputPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert input dir into an absolute dir: %w", err)
 		}
@@ -78,7 +78,7 @@ func NewTestFinder(inputDir string) (*TestFinder, error) {
 	}
 
 	// build the label cache
-	dirLabelsCache, err := buildLabelsCache(tf.basePath)
+	dirLabelsCache, err := NewLabelsCache(tf.basePath)
 	if err != nil {
 		return nil, err
 	}
@@ -140,12 +140,9 @@ func (tf *TestFinder) processTestFile(path string, testFileMap map[string]TestFi
 		return nil
 	}
 
-	dirPath := filepath.Dir(relPath)
-	var labels map[string]string
-	if dirLabels, exists := tf.dirLabelsCache[dirPath]; exists {
-		labels = dirLabels
-	} else {
-		labels = make(map[string]string)
+	labels, err := tf.dirLabelsCache.ForFile(relPath)
+	if err != nil {
+		return fmt.Errorf("unable to get labels for path %q: %w", relPath, err)
 	}
 
 	testFileMap[relPath] = TestFile{

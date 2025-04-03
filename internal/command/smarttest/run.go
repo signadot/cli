@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
@@ -42,26 +43,13 @@ func run(ctx context.Context, cfg *config.SmartTestRun, wOut, wErr io.Writer,
 		return err
 	}
 
-	// create a test finder
-	tf, err := repoconfig.NewTestFinder(cfg.Directory)
+	testFiles, gitRepo, err := testFilesAndRepo(cfg)
 	if err != nil {
 		return err
-	}
-
-	// find tests
-	testFiles, err := tf.FindTestFiles()
-	if err != nil {
-		return err
-	}
-	if len(testFiles) == 0 {
-		return errors.New("could not find any test")
 	}
 
 	// create a run ID
 	runID := repoconfig.GenerateRunID()
-
-	// get the git repo (if any)
-	gitRepo := tf.GetGitRepo()
 
 	// trigger test executions
 	err = triggerTests(cfg, runID, gitRepo, testFiles)
@@ -104,6 +92,38 @@ func run(ctx context.Context, cfg *config.SmartTestRun, wOut, wErr io.Writer,
 
 	// render the structured output
 	return structuredOutput(cfg, wOut, runID, txs)
+}
+
+func testFilesAndRepo(cfg *config.SmartTestRun) ([]repoconfig.TestFile, *repoconfig.GitRepo, error) {
+	if cfg.File == "-" {
+		host, err := os.Hostname()
+		if err != nil {
+			host = "unknown"
+		}
+		pid := strconv.Itoa(os.Getpid())
+		return []repoconfig.TestFile{
+			{
+				Name:   host + "-" + "stdin-" + pid,
+				Reader: os.Stdin,
+			},
+		}, nil, nil
+	}
+	// create a test finder
+	// NOTE: at most one of cfg.{Dir,File} is non-empty
+	tf, err := repoconfig.NewTestFinder(cfg.Directory + cfg.File)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// find tests
+	testFiles, err := tf.FindTestFiles()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error finding test files: %w", err)
+	}
+	if len(testFiles) == 0 {
+		return nil, nil, errors.New("could not find any test")
+	}
+	return testFiles, tf.GetGitRepo(), nil
 }
 
 func validateRun(cfg *config.SmartTestRun) error {
@@ -153,6 +173,28 @@ func validateRun(cfg *config.SmartTestRun) error {
 		}
 	}
 
+	if cfg.Directory != "" && cfg.File != "" {
+		return fmt.Errorf("cannot specify both directory and file")
+	}
+	if cfg.Directory != "" {
+		st, err := os.Stat(cfg.Directory)
+		if err != nil {
+			return fmt.Errorf("unable to stat input directory: %w", err)
+		}
+		if !st.IsDir() {
+			return fmt.Errorf("%q is not a directory", cfg.Directory)
+		}
+	}
+	if cfg.File != "" && cfg.File != "-" {
+		st, err := os.Stat(cfg.File)
+		if err != nil {
+			return fmt.Errorf("unable to stat input file: %w", err)
+		}
+		if st.IsDir() {
+			return fmt.Errorf("%q is not a file", cfg.File)
+		}
+	}
+
 	return nil
 }
 
@@ -186,11 +228,15 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 	for _, tf := range testFiles {
 		if gitRepo != nil {
 			// define the repo path
-			repoPath, err := repoconfig.GetRelativePathFromGitRoot(gitRepo.Path, tf.Path)
-			if err != nil {
-				return err
+			if tf.Reader == nil {
+				repoPath, err := repoconfig.GetRelativePathFromGitRoot(gitRepo.Path, tf.Path)
+				if err != nil {
+					return err
+				}
+				spec.Path = repoPath
+			} else {
+				spec.Path = tf.Path
 			}
-			spec.Path = repoPath
 		}
 		// define the test name
 		spec.TestName = tf.Name
@@ -200,7 +246,15 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 			spec.Labels[k] = v
 		}
 		// define the script
-		scriptContent, err := os.ReadFile(tf.Path)
+		var (
+			scriptContent []byte
+			err           error
+		)
+		if tf.Reader != nil {
+			scriptContent, err = io.ReadAll(tf.Reader)
+		} else {
+			scriptContent, err = os.ReadFile(tf.Path)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to read test file %q: %w", tf.Path, err)
 		}

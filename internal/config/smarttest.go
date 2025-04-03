@@ -19,6 +19,7 @@ type SmartTest struct {
 type SmartTestRun struct {
 	*SmartTest
 	Directory  string
+	File       string
 	Labels     RunLabels
 	Cluster    string
 	Sandbox    string
@@ -62,6 +63,7 @@ func (tl RunLabels) Type() string {
 // AddFlags adds the flags for the test run command
 func (c *SmartTestRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Directory, "directory", "d", "", "Base directory for finding tests")
+	cmd.Flags().StringVarP(&c.File, "file", "f", "", "Smart Test file to run")
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "Cluster where to run tests")
 	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "Sandbox where to run tests")
 	cmd.Flags().StringVar(&c.RouteGroup, "route-group", "", "Route group where to run tests")
