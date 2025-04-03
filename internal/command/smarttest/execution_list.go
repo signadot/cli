@@ -11,14 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newList(tConfig *config.SmartTest) *cobra.Command {
-	cfg := &config.SmartTestList{
-		SmartTest: tConfig,
+func newList(tConfig *config.SmartTestExec) *cobra.Command {
+	cfg := &config.SmartTestExecList{
+		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:     "list-executions [--test-name <test-name> | --run-id <run-ID>]",
-		Aliases: []string{"listx"},
-		Short:   "List test executions (with alias listx)",
+		Use:   "list [--test-name <test-name> | --run-id <run-ID>]",
+		Short: "List test executions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
@@ -27,7 +26,7 @@ func newList(tConfig *config.SmartTest) *cobra.Command {
 	return cmd
 }
 
-func list(cfg *config.SmartTestList, wOut, wErr io.Writer, args []string) error {
+func list(cfg *config.SmartTestExecList, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

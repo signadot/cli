@@ -9,15 +9,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGet(tConfig *config.SmartTest) *cobra.Command {
-	cfg := &config.SmartTestGet{
-		SmartTest: tConfig,
+func newGet(tConfig *config.SmartTestExec) *cobra.Command {
+	cfg := &config.SmartTestExecGet{
+		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:     "get-execution <name>",
-		Short:   "Get a test execution (with alias getx)",
-		Aliases: []string{"getx"},
-		Args:    cobra.ExactArgs(1),
+		Use:   "get <name>",
+		Short: "Get a test execution",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return get(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
@@ -26,7 +25,7 @@ func newGet(tConfig *config.SmartTest) *cobra.Command {
 	return cmd
 }
 
-func get(cfg *config.SmartTestGet, wOut, wErr io.Writer, args []string) error {
+func get(cfg *config.SmartTestExecGet, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

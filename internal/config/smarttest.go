@@ -73,12 +73,16 @@ func (c *SmartTestRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Var(c.Labels, "set-label", "set a label in form key:value for all test executions in the run")
 }
 
-type SmartTestGet struct {
+type SmartTestExec struct {
 	*SmartTest
 }
 
-type SmartTestList struct {
-	*SmartTest
+type SmartTestExecGet struct {
+	*SmartTestExec
+}
+
+type SmartTestExecList struct {
+	*SmartTestExec
 	TestName       string
 	RunID          string
 	Sandbox        string
@@ -89,7 +93,7 @@ type SmartTestList struct {
 	Labels         []string
 }
 
-func (c *SmartTestList) AddFlags(cmd *cobra.Command) {
+func (c *SmartTestExecList) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.TestName, "test-name", "", "Filter test executions by test name")
 	cmd.Flags().StringVar(&c.RunID, "run-id", "", "Filter test executions by run ID")
 	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "Filter test executions by sandbox name")
@@ -100,11 +104,11 @@ func (c *SmartTestList) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringArrayVar(&c.Labels, "label", []string{}, "Filter test executions by label in the format key:value (can be specified multiple times)")
 }
 
-type SmartTestCancel struct {
-	*SmartTest
+type SmartTestExecCancel struct {
+	*SmartTestExec
 	RunID string
 }
 
-func (c *SmartTestCancel) AddFlags(cmd *cobra.Command) {
+func (c *SmartTestExecCancel) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.RunID, "run-id", "", "Cancel all test executions of this run ID")
 }

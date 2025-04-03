@@ -14,15 +14,10 @@ func New(api *config.API) *cobra.Command {
 	}
 
 	run := newRun(cfg)
-	get := newGet(cfg)
-	list := newList(cfg)
-	cancel := newCancel(cfg)
+	exec := newExecution(cfg)
 
 	// Subcommands
 	cmd.AddCommand(run)
-	cmd.AddCommand(get)
-	cmd.AddCommand(list)
-	cmd.AddCommand(cancel)
-
+	cmd.AddCommand(exec)
 	return cmd
 }
