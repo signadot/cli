@@ -14,7 +14,7 @@ func newGet(tConfig *config.SmartTestExec) *cobra.Command {
 		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "get <name>",
+		Use:   "get <execution-ID>",
 		Short: "Get a test execution",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -29,10 +29,10 @@ func get(cfg *config.SmartTestExecGet, wOut, wErr io.Writer, args []string) erro
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	execName := args[0]
+	execID := args[0]
 
 	params := test_executions.NewGetTestExecutionParams().WithOrgName(cfg.Org).
-		WithExecutionName(execName)
+		WithExecutionID(execID)
 	result, err := cfg.Client.TestExecutions.GetTestExecution(params, nil)
 	if err != nil {
 		return err

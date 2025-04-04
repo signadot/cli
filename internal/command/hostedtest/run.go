@@ -9,6 +9,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/client/test_executions"
 	"github.com/signadot/go-sdk/models"
+	libconncommon "github.com/signadot/libconnect/common"
 	"github.com/spf13/cobra"
 )
 
@@ -38,11 +39,16 @@ func run(cfg *config.HostedTestRun, wOut, wErr io.Writer, args []string) error {
 		return fmt.Errorf("cluster flag is required for test execution")
 	}
 
-	name := args[0]
+	testName := args[0]
+	runID := libconncommon.GenerateRunID()
+
 	txSpec := &models.TestExecutionSpec{
-		Test: name,
+		Hosted: &models.HostedSpec{
+			TestName: testName,
+		},
 		ExecutionContext: &models.TestExecutionContext{
 			Cluster: cfg.Cluster,
+			RunID:   runID,
 		},
 	}
 	if cfg.Sandbox == "" && cfg.RouteGroup == "" {
@@ -63,11 +69,13 @@ func run(cfg *config.HostedTestRun, wOut, wErr io.Writer, args []string) error {
 			rc.Routegroup = cfg.RouteGroup
 		}
 	}
-	params := test_executions.NewCreateTestExecutionForTestParams().
+	params := test_executions.NewCreateHostedTestExecutionParams().
 		WithOrgName(cfg.Org).
-		WithTestName(name).
-		WithData(txSpec)
-	result, err := cfg.Client.TestExecutions.CreateTestExecutionForTest(params, nil)
+		WithTestName(testName).
+		WithData(&models.TestExecution{
+			Spec: txSpec,
+		})
+	result, err := cfg.Client.TestExecutions.CreateHostedTestExecution(params, nil)
 	if err != nil {
 		return err
 	}

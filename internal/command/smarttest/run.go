@@ -16,6 +16,7 @@ import (
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/client/test_executions"
 	"github.com/signadot/go-sdk/models"
+	libconncommon "github.com/signadot/libconnect/common"
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +50,7 @@ func run(ctx context.Context, cfg *config.SmartTestRun, wOut, wErr io.Writer,
 	}
 
 	// create a run ID
-	runID := repoconfig.GenerateRunID()
+	runID := libconncommon.GenerateRunID()
 
 	// trigger test executions
 	err = triggerTests(cfg, runID, gitRepo, testFiles)
@@ -204,6 +205,7 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 	ec := &models.TestExecutionContext{
 		Cluster: cfg.Cluster,
 		Publish: cfg.Publish,
+		RunID:   runID,
 	}
 	if cfg.Sandbox != "" {
 		ec.Routing = &models.JobRoutingContext{
@@ -216,13 +218,11 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 	}
 
 	// define the common parts fields of the embedded spec
-	spec := &models.ExecutionSpec{
-		RunID: runID,
-	}
+	extSpec := &models.ExternalSpec{}
 	if gitRepo != nil {
-		spec.Repo = gitRepo.Repo
-		spec.Branch = gitRepo.Branch
-		spec.CommitSHA = gitRepo.CommitSHA
+		extSpec.Repo = gitRepo.Repo
+		extSpec.Branch = gitRepo.Branch
+		extSpec.CommitSHA = gitRepo.CommitSHA
 	}
 
 	for _, tf := range testFiles {
@@ -233,17 +233,17 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 				if err != nil {
 					return err
 				}
-				spec.Path = repoPath
+				extSpec.Path = repoPath
 			} else {
-				spec.Path = tf.Path
+				extSpec.Path = tf.Path
 			}
 		}
 		// define the test name
-		spec.TestName = tf.Name
+		extSpec.TestName = tf.Name
 		// define the labels
-		spec.Labels = tf.Labels
+		labels := tf.Labels
 		for k, v := range cfg.Labels {
-			spec.Labels[k] = v
+			labels[k] = v
 		}
 		// define the script
 		var (
@@ -258,17 +258,18 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 		if err != nil {
 			return fmt.Errorf("failed to read test file %q: %w", tf.Path, err)
 		}
-		spec.Script = string(scriptContent)
+		extSpec.Script = string(scriptContent)
 
-		params := test_executions.NewCreateTestExecutionParams().
+		params := test_executions.NewCreateExternalTestExecutionParams().
 			WithOrgName(cfg.Org).
 			WithData(&models.TestExecution{
 				Spec: &models.TestExecutionSpec{
-					EmbeddedSpec:     spec,
+					External:         extSpec,
 					ExecutionContext: ec,
+					Labels:           labels,
 				},
 			})
-		_, err = cfg.Client.TestExecutions.CreateTestExecution(params, nil)
+		_, err = cfg.Client.TestExecutions.CreateExternalTestExecution(params, nil)
 		if err != nil {
 			return fmt.Errorf("could not create test execution for %q: %w", tf.Path, err)
 		}
@@ -358,7 +359,7 @@ func getTestExecutionsForRunID(ctx context.Context, cfg *config.SmartTest,
 		// add current page results to the collection
 		for _, item := range result.Payload {
 			tx := item.Execution
-			if tx.Spec == nil || tx.Spec.EmbeddedSpec == nil {
+			if tx.Spec == nil || tx.Spec.External == nil {
 				// this should never happen
 				continue
 			}
