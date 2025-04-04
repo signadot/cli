@@ -27,13 +27,13 @@ func PrintTestExecution(oFmt config.OutputFormat, w io.Writer, tx *models.TestEx
 
 func printTestExecutionDetails(w io.Writer, tx *models.TestExecution) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 3, ' ', 0)
-	fmt.Fprintf(tw, "Name:\t%s\n", tx.Name)
+	fmt.Fprintf(tw, "ID:\t%s\n", tx.ID)
 
-	if tx.Spec.EmbeddedSpec != nil {
-		spec := tx.Spec.EmbeddedSpec
+	if tx.Spec.External != nil {
+		spec := tx.Spec.External
 		// this is an external test
 		fmt.Fprint(tw, "Source:\texternal\n")
-		fmt.Fprintf(tw, "RunID:\t%s\n", spec.RunID)
+		fmt.Fprintf(tw, "RunID:\t%s\n", tx.Spec.ExecutionContext.RunID)
 		fmt.Fprintf(tw, "TestName:\t%s\n", spec.TestName)
 		if spec.Repo != "" {
 			// this is a git test
@@ -42,18 +42,21 @@ func printTestExecutionDetails(w io.Writer, tx *models.TestExecution) error {
 			fmt.Fprintf(tw, "Branch:\t%s\n", spec.Branch)
 			fmt.Fprintf(tw, "CommitSHA:\t%s\n", spec.CommitSHA)
 		}
-		if len(spec.Labels) > 0 {
-			fmt.Fprintf(tw, "Labels:\t%s\n", getLabels(spec.Labels))
-		}
-	} else {
+	} else if tx.Spec.Hosted != nil {
 		// this is a hosted test
+		spec := tx.Spec.Hosted
 		fmt.Fprint(tw, "Source:\thosted\n")
-		fmt.Fprintf(tw, "TestName:\t%s\n", tx.Spec.Test)
+		fmt.Fprintf(tw, "TestName:\t%s\n", spec.TestName)
 		if tx.Status.TriggeredBy != nil && tx.Status.TriggeredBy.Sandbox != "" {
 			fmt.Fprintf(tw, "TriggeredBy:\t%s\n", tx.Status.TriggeredBy.Sandbox)
 		} else {
 			fmt.Fprintf(tw, "TriggeredBy:\t%s\n", "-")
 		}
+	} else {
+		panic("invalid execution, neither hosted nor external")
+	}
+	if len(tx.Spec.Labels) > 0 {
+		fmt.Fprintf(tw, "Labels:\t%s\n", getLabels(tx.Spec.Labels))
 	}
 
 	if tx.Spec.ExecutionContext != nil {
@@ -114,7 +117,7 @@ func getResults(tx *models.TestExecution) string {
 }
 
 type testExecRow struct {
-	Name      string `sdtab:"NAME"`
+	ID        string `sdtab:"ID"`
 	Source    string `sdtab:"SOURCE"`
 	Phase     string `sdtab:"PHASE"`
 	CreatedAt string `sdtab:"CREATED"`
@@ -126,11 +129,11 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 	for _, item := range txs {
 		tx := item.Execution
 		source := "hosted"
-		if tx.Spec != nil && tx.Spec.EmbeddedSpec != nil {
+		if tx.Spec != nil && tx.Spec.External != nil {
 			source = "external"
 		}
 		tab.AddRow(testExecRow{
-			Name:      tx.Name,
+			ID:        tx.ID,
 			Source:    source,
 			CreatedAt: tx.CreatedAt,
 			Phase:     tx.Status.Phase,

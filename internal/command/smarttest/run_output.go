@@ -108,7 +108,7 @@ func (o *defaultRunOutput) renderTestXsTable(txs []*models.TestExecution, runnin
 
 		// add some padding to completely overwrite lines
 		padding := "      "
-		fmt.Fprintf(o.wOut, "%s\t%s\t[%s]%s\n", icon, tx.Spec.EmbeddedSpec.TestName, statusText, padding)
+		fmt.Fprintf(o.wOut, "%s\t%s\t[%s]%s\n", icon, tx.Spec.External.TestName, statusText, padding)
 	}
 }
 

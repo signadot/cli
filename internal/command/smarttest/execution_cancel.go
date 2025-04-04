@@ -16,7 +16,7 @@ func newCancel(tConfig *config.SmartTestExec) *cobra.Command {
 		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "cancel [<name> | --run-id <run-ID>]",
+		Use:   "cancel [<execution-ID> | --run-id <run-ID>]",
 		Short: "Cancel a test execution",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cancel(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -39,8 +39,8 @@ func cancel(ctx context.Context, cfg *config.SmartTestExecCancel,
 	if cfg.RunID != "" {
 		err = cancelByRunID(ctx, cfg, cfg.RunID, wOut)
 	} else {
-		execName := args[0]
-		err = cancelExecution(ctx, cfg, execName, wOut)
+		execID := args[0]
+		err = cancelExecution(ctx, cfg, execID, wOut)
 	}
 	return err
 }
@@ -68,26 +68,26 @@ func cancelByRunID(ctx context.Context, cfg *config.SmartTestExecCancel, runID s
 	}
 
 	for _, tx := range txs {
-		err = cancelExecution(ctx, cfg, tx.Name, wOut)
+		err = cancelExecution(ctx, cfg, tx.ID, wOut)
 		if err != nil {
-			return fmt.Errorf("could not cancel test execution %q: %w", tx.Name, err)
+			return fmt.Errorf("could not cancel test execution %q: %w", tx.ID, err)
 		}
 	}
 	return nil
 }
 
-func cancelExecution(ctx context.Context, cfg *config.SmartTestExecCancel, execName string,
+func cancelExecution(ctx context.Context, cfg *config.SmartTestExecCancel, execID string,
 	wOut io.Writer) error {
 	params := test_executions.NewCancelTestExecutionParams().
 		WithContext(ctx).
 		WithOrgName(cfg.Org).
-		WithExecutionName(execName)
+		WithExecutionID(execID)
 	_, err := cfg.Client.TestExecutions.CancelTestExecution(params, nil)
 	if err != nil {
 		return err
 	}
 	if cfg.OutputFormat == config.OutputFormatDefault {
-		fmt.Fprintf(wOut, "Test execution %q canceled.\n", execName)
+		fmt.Fprintf(wOut, "Test execution %q canceled.\n", execID)
 	}
 	return nil
 }
