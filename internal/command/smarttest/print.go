@@ -144,10 +144,18 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 		tab.AddRow(testExecRow{
 			ID:        tx.ID,
 			Source:    source,
-			TestName:  testName,
+			TestName:  truncateTestName(testName),
 			CreatedAt: tx.CreatedAt,
 			Phase:     tx.Status.Phase,
 		})
 	}
 	return tab.Flush()
+}
+
+func truncateTestName(tn string) string {
+	N := 48
+	if len(tn) > N {
+		return "..." + tn[45:]
+	}
+	return tn
 }
