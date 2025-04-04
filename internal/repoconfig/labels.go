@@ -9,6 +9,29 @@ import (
 	"strings"
 )
 
+type LabelsCache interface {
+	ForFile(p string) (map[string]string, error)
+}
+
+type labelsCache struct {
+	root      string
+	labelsMap map[string]map[string]string
+}
+
+// ForFile: finds the labels for a given path relative to the labels cache root.
+func (l *labelsCache) ForFile(relFile string) (map[string]string, error) {
+	relDir := filepath.Dir(relFile)
+	return l.labelsMap[relDir], nil
+}
+
+func NewLabelsCache(rootPath string) (LabelsCache, error) {
+	cache, err := buildLabelsCache(rootPath)
+	if err != nil {
+		return nil, err
+	}
+	return &labelsCache{root: rootPath, labelsMap: cache}, nil
+}
+
 // readLabels reads labels from a .labels file
 func readLabels(filePath string) (map[string]string, error) {
 	file, err := os.Open(filePath)

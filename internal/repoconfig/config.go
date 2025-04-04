@@ -2,6 +2,7 @@ package repoconfig
 
 import (
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -18,6 +19,7 @@ type Config struct {
 type TestFile struct {
 	Name   string            // Test name
 	Path   string            // Full path relative to base directory
+	Reader io.Reader         // if Path is empty, may be a Reader
 	Labels map[string]string // Labels from all parent directories
 }
 
