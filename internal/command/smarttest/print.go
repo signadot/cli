@@ -119,6 +119,7 @@ func getResults(tx *models.TestExecution) string {
 type testExecRow struct {
 	ID        string `sdtab:"ID"`
 	Source    string `sdtab:"SOURCE"`
+	TestName  string `sdtab:"TESTNAME"`
 	Phase     string `sdtab:"PHASE"`
 	CreatedAt string `sdtab:"CREATED"`
 }
@@ -132,12 +133,29 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 		if tx.Spec != nil && tx.Spec.External != nil {
 			source = "external"
 		}
+		var testName string
+		if tx.Spec != nil {
+			if tx.Spec.External != nil {
+				testName = tx.Spec.External.TestName
+			} else if tx.Spec.Hosted != nil {
+				testName = tx.Spec.Hosted.TestName
+			}
+		}
 		tab.AddRow(testExecRow{
 			ID:        tx.ID,
 			Source:    source,
+			TestName:  truncateTestName(testName),
 			CreatedAt: tx.CreatedAt,
 			Phase:     tx.Status.Phase,
 		})
 	}
 	return tab.Flush()
+}
+
+func truncateTestName(tn string) string {
+	N := 48
+	if len(tn) > N {
+		return "..." + tn[45:]
+	}
+	return tn
 }
