@@ -5,12 +5,13 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/sdtab"
-	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
+	"github.com/xeonx/timeago"
 )
 
 func PrintTestExecution(oFmt config.OutputFormat, w io.Writer, tx *models.TestExecution) error {
@@ -62,16 +63,14 @@ func printTestExecutionDetails(w io.Writer, tx *models.TestExecution) error {
 	if tx.Spec.ExecutionContext != nil {
 		ec := tx.Spec.ExecutionContext
 		fmt.Fprintf(tw, "Cluster:\t%s\n", ec.Cluster)
-		if ec.Routing != nil {
-			if ec.Routing.Sandbox != "" {
-				fmt.Fprintf(tw, "Sandbox:\t%s\n", ec.Routing.Sandbox)
-			} else if ec.Routing.Routegroup != "" {
-				fmt.Fprintf(tw, "Routegroup:\t%s\n", ec.Routing.Routegroup)
-			}
-		}
+		fmt.Fprintf(tw, "Environment:\t%s\n", getTXEnvironment(tx))
 	}
 
-	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(tx.CreatedAt))
+	createdAt, duration := getTXCreatedAtAndDuration(tx)
+	fmt.Fprintf(tw, "Created:\t%s\n", createdAt)
+	if len(duration) != 0 {
+		fmt.Fprintf(tw, "Duration:\t%s\n", duration)
+	}
 	fmt.Fprintf(tw, "Phase:\t%s", tx.Status.Phase)
 	if tx.Status.FinalState != nil {
 		if tx.Status.FinalState.Failed != nil {
@@ -117,11 +116,13 @@ func getResults(tx *models.TestExecution) string {
 }
 
 type testExecRow struct {
-	ID        string `sdtab:"ID"`
-	Source    string `sdtab:"SOURCE"`
-	TestName  string `sdtab:"TESTNAME"`
-	Phase     string `sdtab:"PHASE"`
-	CreatedAt string `sdtab:"CREATED"`
+	ID          string `sdtab:"ID"`
+	Source      string `sdtab:"SOURCE"`
+	TestName    string `sdtab:"TESTNAME"`
+	Environment string `sdtab:"ENVIRONMENT"`
+	CreatedAt   string `sdtab:"CREATED AT"`
+	Duration    string `sdtab:"DURATION"`
+	Status      string `sdtab:"STATUS"`
 }
 
 func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResult) error {
@@ -141,12 +142,18 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 				testName = tx.Spec.Hosted.TestName
 			}
 		}
+
+		createdAt, duration := getTXCreatedAtAndDuration(tx)
+		environment := getTXEnvironment(tx)
+
 		tab.AddRow(testExecRow{
-			ID:        tx.ID,
-			Source:    source,
-			TestName:  truncateTestName(testName),
-			CreatedAt: tx.CreatedAt,
-			Phase:     tx.Status.Phase,
+			ID:          tx.ID,
+			Source:      source,
+			TestName:    truncateTestName(testName),
+			Environment: environment,
+			CreatedAt:   createdAt,
+			Duration:    duration,
+			Status:      tx.Status.Phase,
 		})
 	}
 	return tab.Flush()
@@ -158,4 +165,45 @@ func truncateTestName(tn string) string {
 		return "..." + tn[45:]
 	}
 	return tn
+}
+
+func getTXCreatedAtAndDuration(tx *models.TestExecution) (createdAtStr string, durationStr string) {
+	var createdAt *time.Time
+
+	createdAtRaw := tx.CreatedAt
+	if len(createdAtRaw) != 0 {
+		t, err := time.Parse(time.RFC3339, createdAtRaw)
+		if err != nil {
+			return "", ""
+		}
+
+		createdAt = &t
+		createdAtStr = timeago.NoMax(timeago.English).Format(t)
+	}
+
+	finishedAtRaw := tx.Status.FinishedAt
+	if createdAt != nil && len(finishedAtRaw) != 0 {
+		finishedAt, err := time.Parse(time.RFC3339, finishedAtRaw)
+		if err != nil {
+			return "", ""
+		}
+
+		durationTime := finishedAt.Sub(*createdAt)
+		durationStr = durationTime.String()
+	}
+
+	return createdAtStr, durationStr
+}
+
+func getTXEnvironment(tx *models.TestExecution) string {
+	routingContext := tx.Spec.ExecutionContext.Routing
+
+	switch {
+	case routingContext == nil:
+	case len(routingContext.Sandbox) > 0:
+		return fmt.Sprintf("sandbox=%s", routingContext.Sandbox)
+	case len(routingContext.Routegroup) > 0:
+		return fmt.Sprintf("routegroup=%s", routingContext.Routegroup)
+	}
+	return "baseline"
 }

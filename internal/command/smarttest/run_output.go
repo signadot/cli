@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	"github.com/fatih/color"
@@ -33,7 +34,7 @@ func newDefaultRunOutput(cfg *config.SmartTestRun, wOut io.Writer, runID string)
 }
 
 func (o *defaultRunOutput) start() {
-	fmt.Fprintf(o.wOut, "Created test run %q in cluster %q.\n\n", o.runID, o.cfg.Cluster)
+	fmt.Fprintf(o.wOut, "Created test run with ID %q in cluster %q.\n\n", o.runID, o.cfg.Cluster)
 }
 
 func (o *defaultRunOutput) setTestXs(txs []*models.TestExecution) {
@@ -82,7 +83,8 @@ func (o *defaultRunOutput) renderTestXsTable(txs []*models.TestExecution, runnin
 		runningIcon = "🟡"
 	}
 
-	fmt.Fprintf(o.wOut, "Test run status:\n")
+	tw := tabwriter.NewWriter(o.wOut, 0, 0, 3, ' ', 0)
+	fmt.Fprintf(tw, "Test run status:\n")
 	for _, tx := range txs {
 		var icon, statusText string
 		switch tx.Status.Phase {
@@ -105,31 +107,32 @@ func (o *defaultRunOutput) renderTestXsTable(txs []*models.TestExecution, runnin
 			icon = "⚪"
 			statusText = tx.Status.Phase
 		}
-
-		// add some padding to completely overwrite lines
-		padding := "      "
-		fmt.Fprintf(o.wOut, "%s\t%s\t[%s]%s\n", icon, tx.Spec.External.TestName, statusText, padding)
+		fmt.Fprintf(tw, "%s\t%s\t[ID: %s, STATUS: %s]\n", icon, tx.Spec.External.TestName,
+			tx.ID, statusText)
 	}
+	tw.Flush()
 }
 
 func (o *defaultRunOutput) renderTestXsSummary(txs []*models.TestExecution) {
-	fmt.Fprint(o.wOut, "\nTest run summary:\n")
+	tw := tabwriter.NewWriter(o.wOut, 0, 0, 3, ' ', 0)
+	fmt.Fprint(tw, "\nTest run summary:\n")
 
-	fmt.Fprint(o.wOut, "* Executions\n")
-	fmt.Fprint(o.wOut, "\t"+o.getExecutionsDetails(txs)+"\n")
+	fmt.Fprint(tw, "* Executions\n")
+	fmt.Fprint(tw, "\t"+o.getExecutionsDetails(txs)+"\n")
 
 	diffMsg := getDiffsDetails(txs...)
 	if diffMsg != "" {
-		fmt.Fprint(o.wOut, "* Diffs\n")
-		fmt.Fprint(o.wOut, "\t"+diffMsg+"\n")
+		fmt.Fprint(tw, "* Diffs\n")
+		fmt.Fprint(tw, "\t"+diffMsg+"\n")
 	}
 
 	checksMsg := getChecksDetails(txs...)
 	if checksMsg != "" {
-		fmt.Fprint(o.wOut, "* Checks\n")
-		fmt.Fprint(o.wOut, "\t"+checksMsg+"\n")
+		fmt.Fprint(tw, "* Checks\n")
+		fmt.Fprint(tw, "\t"+checksMsg+"\n")
 	}
-	fmt.Fprint(o.wOut, "\n")
+	fmt.Fprint(tw, "\n")
+	tw.Flush()
 }
 
 func (o *defaultRunOutput) getExecutionsDetails(txs []*models.TestExecution) string {
