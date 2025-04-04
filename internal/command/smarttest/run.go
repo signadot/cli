@@ -1,4 +1,4 @@
-package test
+package smarttest
 
 import (
 	"context"
@@ -18,9 +18,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRun(tConfig *config.Test) *cobra.Command {
-	cfg := &config.TestRun{
-		Test: tConfig,
+func newRun(tConfig *config.SmartTest) *cobra.Command {
+	cfg := &config.SmartTestRun{
+		SmartTest: tConfig,
 	}
 	cmd := &cobra.Command{
 		Use:   "run <name>",
@@ -33,7 +33,7 @@ func newRun(tConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func run(ctx context.Context, cfg *config.TestRun, wOut, wErr io.Writer,
+func run(ctx context.Context, cfg *config.SmartTestRun, wOut, wErr io.Writer,
 	args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
@@ -85,7 +85,7 @@ func run(ctx context.Context, cfg *config.TestRun, wOut, wErr io.Writer,
 		}
 	} else {
 		// get tests executions
-		txs, err = getTestExecutionsForRunID(ctx, cfg.Test, runID)
+		txs, err = getTestExecutionsForRunID(ctx, cfg.SmartTest, runID)
 		if err != nil {
 			return err
 		}
@@ -106,7 +106,7 @@ func run(ctx context.Context, cfg *config.TestRun, wOut, wErr io.Writer,
 	return structuredOutput(cfg, wOut, runID, txs)
 }
 
-func validateRun(cfg *config.TestRun) error {
+func validateRun(cfg *config.SmartTestRun) error {
 	count := 0
 	if cfg.Cluster != "" {
 		count++
@@ -156,7 +156,7 @@ func validateRun(cfg *config.TestRun) error {
 	return nil
 }
 
-func triggerTests(cfg *config.TestRun, runID string,
+func triggerTests(cfg *config.SmartTestRun, runID string,
 	gitRepo *repoconfig.GitRepo, testFiles []repoconfig.TestFile) error {
 	// define the execution context (common for all tests)
 	ec := &models.TestExecutionContext{
@@ -223,7 +223,7 @@ func triggerTests(cfg *config.TestRun, runID string,
 	return nil
 }
 
-func waitForTests(ctx context.Context, cfg *config.TestRun,
+func waitForTests(ctx context.Context, cfg *config.SmartTestRun,
 	runID string, out *defaultRunOutput) ([]*models.TestExecution, error) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -243,7 +243,7 @@ func waitForTests(ctx context.Context, cfg *config.TestRun,
 
 	for {
 		// get all test executions
-		txs, err := getTestExecutionsForRunID(ctx, cfg.Test, runID)
+		txs, err := getTestExecutionsForRunID(ctx, cfg.SmartTest, runID)
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +274,7 @@ func waitForTests(ctx context.Context, cfg *config.TestRun,
 	}
 }
 
-func getTestExecutionsForRunID(ctx context.Context, cfg *config.Test,
+func getTestExecutionsForRunID(ctx context.Context, cfg *config.SmartTest,
 	runID string) ([]*models.TestExecution, error) {
 	var (
 		pageSize int64 = 100

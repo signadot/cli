@@ -1,28 +1,24 @@
-package test
+package smarttest
 
 import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
-func New(api *config.API) *cobra.Command {
-	cfg := &config.Test{API: api}
-	cmd := &cobra.Command{
-		Use:     "test",
-		Short:   "Signadot tests",
-		Aliases: []string{"t"},
+func newExecution(tConfig *config.SmartTest) *cobra.Command {
+	cfg := &config.SmartTestExec{
+		SmartTest: tConfig,
 	}
-
-	run := newRun(cfg)
+	cmd := &cobra.Command{
+		Use:     "execution",
+		Aliases: []string{"x"},
+		Short:   "Work with smart test executions",
+	}
 	get := newGet(cfg)
 	list := newList(cfg)
 	cancel := newCancel(cfg)
-
-	// Subcommands
-	cmd.AddCommand(run)
 	cmd.AddCommand(get)
 	cmd.AddCommand(list)
 	cmd.AddCommand(cancel)
-
 	return cmd
 }

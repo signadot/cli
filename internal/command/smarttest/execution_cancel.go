@@ -1,4 +1,4 @@
-package test
+package smarttest
 
 import (
 	"context"
@@ -11,13 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newCancel(tConfig *config.Test) *cobra.Command {
-	cfg := &config.TestCancel{
-		Test: tConfig,
+func newCancel(tConfig *config.SmartTestExec) *cobra.Command {
+	cfg := &config.SmartTestExecCancel{
+		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
 		Use:   "cancel [<name> | --run-id <run-ID>]",
-		Short: "Cancel test executions",
+		Short: "Cancel a test execution",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cancel(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
@@ -26,7 +26,7 @@ func newCancel(tConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func cancel(ctx context.Context, cfg *config.TestCancel,
+func cancel(ctx context.Context, cfg *config.SmartTestExecCancel,
 	wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
@@ -45,7 +45,7 @@ func cancel(ctx context.Context, cfg *config.TestCancel,
 	return err
 }
 
-func validateCancel(cfg *config.TestCancel, args []string) error {
+func validateCancel(cfg *config.SmartTestExecCancel, args []string) error {
 	if len(args) > 1 {
 		return errors.New("you can't specify more than a single execution name")
 	}
@@ -59,10 +59,10 @@ func validateCancel(cfg *config.TestCancel, args []string) error {
 	return nil
 }
 
-func cancelByRunID(ctx context.Context, cfg *config.TestCancel, runID string,
+func cancelByRunID(ctx context.Context, cfg *config.SmartTestExecCancel, runID string,
 	wOut io.Writer) error {
 	// get all test executions
-	txs, err := getTestExecutionsForRunID(ctx, cfg.Test, runID)
+	txs, err := getTestExecutionsForRunID(ctx, cfg.SmartTest, runID)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func cancelByRunID(ctx context.Context, cfg *config.TestCancel, runID string,
 	return nil
 }
 
-func cancelExecution(ctx context.Context, cfg *config.TestCancel, execName string,
+func cancelExecution(ctx context.Context, cfg *config.SmartTestExecCancel, execName string,
 	wOut io.Writer) error {
 	params := test_executions.NewCancelTestExecutionParams().
 		WithContext(ctx).

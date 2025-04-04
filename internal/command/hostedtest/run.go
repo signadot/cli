@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/signadot/cli/internal/command/test"
+	"github.com/signadot/cli/internal/command/smarttest"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/client/test_executions"
 	"github.com/signadot/go-sdk/models"
@@ -74,5 +74,5 @@ func run(cfg *config.HostedTestRun, wOut, wErr io.Writer, args []string) error {
 	if !result.IsSuccess() {
 		return errors.New(result.Error())
 	}
-	return test.PrintTestExecution(cfg.OutputFormat, wOut, result.Payload)
+	return smarttest.PrintTestExecution(cfg.OutputFormat, wOut, result.Payload)
 }
