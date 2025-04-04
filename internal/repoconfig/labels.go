@@ -18,16 +18,9 @@ type labelsCache struct {
 	labelsMap map[string]map[string]string
 }
 
-func (l *labelsCache) ForFile(p string) (map[string]string, error) {
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return nil, err
-	}
-	rel, err := filepath.Rel(l.root, abs)
-	if err != nil {
-		return nil, err
-	}
-	relDir := filepath.Dir(rel)
+// ForFile: finds the labels for a given path relative to the labels cache root.
+func (l *labelsCache) ForFile(relFile string) (map[string]string, error) {
+	relDir := filepath.Dir(relFile)
 	return l.labelsMap[relDir], nil
 }
 
