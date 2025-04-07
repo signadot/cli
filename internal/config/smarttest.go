@@ -42,13 +42,13 @@ func (rl RunLabels) String() string {
 		if i != 0 {
 			fmt.Fprintf(res, ",")
 		}
-		fmt.Fprintf(res, "%s:%s", key, rl[key])
+		fmt.Fprintf(res, "%s=%s", key, rl[key])
 	}
 	return res.String()
 }
 
 func (rl RunLabels) Set(v string) error {
-	key, val, ok := strings.Cut(v, ":")
+	key, val, ok := strings.Cut(v, "=")
 	if !ok {
 		return fmt.Errorf("%q should be in form <key>:<value>", v)
 	}
