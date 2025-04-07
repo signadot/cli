@@ -25,7 +25,7 @@ func newRun(tConfig *config.SmartTest) *cobra.Command {
 		SmartTest: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "run <name>",
+		Use:   "run",
 		Short: "Run tests",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
