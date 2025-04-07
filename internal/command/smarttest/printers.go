@@ -162,7 +162,8 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 func truncateTestName(tn string) string {
 	N := 48
 	if len(tn) > N {
-		return "..." + tn[45:]
+		start := len(tn) - (N - 3)
+		return "..." + tn[start:]
 	}
 	return tn
 }
