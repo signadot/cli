@@ -14,7 +14,7 @@ func newGet(tConfig *config.SmartTestExec) *cobra.Command {
 		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "get <execution-ID>",
+		Use:   "get ID",
 		Short: "Get a test execution",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

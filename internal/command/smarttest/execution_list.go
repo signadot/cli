@@ -16,7 +16,7 @@ func newList(tConfig *config.SmartTestExec) *cobra.Command {
 		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "list [--test-name <test-name> | --run-id <run-ID>]",
+		Use:   "list [filter-opts]",
 		Short: "List test executions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
