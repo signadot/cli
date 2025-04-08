@@ -83,7 +83,7 @@ func (c *SmartTestRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.NoWait, "no-wait", false, "do not wait until the tests are completed")
 
 	c.Labels = make(map[string]string)
-	cmd.Flags().Var(c.Labels, "set-label", "set a label in form key=value for all test executions in the run (can be specified multiple times)")
+	cmd.Flags().Var(&c.Labels, "set-label", "set a label in form key=value for all test executions in the run (can be specified multiple times)")
 }
 
 type SmartTestExec struct {
@@ -125,5 +125,5 @@ type SmartTestExecCancel struct {
 }
 
 func (c *SmartTestExecCancel) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&c.RunID, "run-id", "", "cancel all test executions of this run ID")
+	cmd.Flags().StringVar(&c.RunID, "run-id", "", "cancel all test executions in the run")
 }
