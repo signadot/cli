@@ -16,7 +16,7 @@ func newCancel(tConfig *config.SmartTestExec) *cobra.Command {
 		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "cancel [<execution-ID> | --run-id <run-ID>]",
+		Use:   "cancel [ID | --run-id RUN_ID]",
 		Short: "Cancel a test execution",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return cancel(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)

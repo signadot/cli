@@ -16,7 +16,7 @@ func newList(tConfig *config.SmartTestExec) *cobra.Command {
 		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "list [--test-name <test-name> | --run-id <run-ID>]",
+		Use:   "list [filter-opts]",
 		Short: "List test executions",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -59,7 +59,7 @@ func list(cfg *config.SmartTestExecList, wOut, wErr io.Writer, args []string) er
 		params.WithExecutionPhase(&cfg.ExecutionPhase)
 	}
 	if len(cfg.Labels) > 0 {
-		params.WithLabel(cfg.Labels)
+		params.WithLabel(cfg.Labels.ToQueryFilter())
 	}
 	result, err := cfg.Client.TestExecutions.QueryTestExecutions(params, nil)
 	if err != nil {
