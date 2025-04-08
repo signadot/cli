@@ -107,7 +107,7 @@ func (o *defaultRunOutput) renderTestXsTable(txs []*models.TestExecution, runnin
 			icon = "⚪"
 			statusText = tx.Status.Phase
 		}
-		fmt.Fprintf(tw, "%s\t%s\t[ID: %s, STATUS: %s]\n", icon, tx.Spec.External.TestName,
+		fmt.Fprintf(tw, "%s\t%s\t[ID: %s, STATUS: %s]\n", icon, truncateTestName(tx.Spec.External.TestName, 48),
 			tx.ID, statusText)
 	}
 	tw.Flush()
