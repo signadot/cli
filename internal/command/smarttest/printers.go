@@ -149,7 +149,7 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 		tab.AddRow(testExecRow{
 			ID:          tx.ID,
 			Source:      source,
-			TestName:    truncateTestName(testName),
+			TestName:    truncateTestName(testName, 48),
 			Environment: environment,
 			CreatedAt:   createdAt,
 			Duration:    duration,
@@ -159,9 +159,8 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 	return tab.Flush()
 }
 
-func truncateTestName(tn string) string {
-	N := 48
-	if len(tn) > N {
+func truncateTestName(tn string, N int) string {
+	if len(tn) > N && N > 3 {
 		start := len(tn) - (N - 3)
 		return "..." + tn[start:]
 	}
