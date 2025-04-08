@@ -20,7 +20,7 @@ type SmartTestRun struct {
 	*SmartTest
 	Directory  string
 	File       string
-	Labels     RunLabels
+	Labels     TestExecLabels
 	Cluster    string
 	Sandbox    string
 	RouteGroup string
@@ -29,9 +29,9 @@ type SmartTestRun struct {
 	NoWait     bool
 }
 
-type RunLabels map[string]string
+type TestExecLabels map[string]string
 
-func (rl RunLabels) String() string {
+func (rl TestExecLabels) String() string {
 	keys := make([]string, 0, len(rl))
 	for k := range rl {
 		keys = append(keys, k)
@@ -47,17 +47,28 @@ func (rl RunLabels) String() string {
 	return res.String()
 }
 
-func (rl RunLabels) Set(v string) error {
+func (rl TestExecLabels) Set(v string) error {
 	key, val, ok := strings.Cut(v, "=")
 	if !ok {
-		return fmt.Errorf("%q should be in form <key>:<value>", v)
+		return fmt.Errorf("%q should be in form <key>=<value>", v)
 	}
 	rl[key] = val
 	return nil
 }
 
-func (tl RunLabels) Type() string {
+func (tl TestExecLabels) Type() string {
 	return "labels"
+}
+
+func (tl TestExecLabels) ToQueryFilter() []string {
+	if len(tl) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(tl))
+	for k, v := range tl {
+		result = append(result, k+":"+v)
+	}
+	return result
 }
 
 // AddFlags adds the flags for the test run command
@@ -72,7 +83,7 @@ func (c *SmartTestRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.NoWait, "no-wait", false, "do not wait until the tests are completed")
 
 	c.Labels = make(map[string]string)
-	cmd.Flags().Var(c.Labels, "set-label", "set a label in form key:value for all test executions in the run")
+	cmd.Flags().Var(c.Labels, "set-label", "set a label in form key=value for all test executions in the run (can be specified multiple times)")
 }
 
 type SmartTestExec struct {
@@ -92,7 +103,7 @@ type SmartTestExecList struct {
 	RepoPath       string
 	RepoCommitSHA  string
 	ExecutionPhase string
-	Labels         []string
+	Labels         TestExecLabels
 }
 
 func (c *SmartTestExecList) AddFlags(cmd *cobra.Command) {
@@ -103,7 +114,9 @@ func (c *SmartTestExecList) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.RepoPath, "repo-path", "", "Filter test executions by repository path")
 	cmd.Flags().StringVar(&c.RepoCommitSHA, "repo-commit-sha", "", "Filter test executions by repository commit SHA")
 	cmd.Flags().StringVar(&c.ExecutionPhase, "phase", "", "Filter test executions by phase (one of 'pending', 'in_progress', 'succeeded', 'canceled' or 'failed')")
-	cmd.Flags().StringArrayVar(&c.Labels, "label", []string{}, "Filter test executions by label in the format key:value (can be specified multiple times)")
+
+	c.Labels = make(map[string]string)
+	cmd.Flags().Var(&c.Labels, "label", "Filter test executions by label in the format key=value (can be specified multiple times)")
 }
 
 type SmartTestExecCancel struct {

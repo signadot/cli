@@ -59,7 +59,7 @@ func list(cfg *config.SmartTestExecList, wOut, wErr io.Writer, args []string) er
 		params.WithExecutionPhase(&cfg.ExecutionPhase)
 	}
 	if len(cfg.Labels) > 0 {
-		params.WithLabel(cfg.Labels)
+		params.WithLabel(cfg.Labels.ToQueryFilter())
 	}
 	result, err := cfg.Client.TestExecutions.QueryTestExecutions(params, nil)
 	if err != nil {
