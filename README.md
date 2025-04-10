@@ -2,8 +2,7 @@
 
 This is the source repository for the [Signadot](https://signadot.com) command-line interface.
 
-Please see the [usage guide](https://docs.signadot.com/docs/cli) if all you want
-is to install and run the CLI.
+Please see the [CLI reference](https://www.signadot.com/docs/reference/cli) for installation and usage instructions.
 
 To file an issue, please use our [community issue tracker](https://github.com/signadot/community/issues).
 
