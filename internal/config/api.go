@@ -91,6 +91,12 @@ func (a *API) init() error {
 		return errors.New("No organization found. Please either log in using 'auth login' or specify org through SIGNADOT_ORG env var/org field in ~/.signadot/config.yaml")
 	}
 
+	// Init basic settings and return
+	a.basicInit()
+	return nil
+}
+
+func (a *API) basicInit() {
 	if apiURL := viper.GetString("api_url"); apiURL != "" {
 		a.APIURL = apiURL
 	} else {
@@ -101,7 +107,6 @@ func (a *API) init() error {
 	// Empty means using the API URL from above for accessing artifacts.
 	a.ArtifactsAPIURL = viper.GetString("artifacts_api_url")
 	a.UserAgent = fmt.Sprintf("signadot-cli:%s", buildinfo.Version)
-	return nil
 }
 
 func (a *API) InitAPIConfig() error {
@@ -109,6 +114,11 @@ func (a *API) InitAPIConfig() error {
 		return err
 	}
 
+	return a.InitAPITransport()
+}
+
+func (a *API) UnauthInitAPIConfig() error {
+	a.basicInit()
 	return a.InitAPITransport()
 }
 
