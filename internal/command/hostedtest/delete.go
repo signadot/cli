@@ -1,4 +1,4 @@
-package test
+package hostedtest
 
 import (
 	"errors"
@@ -11,13 +11,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newDelete(tstConfig *config.Test) *cobra.Command {
-	cfg := &config.TestDelete{
-		Test: tstConfig,
+func newDelete(tstConfig *config.HostedTest) *cobra.Command {
+	cfg := &config.HostedTestDelete{
+		HostedTest: tstConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "delete <name>",
-		Short: "Delete a test",
+		Use:   "delete <n>",
+		Short: "Delete a hosted test",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return deleteTest(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -27,7 +27,7 @@ func newDelete(tstConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func deleteTest(cfg *config.TestDelete, wOut, wErr io.Writer, args []string) error {
+func deleteTest(cfg *config.HostedTestDelete, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

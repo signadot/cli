@@ -1,24 +1,25 @@
-package test
+package hostedtest
 
 import (
 	"errors"
 	"fmt"
 	"io"
 
-	"github.com/signadot/cli/internal/command/test_exec"
+	"github.com/signadot/cli/internal/command/smarttest"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/go-sdk/client/test_executions"
 	"github.com/signadot/go-sdk/models"
+	libconncommon "github.com/signadot/libconnect/common"
 	"github.com/spf13/cobra"
 )
 
-func newRun(tConfig *config.Test) *cobra.Command {
-	cfg := &config.TestRun{
-		Test: tConfig,
+func newRun(tConfig *config.HostedTest) *cobra.Command {
+	cfg := &config.HostedTestRun{
+		HostedTest: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "run <name>",
-		Short: "Run a test",
+		Use:   "run <n>",
+		Short: "Run a hosted test",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return run(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -28,15 +29,26 @@ func newRun(tConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func run(cfg *config.TestRun, wOut, wErr io.Writer, args []string) error {
+func run(cfg *config.HostedTestRun, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	name := args[0]
+
+	// Handle single test execution
+	if cfg.Cluster == "" {
+		return fmt.Errorf("cluster flag is required for test execution")
+	}
+
+	testName := args[0]
+	runID := libconncommon.GenerateRunID()
+
 	txSpec := &models.TestExecutionSpec{
-		Test: name,
+		Hosted: &models.HostedSpec{
+			TestName: testName,
+		},
 		ExecutionContext: &models.TestExecutionContext{
 			Cluster: cfg.Cluster,
+			RunID:   runID,
 		},
 	}
 	if cfg.Sandbox == "" && cfg.RouteGroup == "" {
@@ -57,16 +69,18 @@ func run(cfg *config.TestRun, wOut, wErr io.Writer, args []string) error {
 			rc.Routegroup = cfg.RouteGroup
 		}
 	}
-	params := test_executions.NewCreateTestExecutionParams().
+	params := test_executions.NewCreateHostedTestExecutionParams().
 		WithOrgName(cfg.Org).
-		WithTestName(name).
-		WithData(txSpec)
-	result, err := cfg.Client.TestExecutions.CreateTestExecution(params, nil)
+		WithTestName(testName).
+		WithData(&models.TestExecution{
+			Spec: txSpec,
+		})
+	result, err := cfg.Client.TestExecutions.CreateHostedTestExecution(params, nil)
 	if err != nil {
 		return err
 	}
 	if !result.IsSuccess() {
 		return errors.New(result.Error())
 	}
-	return test_exec.PrintTestExecution(cfg.OutputFormat, wOut, result.Payload)
+	return smarttest.PrintTestExecution(cfg.OutputFormat, wOut, result.Payload)
 }

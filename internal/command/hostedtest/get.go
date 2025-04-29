@@ -1,4 +1,4 @@
-package test
+package hostedtest
 
 import (
 	"errors"
@@ -9,13 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGet(tstConfig *config.Test) *cobra.Command {
-	cfg := &config.TestGet{
-		Test: tstConfig,
+func newGet(tstConfig *config.HostedTest) *cobra.Command {
+	cfg := &config.HostedTestGet{
+		HostedTest: tstConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "get <name>",
-		Short: "Get a test",
+		Use:   "get <n>",
+		Short: "Get a hosted test",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return get(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -25,7 +25,7 @@ func newGet(tstConfig *config.Test) *cobra.Command {
 	return cmd
 }
 
-func get(cfg *config.TestGet, wOut, wErr io.Writer, args []string) error {
+func get(cfg *config.HostedTestGet, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}

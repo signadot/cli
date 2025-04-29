@@ -1,4 +1,4 @@
-package test_exec
+package smarttest
 
 import (
 	"errors"
@@ -9,12 +9,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGet(txConfig *config.TestExec) *cobra.Command {
-	cfg := &config.TestExecGet{
-		TestExec: txConfig,
+func newGet(tConfig *config.SmartTestExec) *cobra.Command {
+	cfg := &config.SmartTestExecGet{
+		SmartTestExec: tConfig,
 	}
 	cmd := &cobra.Command{
-		Use:   "get <name>",
+		Use:   "get ID",
 		Short: "Get a test execution",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -25,18 +25,14 @@ func newGet(txConfig *config.TestExec) *cobra.Command {
 	return cmd
 }
 
-func get(cfg *config.TestExecGet, wOut, wErr io.Writer, args []string) error {
+func get(cfg *config.SmartTestExecGet, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	testName, execName, err := splitName(args[0])
-	if err != nil {
-		return err
-	}
+	execID := args[0]
 
 	params := test_executions.NewGetTestExecutionParams().WithOrgName(cfg.Org).
-		WithTestName(testName).
-		WithExecutionName(execName)
+		WithExecutionID(execID)
 	result, err := cfg.Client.TestExecutions.GetTestExecution(params, nil)
 	if err != nil {
 		return err

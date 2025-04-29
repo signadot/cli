@@ -1,4 +1,4 @@
-package test
+package hostedtest
 
 import (
 	"github.com/signadot/cli/internal/config"
@@ -6,11 +6,11 @@ import (
 )
 
 func New(api *config.API) *cobra.Command {
-	cfg := &config.Test{API: api}
+	cfg := &config.HostedTest{API: api}
 	cmd := &cobra.Command{
-		Use:     "test",
-		Short:   "Signadot tests",
-		Aliases: []string{"t"},
+		Use:     "hosted-test",
+		Short:   "Signadot hosted tests",
+		Aliases: []string{"ht"},
 		Hidden:  true,
 	}
 

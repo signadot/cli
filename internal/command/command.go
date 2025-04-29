@@ -8,6 +8,7 @@ import (
 	"github.com/signadot/cli/internal/command/auth"
 	"github.com/signadot/cli/internal/command/bug"
 	"github.com/signadot/cli/internal/command/cluster"
+	"github.com/signadot/cli/internal/command/hostedtest"
 	"github.com/signadot/cli/internal/command/jobrunnergroup"
 	"github.com/signadot/cli/internal/command/jobs"
 	"github.com/signadot/cli/internal/command/local"
@@ -16,8 +17,7 @@ import (
 	"github.com/signadot/cli/internal/command/resourceplugin"
 	"github.com/signadot/cli/internal/command/routegroup"
 	"github.com/signadot/cli/internal/command/sandbox"
-	"github.com/signadot/cli/internal/command/test"
-	"github.com/signadot/cli/internal/command/test_exec"
+	"github.com/signadot/cli/internal/command/smarttest"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -51,8 +51,10 @@ func New() *cobra.Command {
 		jobs.New(cfg),
 		artifact.New(cfg),
 		logs.New(cfg),
-		test.New(cfg),
-		test_exec.New(cfg),
+		smarttest.New(cfg),
+
+		// hidden commands
+		hostedtest.New(cfg),
 	)
 
 	return cmd
