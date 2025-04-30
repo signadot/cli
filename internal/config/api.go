@@ -71,7 +71,9 @@ func (a *API) init() error {
 	}
 
 	if a.ApiKey == "" && a.BearerToken == "" {
-		return errors.New("No authentication found. Please either log in using 'auth login' or specify an API key through SIGNADOT_API_KEY env var/api_key field in ~/.signadot/config.yaml")
+		return errors.New(`No authentication found. Please either log in using 'auth login',
+or specify an API key through $SIGNADOT_API_KEY or the api_key field
+in ~/.signadot/config.yaml`)
 	}
 
 	// Try to get org from keyring first if using bearer token
@@ -88,7 +90,8 @@ func (a *API) init() error {
 	}
 
 	if a.Org == "" {
-		return errors.New("No organization found. Please either log in using 'auth login' or specify org through SIGNADOT_ORG env var/org field in ~/.signadot/config.yaml")
+		return errors.New(`No organisation found. Please either log in using 'auth login',
+or specify $SIGNADOT_ORG, or specify the org field in ~/.signadot/config.yaml`)
 	}
 
 	// Init basic settings and return
