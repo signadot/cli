@@ -5,6 +5,7 @@ import (
 
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/command/artifact"
+	"github.com/signadot/cli/internal/command/auth"
 	"github.com/signadot/cli/internal/command/bug"
 	"github.com/signadot/cli/internal/command/cluster"
 	"github.com/signadot/cli/internal/command/hostedtest"
@@ -38,6 +39,7 @@ func New() *cobra.Command {
 
 	// Subcommands
 	cmd.AddCommand(
+		auth.New(cfg),
 		cluster.New(cfg),
 		sandbox.New(cfg),
 		routegroup.New(cfg),

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/transport"
@@ -24,8 +25,9 @@ type API struct {
 	// Runtime values
 	Client *client.SignadotAPI `json:"-"`
 
-	ApiKey    string
-	UserAgent string
+	ApiKey      string
+	BearerToken string
+	UserAgent   string
 }
 
 // for error reporting, we select the config that
@@ -58,21 +60,48 @@ func (a *API) marshal(marshaller func(interface{}) ([]byte, error)) ([]byte, err
 
 func (a *API) init() error {
 	apiKey := viper.GetString("api_key")
-	if apiKey == "" {
-		return errors.New("Signadot API key must be specified through either the SIGNADOT_API_KEY env var or the 'api_key' field in ~/.signadot/config.yaml")
-	} else {
+	if apiKey != "" {
+		a.ApiKey = apiKey
 		a.MaskedAPIKey = apiKey[:6] + "..."
 	}
-	a.ApiKey = apiKey
 
-	a.Org = viper.GetString("org")
-	if a.Org == "" {
-		return errors.New("Signadot Org name must be specified through either the SIGNADOT_ORG env var or the 'org' field in ~/.signadot/config.yaml")
+	token, err := auth.GetToken()
+	if err == nil && token != "" {
+		a.BearerToken = token
 	}
 
+	if a.ApiKey == "" && a.BearerToken == "" {
+		return errors.New(`No authentication found. Please either log in using 'auth login',
+or specify an API key through $SIGNADOT_API_KEY or the api_key field
+in ~/.signadot/config.yaml`)
+	}
+
+	// Try to get org from keyring first if using bearer token
+	if a.BearerToken != "" {
+		org, err := auth.GetOrg()
+		if err == nil && org != "" {
+			a.Org = org
+		}
+	}
+
+	// Fall back to config file for org if not found in keyring
+	if a.Org == "" {
+		a.Org = viper.GetString("org")
+	}
+
+	if a.Org == "" {
+		return errors.New(`No organisation found. Please either log in using 'auth login',
+or specify $SIGNADOT_ORG, or specify the org field in ~/.signadot/config.yaml`)
+	}
+
+	// Init basic settings and return
+	a.basicInit()
+	return nil
+}
+
+func (a *API) basicInit() {
 	if apiURL := viper.GetString("api_url"); apiURL != "" {
 		a.APIURL = apiURL
-
 	} else {
 		a.APIURL = "https://api.signadot.com"
 	}
@@ -80,9 +109,7 @@ func (a *API) init() error {
 	// Allow defining a custom URL for artifacts (useful for local development).
 	// Empty means using the API URL from above for accessing artifacts.
 	a.ArtifactsAPIURL = viper.GetString("artifacts_api_url")
-
 	a.UserAgent = fmt.Sprintf("signadot-cli:%s", buildinfo.Version)
-	return nil
 }
 
 func (a *API) InitAPIConfig() error {
@@ -93,14 +120,27 @@ func (a *API) InitAPIConfig() error {
 	return a.InitAPITransport()
 }
 
+func (a *API) UnauthInitAPIConfig() error {
+	a.basicInit()
+	return a.InitAPITransport()
+}
+
 func (a *API) GetBaseTransport() *transport.APIConfig {
-	return &transport.APIConfig{
-		APIKey:          a.ApiKey,
+	cfg := &transport.APIConfig{
 		APIURL:          a.APIURL,
 		ArtifactsAPIURL: a.ArtifactsAPIURL,
 		UserAgent:       a.UserAgent,
 		Debug:           a.Debug,
 	}
+
+	// Prefer API key if present
+	if a.ApiKey != "" {
+		cfg.APIKey = a.ApiKey
+	} else if a.BearerToken != "" {
+		cfg.BearerToken = a.BearerToken
+	}
+
+	return cfg
 }
 
 func (a *API) InitAPITransport() error {
