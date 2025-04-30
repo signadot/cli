@@ -68,7 +68,8 @@ func getDeviceCode(cfg *config.AuthLogin) (*models.AuthdevicesCode, error) {
 
 func waitForUserAuth(cfg *config.AuthLogin, out io.Writer,
 	code *models.AuthdevicesCode) (*models.AuthdevicesToken, error) {
-	fmt.Fprintf(out, "To authenticate, visit: "+code.VerificationURI+"\n\n")
+	fmt.Fprintf(out, "To authenticate, visit: "+code.VerificationURI+"\n")
+	fmt.Fprintf(out, "and confirm the code: "+code.UserCode+"\n\n")
 	spin := spinner.Start(out, "Waiting for authentication")
 	defer spin.Stop()
 

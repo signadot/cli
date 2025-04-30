@@ -71,7 +71,7 @@ func (a *API) init() error {
 	}
 
 	if a.ApiKey == "" && a.BearerToken == "" {
-		return errors.New("No authentication found. Please either specify an API key through SIGNADOT_API_KEY env var/api_key field in ~/.signadot/config.yaml, or log in using 'auth login'")
+		return errors.New("No authentication found. Please either log in using 'auth login' or specify an API key through SIGNADOT_API_KEY env var/api_key field in ~/.signadot/config.yaml")
 	}
 
 	// Try to get org from keyring first if using bearer token
