@@ -92,6 +92,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 			UIDPath:  os.Getenv("PATH"),
 			Username: user.Username,
 		},
+		Env:              os.Environ(),
 		ConnectionConfig: connConfig,
 		ProxyURL:         cfg.ProxyURL,
 		APIKey:           cfg.GetAPIKey(),
@@ -170,10 +171,7 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 			"--daemon",
 			"--sandbox-manager",
 		)
-		cmd.Env = append(cmd.Env,
-			fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
-			fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
-		)
+		cmd.Env = append(cmd.Env, ciConfig.Env...)
 	}
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciConfigBytes)))
