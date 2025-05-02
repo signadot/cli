@@ -70,7 +70,6 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		} else {
 			args = append(args, "--sandbox-manager")
 			env = append(env, ciConfig.Env...)
-			log.Info("sb manager env", "env", ciConfig.Env)
 		}
 		cmd := exec.Command(binary, args...)
 		cmd.Env = env
@@ -102,7 +101,6 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	if cfg.RootManager {
 		return locald.RunRootManager(cfg, log, args)
 	}
-	log.Info("sandbox manager env", "env", os.Environ())
 	return locald.RunSandboxManager(cfg, log, args)
 }
 
