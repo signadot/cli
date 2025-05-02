@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/spinner"
 	sdkauth "github.com/signadot/go-sdk/client/auth"
+	"github.com/signadot/go-sdk/client/orgs"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
@@ -24,12 +26,64 @@ func newLogin(cfg *config.Auth) *cobra.Command {
 			return runLogin(loginCfg, cmd.OutOrStdout())
 		},
 	}
+	loginCfg.AddFlags(cmd)
 
 	return cmd
 }
 
 func runLogin(cfg *config.AuthLogin, out io.Writer) error {
-	if err := cfg.UnauthInitAPIConfig(); err != nil {
+	var err error
+	if cfg.WithAPIKey != "" {
+		err = apiKeyLogin(cfg, out)
+	} else {
+		err = bearerTokenLogin(cfg, out)
+	}
+	if err != nil {
+		return err
+	}
+
+	green := color.New(color.FgGreen).SprintFunc()
+	fmt.Fprintf(out, "%s Successfully logged in\n", green("✓"))
+	return nil
+}
+
+func apiKeyLogin(cfg *config.AuthLogin, out io.Writer) error {
+	// init the API client with the provided api key
+	if err := cfg.InitAPIConfigWithApiKey(cfg.WithAPIKey); err != nil {
+		return err
+	}
+
+	spin := spinner.Start(out, "Checking provided API key")
+	defer spin.Stop()
+
+	// resolve the org from the api key
+	res, err := cfg.Client.Orgs.GetOrgName(&orgs.GetOrgNameParams{}, nil)
+	if err != nil {
+		spin.StopFail()
+		return err
+	}
+	orgInfo := res.Payload
+	if len(orgInfo.Orgs) == 0 {
+		spin.StopFail()
+		return errors.New("could not resolve org from API key")
+	}
+	org := orgInfo.Orgs[0]
+
+	// store the auth info
+	err = auth.StoreAuthInKeyring(&auth.Auth{
+		APIKey:  cfg.WithAPIKey,
+		OrgName: org.Name,
+	})
+	if err != nil {
+		spin.StopFail()
+		return fmt.Errorf("failed to store auth info: %w", err)
+	}
+	return nil
+}
+
+func bearerTokenLogin(cfg *config.AuthLogin, out io.Writer) error {
+	// init an unauthirezed API client
+	if err := cfg.InitUnauthAPIConfig(); err != nil {
 		return err
 	}
 
@@ -45,16 +99,16 @@ func runLogin(cfg *config.AuthLogin, out io.Writer) error {
 		return err
 	}
 
-	// store the access token and org name
-	if err := auth.StoreToken(token.AccessToken); err != nil {
-		return fmt.Errorf("failed to store access token: %w", err)
+	// store the auth info
+	expiresAt := time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
+	err = auth.StoreAuthInKeyring(&auth.Auth{
+		BearerToken: token.AccessToken,
+		OrgName:     token.OrgName,
+		ExpiresAt:   &expiresAt,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to store auth info: %w", err)
 	}
-	if err := auth.StoreOrg(token.OrgName); err != nil {
-		return fmt.Errorf("failed to store org name: %w", err)
-	}
-
-	green := color.New(color.FgGreen).SprintFunc()
-	fmt.Fprintf(out, "%s Successfully logged in\n", green("✓"))
 	return nil
 }
 
@@ -85,6 +139,7 @@ func waitForUserAuth(cfg *config.AuthLogin, out io.Writer,
 
 		res, err := cfg.Client.Auth.AuthDeviceGetToken(param)
 		if err != nil {
+			spin.StopFail()
 			return nil, fmt.Errorf("couldn't get device token: %w", err)
 		}
 		token := res.Payload

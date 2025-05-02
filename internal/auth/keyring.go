@@ -1,36 +1,46 @@
 package auth
 
-import "github.com/zalando/go-keyring"
+import (
+	"encoding/json"
+	"errors"
+
+	"github.com/zalando/go-keyring"
+)
 
 const (
 	keyringService = "signadot-cli"
-	tokenKey       = "token"
-	orgKey         = "org"
+	authKey        = "auth"
 )
 
-// StoreToken stores the auth token securely in the system keyring
-func StoreToken(token string) error {
-	return keyring.Set(keyringService, tokenKey, token)
+func StoreAuthInKeyring(auth *Auth) error {
+	authJson, err := json.Marshal(auth)
+	if err != nil {
+		return err
+	}
+	return keyring.Set(keyringService, authKey, string(authJson))
 }
 
-// GetToken retrieves the auth token from the system keyring
-func GetToken() (string, error) {
-	return keyring.Get(keyringService, tokenKey)
+func GetAuthFromKeyring() (*Auth, error) {
+	// read the auth from keyring
+	authJson, err := keyring.Get(keyringService, authKey)
+	if err != nil {
+		if errors.Is(err, keyring.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// decode the auth
+	var auth Auth
+	err = json.Unmarshal([]byte(authJson), &auth)
+	if err != nil {
+		// this is an unlikely state. Remove the entry from the keyring and
+		// allow the user to log in again.
+		return nil, DeleteAuthFromKeyring()
+	}
+	return &auth, nil
 }
 
-// DeleteToken removes the auth token from the system keyring
-func DeleteToken() error {
-	return keyring.Delete(keyringService, tokenKey)
-}
-
-func StoreOrg(org string) error {
-	return keyring.Set(keyringService, orgKey, org)
-}
-
-func GetOrg() (string, error) {
-	return keyring.Get(keyringService, orgKey)
-}
-
-func DeleteOrg() error {
-	return keyring.Delete(keyringService, orgKey)
+func DeleteAuthFromKeyring() error {
+	return keyring.Delete(keyringService, authKey)
 }

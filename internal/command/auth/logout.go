@@ -9,7 +9,6 @@ import (
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
-	"github.com/zalando/go-keyring"
 )
 
 func newLogout(cfg *config.Auth) *cobra.Command {
@@ -27,11 +26,21 @@ func newLogout(cfg *config.Auth) *cobra.Command {
 }
 
 func runLogout(cfg *config.AuthLogout, out io.Writer) error {
-	if err := auth.DeleteToken(); err != nil {
-		if errors.Is(err, keyring.ErrNotFound) {
-			return errors.New("you are already logged out")
-		}
-		return fmt.Errorf("failed to delete token: %w", err)
+	authInfo, err := auth.ResolveAuth()
+	if err != nil {
+		return fmt.Errorf("could not resolve auth: %w", err)
+	}
+	if authInfo == nil {
+		return errors.New("You are already logged out.")
+	}
+	if authInfo.Source == auth.ConfigAuthSource {
+		return errors.New(`You are currently logged in using an API key specified via a configuration file
+or environment variable. To log out, you must manually unset the environment variable
+or remove the API key from the configuration file.`)
+	}
+
+	if err := auth.DeleteAuthFromKeyring(); err != nil {
+		return fmt.Errorf("failed to delete auth info: %w", err)
 	}
 
 	green := color.New(color.FgGreen).SprintFunc()

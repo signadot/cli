@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/buildinfo"
@@ -59,40 +60,24 @@ func (a *API) marshal(marshaller func(interface{}) ([]byte, error)) ([]byte, err
 }
 
 func (a *API) init() error {
-	apiKey := viper.GetString("api_key")
-	if apiKey != "" {
-		a.ApiKey = apiKey
-		a.MaskedAPIKey = apiKey[:6] + "..."
+	authInfo, err := auth.ResolveAuth()
+	if err != nil {
+		return fmt.Errorf("could not resolve auth: %w", err)
 	}
 
-	token, err := auth.GetToken()
-	if err == nil && token != "" {
-		a.BearerToken = token
+	if authInfo == nil || (authInfo.APIKey == "" && authInfo.BearerToken == "") {
+		return errors.New("No authentication found. Please log in using 'signadot auth login'")
+	}
+	if authInfo.ExpiresAt != nil && authInfo.ExpiresAt.Before(time.Now()) {
+		return errors.New("Authentication expired. Please log in using 'signadot auth login'")
+	}
+	if authInfo.OrgName == "" {
+		return errors.New("No organisation found. Please log in using 'signadot auth login'")
 	}
 
-	if a.ApiKey == "" && a.BearerToken == "" {
-		return errors.New(`No authentication found. Please either log in using 'auth login',
-or specify an API key through $SIGNADOT_API_KEY or the api_key field
-in ~/.signadot/config.yaml`)
-	}
-
-	// Try to get org from keyring first if using bearer token
-	if a.BearerToken != "" {
-		org, err := auth.GetOrg()
-		if err == nil && org != "" {
-			a.Org = org
-		}
-	}
-
-	// Fall back to config file for org if not found in keyring
-	if a.Org == "" {
-		a.Org = viper.GetString("org")
-	}
-
-	if a.Org == "" {
-		return errors.New(`No organisation found. Please either log in using 'auth login',
-or specify $SIGNADOT_ORG, or specify the org field in ~/.signadot/config.yaml`)
-	}
+	a.ApiKey = authInfo.APIKey
+	a.BearerToken = authInfo.BearerToken
+	a.Org = authInfo.OrgName
 
 	// Init basic settings and return
 	a.basicInit()
@@ -120,7 +105,13 @@ func (a *API) InitAPIConfig() error {
 	return a.InitAPITransport()
 }
 
-func (a *API) UnauthInitAPIConfig() error {
+func (a *API) InitUnauthAPIConfig() error {
+	a.basicInit()
+	return a.InitAPITransport()
+}
+
+func (a *API) InitAPIConfigWithApiKey(apiKey string) error {
+	a.ApiKey = apiKey
 	a.basicInit()
 	return a.InitAPITransport()
 }
