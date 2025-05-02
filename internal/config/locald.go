@@ -72,6 +72,7 @@ type ConnectInvocationConfig struct {
 	SignadotDir     string `json:"signadotDir"`
 
 	User             *ConnectInvocationUser       `json:"user"`
+	Env              []string                     `json:"env"`
 	VirtualIPNet     string                       `json:"virtualIPNet"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	ProxyURL         string                       `json:"proxyURL"`
