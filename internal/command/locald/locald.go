@@ -56,6 +56,12 @@ func run(cfg *config.LocalDaemon, args []string) error {
 			return err
 		}
 		args := []string{"locald"}
+		env := []string{
+			fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
+			fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
+			fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s",
+				os.Getenv("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG")),
+		}
 		if cfg.PProfAddr != "" {
 			args = append(args, "--pprof", cfg.PProfAddr)
 		}
@@ -63,15 +69,11 @@ func run(cfg *config.LocalDaemon, args []string) error {
 			args = append(args, "--root-manager")
 		} else {
 			args = append(args, "--sandbox-manager")
+			env = append(env, ciConfig.Env...)
 		}
 		cmd := exec.Command(binary, args...)
+		cmd.Env = env
 
-		cmd.Env = append(cmd.Env,
-			fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
-			fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
-			fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s",
-				os.Getenv("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG")),
-		)
 		if err := cmd.Start(); err != nil {
 			return err
 		}
