@@ -9,6 +9,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/oklog/run"
+	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
 	clusters "github.com/signadot/go-sdk/client/cluster"
 	routegroups "github.com/signadot/go-sdk/client/route_groups"
@@ -98,7 +99,8 @@ func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []
 			Cluster:    cluster,
 			RoutingKey: routingKey,
 			BindAddr:   pm.BindAddr,
-		}, cfg.GetAPIKey())
+			GetHeaders: auth.GetHeaders,
+		})
 		if err != nil {
 			return err
 		}

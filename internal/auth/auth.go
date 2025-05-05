@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"net/http"
 	"time"
 
+	"github.com/go-openapi/runtime"
+	"github.com/signadot/go-sdk/transport"
 	"github.com/spf13/viper"
 )
 
@@ -64,4 +67,22 @@ func loadAuth() (*ResolvedAuth, error) {
 		Source: KeyringAuthSource,
 		Auth:   *auth,
 	}, nil
+}
+
+func GetHeaders() (http.Header, error) {
+	authInfo, err := ResolveAuth()
+	if err != nil {
+		return nil, err
+	}
+
+	headers := http.Header{}
+	if authInfo == nil {
+		return headers, nil
+	}
+	if authInfo.APIKey != "" {
+		headers.Set(transport.APIKeyHeader, authInfo.APIKey)
+	} else if authInfo.BearerToken != "" {
+		headers.Set(runtime.HeaderAuthorization, "Bearer "+authInfo.BearerToken)
+	}
+	return headers, nil
 }

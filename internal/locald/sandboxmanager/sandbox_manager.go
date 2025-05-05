@@ -4,15 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"log/slog"
 
+	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
+	"github.com/signadot/go-sdk/transport"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"google.golang.org/grpc"
@@ -106,14 +109,27 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 			m.log, 0, "signadot", "tunnel-proxy", 1080,
 		)
 	case connectcfg.ControlPlaneProxyLinkType:
+		getHeaders := func() (http.Header, error) {
+			headers, err := auth.GetHeaders()
+			if err != nil {
+				return nil, err
+			}
+			if len(headers) == 0 && m.ciConfig.APIKey != "" {
+				// give precedence to auth info coming from the keying store
+				headers.Set(transport.APIKeyHeader, m.ciConfig.APIKey)
+			}
+			return headers, nil
+		}
+
 		// Start a control-plane proxy
 		ctlPlaneProxy, err := controlplaneproxy.NewProxy(&controlplaneproxy.Config{
-			Log:       m.log,
-			ProxyURL:  m.ciConfig.ProxyURL,
-			TargetURL: "tcp://tunnel-proxy.signadot.svc:1080",
-			Cluster:   m.connConfig.Cluster,
-			BindAddr:  ":0",
-		}, m.ciConfig.APIKey)
+			Log:        m.log,
+			ProxyURL:   m.ciConfig.ProxyURL,
+			TargetURL:  "tcp://tunnel-proxy.signadot.svc:1080",
+			Cluster:    m.connConfig.Cluster,
+			BindAddr:   ":0",
+			GetHeaders: getHeaders,
+		})
 		if err != nil {
 			return err
 		}
