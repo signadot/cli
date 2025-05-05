@@ -93,13 +93,13 @@ func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []
 		pm := &cfg.ProxyMappings[i]
 
 		ctlPlaneProxy, err := controlplaneproxy.NewProxy(&controlplaneproxy.Config{
-			Log:        log,
-			ProxyURL:   cfg.ProxyURL,
-			TargetURL:  pm.GetTarget(),
-			Cluster:    cluster,
-			RoutingKey: routingKey,
-			BindAddr:   pm.BindAddr,
-			GetHeaders: auth.GetHeaders,
+			Log:              log,
+			ProxyURL:         cfg.ProxyURL,
+			TargetURL:        pm.GetTarget(),
+			Cluster:          cluster,
+			RoutingKey:       routingKey,
+			BindAddr:         pm.BindAddr,
+			GetInjectHeaders: auth.GetHeaders,
 		})
 		if err != nil {
 			return err

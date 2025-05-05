@@ -123,12 +123,12 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 
 		// Start a control-plane proxy
 		ctlPlaneProxy, err := controlplaneproxy.NewProxy(&controlplaneproxy.Config{
-			Log:        m.log,
-			ProxyURL:   m.ciConfig.ProxyURL,
-			TargetURL:  "tcp://tunnel-proxy.signadot.svc:1080",
-			Cluster:    m.connConfig.Cluster,
-			BindAddr:   ":0",
-			GetHeaders: getHeaders,
+			Log:              m.log,
+			ProxyURL:         m.ciConfig.ProxyURL,
+			TargetURL:        "tcp://tunnel-proxy.signadot.svc:1080",
+			Cluster:          m.connConfig.Cluster,
+			BindAddr:         ":0",
+			GetInjectHeaders: getHeaders,
 		})
 		if err != nil {
 			return err
