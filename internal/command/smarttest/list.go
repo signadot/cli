@@ -20,7 +20,7 @@ func newList(tConfig *config.SmartTest) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List tests",
+		Short: "List local tests",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return list(cmd.Context(), cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
