@@ -57,17 +57,11 @@ func apiKeyLogin(cfg *config.AuthLogin, out io.Writer) error {
 	defer spin.Stop()
 
 	// resolve the org from the api key
-	res, err := cfg.Client.Orgs.GetOrgName(&orgs.GetOrgNameParams{}, nil)
+	org, err := resolveOrg(cfg)
 	if err != nil {
 		spin.StopFail()
 		return err
 	}
-	orgInfo := res.Payload
-	if len(orgInfo.Orgs) == 0 {
-		spin.StopFail()
-		return errors.New("could not resolve org from API key")
-	}
-	org := orgInfo.Orgs[0]
 
 	// store the auth info
 	err = auth.StoreAuthInKeyring(&auth.Auth{
@@ -99,11 +93,22 @@ func bearerTokenLogin(cfg *config.AuthLogin, out io.Writer) error {
 		return err
 	}
 
+	// init the API client with the provided bearer token
+	if err := cfg.InitAPIConfigWithBearerToken(token.AccessToken); err != nil {
+		return err
+	}
+
+	// resolve the org from the bearer token
+	org, err := resolveOrg(cfg)
+	if err != nil {
+		return err
+	}
+
 	// store the auth info
 	expiresAt := time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	err = auth.StoreAuthInKeyring(&auth.Auth{
 		BearerToken: token.AccessToken,
-		OrgName:     token.OrgName,
+		OrgName:     org.Name,
 		ExpiresAt:   &expiresAt,
 	})
 	if err != nil {
@@ -152,4 +157,16 @@ func waitForUserAuth(cfg *config.AuthLogin, out io.Writer,
 			interval += 1
 		}
 	}
+}
+
+func resolveOrg(cfg *config.AuthLogin) (*models.OrgsOrg, error) {
+	res, err := cfg.Client.Orgs.GetOrgName(&orgs.GetOrgNameParams{}, nil)
+	if err != nil {
+		return nil, err
+	}
+	orgInfo := res.Payload
+	if len(orgInfo.Orgs) == 0 {
+		return nil, errors.New("could not resolve orgs")
+	}
+	return orgInfo.Orgs[0], nil
 }

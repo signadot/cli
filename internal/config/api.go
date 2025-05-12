@@ -116,6 +116,12 @@ func (a *API) InitAPIConfigWithApiKey(apiKey string) error {
 	return a.InitAPITransport()
 }
 
+func (a *API) InitAPIConfigWithBearerToken(bearerToken string) error {
+	a.BearerToken = bearerToken
+	a.basicInit()
+	return a.InitAPITransport()
+}
+
 func (a *API) GetBaseTransport() *transport.APIConfig {
 	cfg := &transport.APIConfig{
 		APIURL:          a.APIURL,
