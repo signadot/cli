@@ -13,9 +13,11 @@ type TestFinder struct {
 	basePath string
 
 	dirLabelsCache LabelsCache
+	filterLabels   map[string]string
+	withoutLabels  map[string]string
 }
 
-func NewTestFinder(inputPath string) (*TestFinder, error) {
+func NewTestFinder(inputPath string, filterLabels, withoutLabels map[string]string) (*TestFinder, error) {
 	var tf *TestFinder
 
 	if inputPath != "" {
@@ -46,8 +48,10 @@ func NewTestFinder(inputPath string) (*TestFinder, error) {
 			cfg: &Config{
 				SmartTests: []string{testDir},
 			},
-			repo:     gitRepo,
-			basePath: basePath,
+			repo:          gitRepo,
+			basePath:      basePath,
+			filterLabels:  filterLabels,
+			withoutLabels: withoutLabels,
 		}
 	} else {
 		// try to read from .signadot/config in the git repo (if any)
@@ -71,9 +75,11 @@ func NewTestFinder(inputPath string) (*TestFinder, error) {
 		}
 
 		tf = &TestFinder{
-			cfg:      repoConf,
-			repo:     gitRepo,
-			basePath: gitRepo.Path,
+			cfg:           repoConf,
+			repo:          gitRepo,
+			basePath:      gitRepo.Path,
+			filterLabels:  filterLabels,
+			withoutLabels: withoutLabels,
 		}
 	}
 
@@ -122,11 +128,59 @@ func (tf *TestFinder) FindTestFiles() ([]TestFile, error) {
 	}
 
 	var allTestFiles []TestFile
-	for _, tf := range testFileMap {
-		allTestFiles = append(allTestFiles, tf)
+	for _, tFile := range testFileMap {
+		allMatch, err := allLabelsMatch(tf.filterLabels, tFile.Labels)
+		if err != nil {
+			return nil, err
+		}
+		if !allMatch {
+			continue
+		}
+		someMatch, err := someLabelMatches(tf.withoutLabels, tFile.Labels)
+		if err != nil {
+			return nil, err
+		}
+		if someMatch {
+			continue
+		}
+		allTestFiles = append(allTestFiles, tFile)
 	}
 
 	return allTestFiles, nil
+}
+
+func allLabelsMatch(filter, labels map[string]string) (bool, error) {
+	for key, valGlob := range filter {
+		lVal, ok := labels[key]
+		if !ok {
+			return false, nil
+		}
+		match, err := filepath.Match(valGlob, lVal)
+		if err != nil {
+			return false, err
+		}
+		if !match {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func someLabelMatches(filter, labels map[string]string) (bool, error) {
+	for key, valGlob := range filter {
+		lVal, ok := labels[key]
+		if !ok {
+			continue
+		}
+		match, err := filepath.Match(valGlob, lVal)
+		if err != nil {
+			return false, err
+		}
+		if match {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // processTestFile handles a single test file, adding it to the testFileMap if valid

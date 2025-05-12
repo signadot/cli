@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newList(tConfig *config.SmartTestExec) *cobra.Command {
+func newXList(tConfig *config.SmartTestExec) *cobra.Command {
 	cfg := &config.SmartTestExecList{
 		SmartTestExec: tConfig,
 	}
@@ -19,14 +19,14 @@ func newList(tConfig *config.SmartTestExec) *cobra.Command {
 		Use:   "list [filter-opts]",
 		Short: "List test executions",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return list(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return xList(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 	cfg.AddFlags(cmd)
 	return cmd
 }
 
-func list(cfg *config.SmartTestExecList, wOut, wErr io.Writer, args []string) error {
+func xList(cfg *config.SmartTestExecList, wOut, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
