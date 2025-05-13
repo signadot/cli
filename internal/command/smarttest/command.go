@@ -13,10 +13,12 @@ func New(api *config.API) *cobra.Command {
 		Aliases: []string{"st"},
 	}
 
+	list := newList(cfg)
 	run := newRun(cfg)
 	exec := newExecution(cfg)
 
 	// Subcommands
+	cmd.AddCommand(list)
 	cmd.AddCommand(run)
 	cmd.AddCommand(exec)
 	return cmd

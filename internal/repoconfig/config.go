@@ -16,10 +16,10 @@ type Config struct {
 
 // TestFile represents a test file found in the tests directory
 type TestFile struct {
-	Name   string            // Test name
-	Path   string            // Full path relative to base directory
-	Reader io.Reader         // if Path is empty, may be a Reader
-	Labels map[string]string // Labels from all parent directories
+	Name   string            `json:"name"`   // Test name
+	Path   string            `json:"path"`   // Full path relative to base directory
+	Reader io.Reader         `json:"-"`      // if Path is empty, may be a Reader
+	Labels map[string]string `json:"labels"` // Labels from all parent directories
 }
 
 // LoadConfig reads the .signadot/config.yaml file from the git repository root

@@ -15,12 +15,28 @@ type SmartTest struct {
 	*API
 }
 
+type SmartTestList struct {
+	*SmartTest
+	Directory     string
+	File          string
+	FilterLabels  TestExecLabels
+	WithoutLabels TestExecLabels
+}
+
+func (c *SmartTestList) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVarP(&c.Directory, "directory", "d", "", "base directory for finding tests")
+	cmd.Flags().StringVarP(&c.File, "file", "f", "", "smart test file to run")
+	c.FilterLabels = make(map[string]string)
+	cmd.Flags().Var(&c.FilterLabels, "with-label", "select tests with specified label in the form key=value (can be specified multiple times, value is a glob)")
+	c.WithoutLabels = make(map[string]string)
+	cmd.Flags().Var(&c.WithoutLabels, "without-label", "select tests not matching the specified label in the form key=value (can be specified multiple times, value is a glob)")
+}
+
 // SmartTestRun represents the configuration for running a test
 type SmartTestRun struct {
-	*SmartTest
-	Directory  string
-	File       string
-	Labels     TestExecLabels
+	*SmartTestList
+	AddLabels TestExecLabels
+
 	Cluster    string
 	Sandbox    string
 	RouteGroup string
@@ -73,8 +89,7 @@ func (tl TestExecLabels) ToQueryFilter() []string {
 
 // AddFlags adds the flags for the test run command
 func (c *SmartTestRun) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&c.Directory, "directory", "d", "", "base directory for finding tests")
-	cmd.Flags().StringVarP(&c.File, "file", "f", "", "smart test file to run")
+	c.SmartTestList.AddFlags(cmd)
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "cluster where to run tests")
 	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "sandbox where to run tests")
 	cmd.Flags().StringVar(&c.RouteGroup, "route-group", "", "route group where to run tests")
@@ -82,8 +97,8 @@ func (c *SmartTestRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().DurationVar(&c.Timeout, "timeout", 0, "timeout when waiting for the tests to complete, if 0 is specified, no timeout will be applied (default 0)")
 	cmd.Flags().BoolVar(&c.NoWait, "no-wait", false, "do not wait until the tests are completed")
 
-	c.Labels = make(map[string]string)
-	cmd.Flags().Var(&c.Labels, "set-label", "set a label in form key=value for all test executions in the run (can be specified multiple times)")
+	c.AddLabels = make(map[string]string)
+	cmd.Flags().Var(&c.AddLabels, "set-label", "set a label in form key=value for all test executions in the run (can be specified multiple times)")
 }
 
 type SmartTestExec struct {

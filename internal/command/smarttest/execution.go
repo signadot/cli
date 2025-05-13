@@ -15,7 +15,7 @@ func newExecution(tConfig *config.SmartTest) *cobra.Command {
 		Short:   "Work with smart test executions",
 	}
 	get := newGet(cfg)
-	list := newList(cfg)
+	list := newXList(cfg)
 	cancel := newCancel(cfg)
 	cmd.AddCommand(get)
 	cmd.AddCommand(list)

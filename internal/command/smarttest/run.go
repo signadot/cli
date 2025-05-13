@@ -2,11 +2,9 @@ package smarttest
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
@@ -22,7 +20,9 @@ import (
 
 func newRun(tConfig *config.SmartTest) *cobra.Command {
 	cfg := &config.SmartTestRun{
-		SmartTest: tConfig,
+		SmartTestList: &config.SmartTestList{
+			SmartTest: tConfig,
+		},
 	}
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -44,7 +44,7 @@ func run(ctx context.Context, cfg *config.SmartTestRun, wOut, wErr io.Writer,
 		return err
 	}
 
-	testFiles, gitRepo, err := testFilesAndRepo(cfg)
+	testFiles, gitRepo, err := testFilesAndRepo(cfg.SmartTestList)
 	if err != nil {
 		return err
 	}
@@ -95,39 +95,10 @@ func run(ctx context.Context, cfg *config.SmartTestRun, wOut, wErr io.Writer,
 	return structuredOutput(cfg, wOut, runID, txs)
 }
 
-func testFilesAndRepo(cfg *config.SmartTestRun) ([]repoconfig.TestFile, *repoconfig.GitRepo, error) {
-	if cfg.File == "-" {
-		host, err := os.Hostname()
-		if err != nil {
-			host = "unknown"
-		}
-		pid := strconv.Itoa(os.Getpid())
-		return []repoconfig.TestFile{
-			{
-				Name:   host + "-" + "stdin-" + pid,
-				Reader: os.Stdin,
-			},
-		}, nil, nil
-	}
-	// create a test finder
-	// NOTE: at most one of cfg.{Dir,File} is non-empty
-	tf, err := repoconfig.NewTestFinder(cfg.Directory + cfg.File)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// find tests
-	testFiles, err := tf.FindTestFiles()
-	if err != nil {
-		return nil, nil, fmt.Errorf("error finding test files: %w", err)
-	}
-	if len(testFiles) == 0 {
-		return nil, nil, errors.New("could not find any test")
-	}
-	return testFiles, tf.GetGitRepo(), nil
-}
-
 func validateRun(cfg *config.SmartTestRun) error {
+	if err := validateList(cfg.SmartTestList); err != nil {
+		return err
+	}
 	count := 0
 	if cfg.Cluster != "" {
 		count++
@@ -242,7 +213,7 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 		extSpec.TestName = tf.Name
 		// define the labels
 		labels := tf.Labels
-		for k, v := range cfg.Labels {
+		for k, v := range cfg.AddLabels {
 			labels[k] = v
 		}
 		// define the script
