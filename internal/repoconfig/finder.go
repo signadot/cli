@@ -13,11 +13,11 @@ type TestFinder struct {
 	basePath string
 
 	dirLabelsCache LabelsCache
-	filterLabels   map[string]string
+	withLabels     map[string]string
 	withoutLabels  map[string]string
 }
 
-func NewTestFinder(inputPath string, filterLabels, withoutLabels map[string]string) (*TestFinder, error) {
+func NewTestFinder(inputPath string, withLabels, withoutLabels map[string]string) (*TestFinder, error) {
 	var tf *TestFinder
 
 	if inputPath != "" {
@@ -50,7 +50,7 @@ func NewTestFinder(inputPath string, filterLabels, withoutLabels map[string]stri
 			},
 			repo:          gitRepo,
 			basePath:      basePath,
-			filterLabels:  filterLabels,
+			withLabels:    withLabels,
 			withoutLabels: withoutLabels,
 		}
 	} else {
@@ -78,7 +78,7 @@ func NewTestFinder(inputPath string, filterLabels, withoutLabels map[string]stri
 			cfg:           repoConf,
 			repo:          gitRepo,
 			basePath:      gitRepo.Path,
-			filterLabels:  filterLabels,
+			withLabels:    withLabels,
 			withoutLabels: withoutLabels,
 		}
 	}
@@ -129,7 +129,7 @@ func (tf *TestFinder) FindTestFiles() ([]TestFile, error) {
 
 	var allTestFiles []TestFile
 	for _, tFile := range testFileMap {
-		allMatch, err := allLabelsMatch(tf.filterLabels, tFile.Labels)
+		allMatch, err := allLabelsMatch(tf.withLabels, tFile.Labels)
 		if err != nil {
 			return nil, err
 		}
