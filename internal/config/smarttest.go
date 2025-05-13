@@ -27,9 +27,9 @@ func (c *SmartTestList) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Directory, "directory", "d", "", "base directory for finding tests")
 	cmd.Flags().StringVarP(&c.File, "file", "f", "", "smart test file to run")
 	c.FilterLabels = make(map[string]string)
-	cmd.Flags().Var(&c.FilterLabels, "with-label", "only run tests with specified label in the form key=value (can be specified multiple times, value is a glob)")
+	cmd.Flags().Var(&c.FilterLabels, "with-label", "select tests with specified label in the form key=value (can be specified multiple times, value is a glob)")
 	c.WithoutLabels = make(map[string]string)
-	cmd.Flags().Var(&c.WithoutLabels, "without-label", "only run tests without specified label in the form key=value (can be specified multiple times, value is a glob)")
+	cmd.Flags().Var(&c.WithoutLabels, "without-label", "select tests not matching the specified label in the form key=value (can be specified multiple times, value is a glob)")
 }
 
 // SmartTestRun represents the configuration for running a test
