@@ -15,8 +15,8 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/signadot/go-sdk v0.3.8-0.20250512165812-53eb89975b2a
-	github.com/signadot/libconnect v0.1.1-0.20250505143054-fbbea25d0081
+	github.com/signadot/go-sdk v0.3.8-0.20250528143822-4b6fd9c21388
+	github.com/signadot/libconnect v0.1.1-0.20250528143708-dc078319ee62
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
@@ -25,7 +25,7 @@ require (
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/net v0.40.0
 	golang.org/x/term v0.32.0
-	google.golang.org/grpc v1.71.1
+	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
 	k8s.io/client-go v0.32.1
 	sigs.k8s.io/yaml v1.4.0
@@ -61,7 +61,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250414145226-207652e42e2e // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250519155744-55703ea1f237 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/kubectl v0.31.1 // indirect
