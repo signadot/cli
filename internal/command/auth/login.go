@@ -10,6 +10,7 @@ import (
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/spinner"
+	"github.com/signadot/cli/internal/utils/system"
 	sdkauth "github.com/signadot/go-sdk/client/auth"
 	"github.com/signadot/go-sdk/client/orgs"
 	"github.com/signadot/go-sdk/models"
@@ -127,8 +128,13 @@ func getDeviceCode(cfg *config.AuthLogin) (*models.AuthdevicesCode, error) {
 
 func waitForUserAuth(cfg *config.AuthLogin, out io.Writer,
 	code *models.AuthdevicesCode) (*models.AuthdevicesToken, error) {
-	fmt.Fprintf(out, "To authenticate, visit: "+code.VerificationURI+"\n")
-	fmt.Fprintf(out, "and confirm the code: "+code.UserCode+"\n\n")
+	if err := system.OpenBrowser(code.VerificationURI); err != nil {
+		// If browser opening fails, fall back to just showing the URL
+		fmt.Fprintf(out, "Please visit: %s\n", code.VerificationURI)
+	} else {
+		fmt.Fprintf(out, "Opening browser to authenticate at: %s\n", code.VerificationURI)
+	}
+	fmt.Fprintf(out, "Enter the code: %s\n\n", code.UserCode)
 	spin := spinner.Start(out, "Waiting for authentication")
 	defer spin.Stop()
 
