@@ -102,19 +102,20 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		// store latest resp for output below
 		resp, err = waitForReady(cfg, log, resp)
 		if err != nil {
-			writeOutput(cfg, out, resp)
+			writeOutput(cfg.Sandbox, out, resp)
 			fmt.Fprintf(log, "\nThe sandbox was applied, but it may not be ready yet. To check status, run:\n\n")
 			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", req.Name)
 			return err
 		}
-		writeOutput(cfg, out, resp)
+		writeOutput(cfg.Sandbox, out, resp)
 		fmt.Fprintf(log, "\nThe sandbox %q was applied and is ready.\n", resp.Name)
 		return nil
 	}
-	return writeOutput(cfg, out, resp)
+
+	return writeOutput(cfg.Sandbox, out, resp)
 }
 
-func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) error {
+func writeOutput(cfg *config.Sandbox, out io.Writer, resp *models.Sandbox) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		// Print info on how to access the sandbox.

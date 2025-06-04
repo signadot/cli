@@ -47,8 +47,8 @@ func printSandboxTable(out io.Writer, sbs []*models.Sandbox) error {
 func printSandboxDetails(cfg *config.Sandbox, out io.Writer, sb *models.Sandbox) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
-	fmt.Fprintf(tw, "ID:\t%s\n", sb.RoutingKey)
 	fmt.Fprintf(tw, "Name:\t%s\n", sb.Name)
+	fmt.Fprintf(tw, "Routing Key:\t%s\n", sb.RoutingKey)
 	fmt.Fprintf(tw, "Description:\t%s\n", sb.Spec.Description)
 	fmt.Fprintf(tw, "Cluster:\t%s\n", *sb.Spec.Cluster)
 	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(sb.CreatedAt))
