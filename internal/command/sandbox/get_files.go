@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,7 +30,7 @@ func newGetFiles(sandbox *config.Sandbox) *cobra.Command {
 		Short: "Get files from a (local) sandbox",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return getFiles(cfg, cmd.OutOrStdout(), args[0])
+			return getFiles(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
 		},
 	}
 	cfg.AddFlags(cmd)
@@ -37,7 +38,7 @@ func newGetFiles(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func getFiles(cfg *config.SandboxGetFiles, out io.Writer, name string) error {
+func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -71,8 +72,13 @@ func getFiles(cfg *config.SandboxGetFiles, out io.Writer, name string) error {
 	if err != nil {
 		return err
 	}
+	// no-clobber
+	if cfg.NoClobber {
+		if _, err := noClobber(errOut, k8sEnv.Files, cfg.OutputDir); err != nil {
+			return err
+		}
+	}
 	// export
-	// TODO: no-clobber
 	if err := k8sEnv.Files.ExportTo(cfg.OutputDir); err != nil {
 		return err
 	}
@@ -171,6 +177,31 @@ func overrideValueFrom(ctx context.Context, kubeClient client.Client, child *k8s
 	default:
 		return fmt.Errorf("no definition for path %s", fileOp.Path)
 	}
+}
+
+func noClobber(errOut io.Writer, files *k8senv.Files, base string) (bool, error) {
+	if files.IsDir() {
+		for k, v := range files.Children {
+			p := filepath.Join(base, v.Name)
+			remove, err := noClobber(errOut, v, p)
+			if err != nil {
+				return false, err
+			}
+			if remove {
+				delete(files.Children, k)
+			}
+		}
+		return false, nil
+	}
+	_, err := os.Stat(base)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	fmt.Fprintf(errOut, "%s already exists, skipping\n", base)
+	return true, nil
 }
 
 func writeGCFiles(files *k8senv.Files, base string) error {
