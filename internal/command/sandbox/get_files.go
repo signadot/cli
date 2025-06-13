@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
@@ -78,15 +79,19 @@ func getFiles(cfg *config.SandboxGetFiles, out io.Writer, name string) error {
 	// print
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		// TODO
+		_, err := out.Write([]byte(cfg.OutputDir + "\n"))
+		if err != nil {
+			return err
+		}
+
+		return printTree(out, k8sEnv.Files, 0, k8sEnv.Files.IsDir() && len(k8sEnv.Files.Children) == 1)
 	case config.OutputFormatJSON:
-		print.RawJSON(out, k8sEnv.Files)
+		return print.RawJSON(out, k8sEnv.Files)
 	case config.OutputFormatYAML:
-		print.RawYAML(out, k8sEnv.Files)
+		return print.RawYAML(out, k8sEnv.Files)
 	default:
 		return fmt.Errorf("unknown output format %q", cfg.OutputFormat)
 	}
-	return nil
 }
 
 func calculateFileOverrides(ctx context.Context, kubeClient client.Client, ns string, files *k8senv.Files, fileOps []*models.SandboxFiles) error {
@@ -178,4 +183,63 @@ func writeGCFiles(files *k8senv.Files, base string) error {
 		return nil
 	}
 	return utils.RegisterPathForGC(base)
+}
+
+var (
+	turnStyle []byte = []byte("├")
+	bar       []byte = []byte(strings.Repeat("─", 2))
+	space     []byte = []byte(strings.Repeat(" ", 4))
+	highL     []byte = []byte("└")
+)
+
+func printTree(out io.Writer, files *k8senv.Files, depth int, last bool) error {
+	var err error
+	for i := 0; i < depth; i++ {
+		if i > 0 {
+			_, err = out.Write(space)
+			if err != nil {
+				return err
+			}
+		}
+		if i != depth-1 {
+			continue
+		}
+		if last {
+			_, err = out.Write(highL)
+		} else {
+			_, err = out.Write(turnStyle)
+		}
+		if err != nil {
+			return err
+		}
+		_, err = out.Write(bar)
+		if err != nil {
+			return err
+		}
+		_, err = out.Write([]byte(" " + files.Name + "\n"))
+	}
+	if files.IsDir() {
+		N := len(files.Children)
+		n := 0
+		for _, v := range files.Children {
+			if v.IsDir() {
+				continue
+			}
+			n++
+			if err := printTree(out, v, depth+1, n == N); err != nil {
+				return err
+			}
+		}
+		for _, v := range files.Children {
+			if !v.IsDir() {
+				continue
+			}
+			n++
+			if err := printTree(out, v, depth+1, n == N); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return err
 }
