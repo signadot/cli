@@ -19,6 +19,8 @@ service SandboxManagerAPI {
   // mainly used in the context of old operators (the ones that don't support
   // WatchLocalSandboxes in tunnel-api)
   rpc RegisterSandbox(RegisterSandboxRequest) returns (RegisterSandboxResponse) {}
+
+  rpc GetResourceOutput(GetResourceOutputRequest) returns (GetResourceOutputResponse) {}
 }
 
 // Status
@@ -58,4 +60,16 @@ message RegisterSandboxRequest {
 }
 
 message RegisterSandboxResponse {
+}
+
+// Resource outputs
+// ---------------------------------------------------------------------------
+message GetResourceOutputRequest {
+  string sandbox_name = 1;
+  string resource_name = 2;
+  string output_name = 3;
+}
+
+message GetResourceOutputResponse {
+  string output_value = 1;
 }

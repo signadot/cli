@@ -3,13 +3,10 @@ package local
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 
 	"github.com/signadot/cli/internal/config"
-	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/local"
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/cli/internal/utils/system"
-	"github.com/signadot/libconnect/common/processes"
 	"github.com/spf13/cobra"
 )
 
@@ -32,28 +29,10 @@ func runStatus(cfg *config.LocalStatus, out io.Writer, args []string) error {
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
 	}
-	// Get the sigandot dir
-	signadotDir, err := system.GetSignadotDir()
+	status, err := local.GetLocalStatus()
 	if err != nil {
 		return err
 	}
-
-	// Make sure the sandbox manager is running
-	pidfile := filepath.Join(signadotDir, config.SandboxManagerPIDFile)
-	isRunning, err := processes.IsDaemonRunning(pidfile)
-	if err != nil {
-		return err
-	}
-	if !isRunning {
-		return fmt.Errorf("signadot is not connected\n")
-	}
-
-	// Get the status from sandbox manager
-	status, err := sbmgr.GetStatus()
-	if err != nil {
-		return err
-	}
-
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		return printLocalStatus(cfg, out, status)
