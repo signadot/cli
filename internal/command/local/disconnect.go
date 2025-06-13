@@ -12,6 +12,7 @@ import (
 	rmapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/libconnect/common/processes"
@@ -70,6 +71,11 @@ func runDisconnectWith(cfg *config.LocalDisconnect, signadotDir string) error {
 		}
 		<-ticker.C
 	}
+	defer func() {
+		if err := utils.GCPaths(); err != nil {
+			fmt.Printf("error removing signadot sb get-files: %v", err)
+		}
+	}()
 
 	if wasRunning {
 		fmt.Printf("disconnected.\n")

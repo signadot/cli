@@ -168,6 +168,27 @@ func RegisterSandbox(sandboxName, routingKey string) error {
 	return nil
 }
 
+func GetResourceOutput(sbName, resourceName, outputName string) (string, error) {
+	grpcConn, err := connectSandboxManager()
+	if err != nil {
+		return "", err
+	}
+	defer grpcConn.Close()
+
+	// get the status
+	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
+	req := &sbmapi.GetResourceOutputRequest{
+		SandboxName:  sbName,
+		ResourceName: resourceName,
+		OutputName:   outputName,
+	}
+	resp, err := sbManagerClient.GetResourceOutput(context.Background(), req)
+	if err != nil {
+		return "", processGRPCError("unable to get status from sandboxmanager", err)
+	}
+	return resp.OutputValue, nil
+}
+
 func connectSandboxManager() (*grpc.ClientConn, error) {
 	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

@@ -98,6 +98,12 @@ func (s *sbmServer) RegisterSandbox(ctx context.Context, req *sbapi.RegisterSand
 	return &sbapi.RegisterSandboxResponse{}, nil
 }
 
+func (s *sbmServer) GetResourceOutput(ctx context.Context, req *sbapi.GetResourceOutputRequest) (*sbapi.GetResourceOutputResponse, error) {
+	// TODO
+	return nil, nil
+
+}
+
 func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
 	if !s.ciConfig.WithRootManager {
 		// We are running without a root manager

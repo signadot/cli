@@ -2,11 +2,12 @@ package config
 
 import (
 	"fmt"
+	"net/url"
+	"path"
+
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"net/url"
-	"path"
 )
 
 type Root struct {
