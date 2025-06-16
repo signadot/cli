@@ -193,26 +193,28 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 				continue
 			}
 			if vfr.Output == resOut.Output {
-				if child.Children == nil {
-					child.Children = map[string]*k8senv.Files{}
-				}
-				child.Children[resOut.Output] = &k8senv.Files{
-					Name:    resOut.Output,
-					Content: []byte(resOut.Value),
-				}
-				continue
+				child.Content = []byte(resOut.Value)
+				return nil
+				//if child.Children == nil {
+				//	child.Children = map[string]*k8senv.Files{}
+				//}
+				//child.Children[resOut.Output] = &k8senv.Files{
+				//	Name:    resOut.Output,
+				//	Content: []byte(resOut.Value),
+				//}
+				//continue
 			}
 			if vfr.Output != "" {
 				continue
 			}
 			// all resource outputs mounted.
-			keyChild := child.Path(vfr.Output)
+			keyChild := child.Path(resOut.Output)
 			keyChild.Content = []byte(resOut.Value)
 		}
 		return nil
 
 	default:
-		return fmt.Errorf("no definition for path %s", fileOp.Path)
+		return fmt.Errorf("no definition for path %s: %#v", fileOp.Path, vf)
 	}
 }
 

@@ -113,12 +113,13 @@ func (s *sbmServer) GetResourceOutputs(ctx context.Context, req *sbapi.GetResour
 	for _, rv := range resp.ResourceValues {
 		resRVs := &sbapi.ResourceOutputs{}
 		resRVs.ResourceName = rv.ResourceName
-		for _, out := range resRVs.Outputs {
+		for _, out := range rv.Outputs {
 			resRVs.Outputs = append(resRVs.Outputs, &sbapi.ResourceOutputItem{
-				Key:   out.Key,
-				Value: out.Value,
+				Key:   out.OutputKey,
+				Value: out.OutputValue,
 			})
 		}
+		res.ResourceOutputs = append(res.ResourceOutputs, resRVs)
 	}
 	return res, nil
 }
