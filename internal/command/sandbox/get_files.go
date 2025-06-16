@@ -189,22 +189,14 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 		vfr := vf.Resource
 		for i := range resOuts {
 			resOut := &resOuts[i]
-			if vfr.Resource != resOut.Resource {
+			if vfr.Name != resOut.Resource {
 				continue
 			}
-			if vfr.Output == resOut.Output {
+			if vfr.OutputKey == resOut.Output {
 				child.Content = []byte(resOut.Value)
 				return nil
-				//if child.Children == nil {
-				//	child.Children = map[string]*k8senv.Files{}
-				//}
-				//child.Children[resOut.Output] = &k8senv.Files{
-				//	Name:    resOut.Output,
-				//	Content: []byte(resOut.Value),
-				//}
-				//continue
 			}
-			if vfr.Output != "" {
+			if vfr.OutputKey != "" {
 				continue
 			}
 			// all resource outputs mounted.
