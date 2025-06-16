@@ -7,6 +7,7 @@ import (
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts"
 	rolloutapi "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
+	"github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/k8senv"
 	appsv1 "k8s.io/api/apps/v1"
@@ -36,7 +37,7 @@ func extract(ctx context.Context, kubeClient client.Client, sb *models.Sandbox, 
 	return k8sEnv, sbLocal, nil
 }
 
-func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, sbEnvVar *models.SandboxEnvVar) (*k8senv.EnvItem, error) {
+func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, resOuts []sandboxmanager.ResourceOutput, sbEnvVar *models.SandboxEnvVar) (*k8senv.EnvItem, error) {
 	if sbEnvVar.ValueFrom == nil {
 		return &k8senv.EnvItem{
 			Name:  sbEnvVar.Name,
@@ -88,8 +89,21 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, s
 			Value: string(val),
 		}, nil
 	case vf.Resource != nil:
-		// TODO
-		return nil, fmt.Errorf("valueFrom: resource: unsupported")
+		vfr := vf.Resource
+		for i := range resOuts {
+			out := &resOuts[i]
+			if out.Resource != vfr.Name {
+				continue
+			}
+			if out.Output != vfr.OutputKey {
+				continue
+			}
+			return &k8senv.EnvItem{
+				Name:  sbEnvVar.Name,
+				Value: out.Value,
+			}, nil
+		}
+		return nil, fmt.Errorf("output %q in resource %q unavailable", vfr.OutputKey, vfr.Name)
 	default:
 		return nil, fmt.Errorf("env var %q has no definition", sbEnvVar.Name)
 	}

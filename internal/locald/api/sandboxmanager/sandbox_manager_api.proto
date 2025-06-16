@@ -20,7 +20,9 @@ service SandboxManagerAPI {
   // WatchLocalSandboxes in tunnel-api)
   rpc RegisterSandbox(RegisterSandboxRequest) returns (RegisterSandboxResponse) {}
 
-  rpc GetResourceOutput(GetResourceOutputRequest) returns (GetResourceOutputResponse) {}
+  // This method returns all the available resource outputs for a sandbox given
+  // its routing key.
+  rpc GetResourceOutputs(GetResourceOutputsRequest) returns (GetResourceOutputsResponse) {}
 }
 
 // Status
@@ -64,12 +66,20 @@ message RegisterSandboxResponse {
 
 // Resource outputs
 // ---------------------------------------------------------------------------
-message GetResourceOutputRequest {
-  string sandbox_name = 1;
-  string resource_name = 2;
-  string output_name = 3;
+message GetResourceOutputsRequest {
+  string sandbox_routing_key = 1;
 }
 
-message GetResourceOutputResponse {
-  string output_value = 1;
+message GetResourceOutputsResponse {
+  repeated ResourceOutputs resource_outputs = 1;
+}
+
+message ResourceOutputs {
+  string resource_name = 1;
+  repeated ResourceOutputItem outputs = 2;
+}
+
+message ResourceOutputItem {
+  string key = 1;
+  string value = 2;
 }

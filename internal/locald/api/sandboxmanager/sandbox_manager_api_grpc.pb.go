@@ -26,7 +26,9 @@ type SandboxManagerAPIClient interface {
 	// mainly used in the context of old operators (the ones that don't support
 	// WatchLocalSandboxes in tunnel-api)
 	RegisterSandbox(ctx context.Context, in *RegisterSandboxRequest, opts ...grpc.CallOption) (*RegisterSandboxResponse, error)
-	GetResourceOutput(ctx context.Context, in *GetResourceOutputRequest, opts ...grpc.CallOption) (*GetResourceOutputResponse, error)
+	// This method returns all the available resource outputs for a sandbox given
+	// its routing key.
+	GetResourceOutputs(ctx context.Context, in *GetResourceOutputsRequest, opts ...grpc.CallOption) (*GetResourceOutputsResponse, error)
 }
 
 type sandboxManagerAPIClient struct {
@@ -64,9 +66,9 @@ func (c *sandboxManagerAPIClient) RegisterSandbox(ctx context.Context, in *Regis
 	return out, nil
 }
 
-func (c *sandboxManagerAPIClient) GetResourceOutput(ctx context.Context, in *GetResourceOutputRequest, opts ...grpc.CallOption) (*GetResourceOutputResponse, error) {
-	out := new(GetResourceOutputResponse)
-	err := c.cc.Invoke(ctx, "/sandboxmanager.SandboxManagerAPI/GetResourceOutput", in, out, opts...)
+func (c *sandboxManagerAPIClient) GetResourceOutputs(ctx context.Context, in *GetResourceOutputsRequest, opts ...grpc.CallOption) (*GetResourceOutputsResponse, error) {
+	out := new(GetResourceOutputsResponse)
+	err := c.cc.Invoke(ctx, "/sandboxmanager.SandboxManagerAPI/GetResourceOutputs", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +87,9 @@ type SandboxManagerAPIServer interface {
 	// mainly used in the context of old operators (the ones that don't support
 	// WatchLocalSandboxes in tunnel-api)
 	RegisterSandbox(context.Context, *RegisterSandboxRequest) (*RegisterSandboxResponse, error)
-	GetResourceOutput(context.Context, *GetResourceOutputRequest) (*GetResourceOutputResponse, error)
+	// This method returns all the available resource outputs for a sandbox given
+	// its routing key.
+	GetResourceOutputs(context.Context, *GetResourceOutputsRequest) (*GetResourceOutputsResponse, error)
 	mustEmbedUnimplementedSandboxManagerAPIServer()
 }
 
@@ -102,8 +106,8 @@ func (UnimplementedSandboxManagerAPIServer) Shutdown(context.Context, *ShutdownR
 func (UnimplementedSandboxManagerAPIServer) RegisterSandbox(context.Context, *RegisterSandboxRequest) (*RegisterSandboxResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterSandbox not implemented")
 }
-func (UnimplementedSandboxManagerAPIServer) GetResourceOutput(context.Context, *GetResourceOutputRequest) (*GetResourceOutputResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetResourceOutput not implemented")
+func (UnimplementedSandboxManagerAPIServer) GetResourceOutputs(context.Context, *GetResourceOutputsRequest) (*GetResourceOutputsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetResourceOutputs not implemented")
 }
 func (UnimplementedSandboxManagerAPIServer) mustEmbedUnimplementedSandboxManagerAPIServer() {}
 
@@ -172,20 +176,20 @@ func _SandboxManagerAPI_RegisterSandbox_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SandboxManagerAPI_GetResourceOutput_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetResourceOutputRequest)
+func _SandboxManagerAPI_GetResourceOutputs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetResourceOutputsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(SandboxManagerAPIServer).GetResourceOutput(ctx, in)
+		return srv.(SandboxManagerAPIServer).GetResourceOutputs(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sandboxmanager.SandboxManagerAPI/GetResourceOutput",
+		FullMethod: "/sandboxmanager.SandboxManagerAPI/GetResourceOutputs",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SandboxManagerAPIServer).GetResourceOutput(ctx, req.(*GetResourceOutputRequest))
+		return srv.(SandboxManagerAPIServer).GetResourceOutputs(ctx, req.(*GetResourceOutputsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -210,8 +214,8 @@ var SandboxManagerAPI_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SandboxManagerAPI_RegisterSandbox_Handler,
 		},
 		{
-			MethodName: "GetResourceOutput",
-			Handler:    _SandboxManagerAPI_GetResourceOutput_Handler,
+			MethodName: "GetResourceOutputs",
+			Handler:    _SandboxManagerAPI_GetResourceOutputs_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

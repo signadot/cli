@@ -11,6 +11,7 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/local"
+	"github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
@@ -48,19 +49,28 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 	if err != nil {
 		return err
 	}
+	apiSB := resp.Payload
 	// get kube client
 	kc, err := local.GetLocalKubeClient()
 	if err != nil {
 		return err
 	}
-	// extract
+	// extract k8senv
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	k8sEnv, sbLocal, err := extract(ctx, kc, resp.Payload, cfg.Local, cfg.Container)
+	k8sEnv, sbLocal, err := extract(ctx, kc, apiSB, cfg.Local, cfg.Container)
 	if err != nil {
 		return err
 	}
-	err = calculateFileOverrides(ctx, kc, *sbLocal.From.Namespace, k8sEnv.Files, sbLocal.Files)
+
+	var resourceOutputs []sandboxmanager.ResourceOutput
+	if hasFileResourceOutput(apiSB) {
+		resourceOutputs, err = sandboxmanager.GetResourceOutputs(ctx, apiSB.RoutingKey)
+		if err != nil {
+			return err
+		}
+	}
+	err = calculateFileOverrides(ctx, kc, *sbLocal.From.Namespace, resourceOutputs, k8sEnv.Files, sbLocal.Files)
 	if err != nil {
 		return err
 	}
@@ -100,23 +110,24 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 	}
 }
 
-func calculateFileOverrides(ctx context.Context, kubeClient client.Client, ns string, files *k8senv.Files, fileOps []*models.SandboxFiles) error {
+func calculateFileOverrides(ctx context.Context, kubeClient client.Client, ns string, resOuts []sandboxmanager.ResourceOutput, files *k8senv.Files, fileOps []*models.SandboxFileOp) error {
 	cmMap := map[string]*corev1.ConfigMap{}
 	secMap := map[string]*corev1.Secret{}
+
 	for _, fileOp := range fileOps {
 		child := files.Path(fileOp.Path)
 		if fileOp.ValueFrom == nil {
 			child.Content = []byte(fileOp.Value)
 			continue
 		}
-		if err := overrideValueFrom(ctx, kubeClient, child, fileOp, ns, cmMap, secMap); err != nil {
+		if err := overrideFileValueFrom(ctx, kubeClient, child, fileOp, ns, resOuts, cmMap, secMap); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func overrideValueFrom(ctx context.Context, kubeClient client.Client, child *k8senv.Files, fileOp *models.SandboxFiles, ns string, cmMap map[string]*corev1.ConfigMap, secMap map[string]*corev1.Secret) error {
+func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child *k8senv.Files, fileOp *models.SandboxFileOp, ns string, resOuts []sandboxmanager.ResourceOutput, cmMap map[string]*corev1.ConfigMap, secMap map[string]*corev1.Secret) error {
 	vf := fileOp.ValueFrom
 	switch {
 	case vf.ConfigMap != nil:
@@ -174,6 +185,32 @@ func overrideValueFrom(ctx context.Context, kubeClient client.Client, child *k8s
 			child.Content = val
 		}
 		return nil
+	case vf.Resource != nil:
+		vfr := vf.Resource
+		for i := range resOuts {
+			resOut := &resOuts[i]
+			if vfr.Resource != resOut.Resource {
+				continue
+			}
+			if vfr.Output == resOut.Output {
+				if child.Children == nil {
+					child.Children = map[string]*k8senv.Files{}
+				}
+				child.Children[resOut.Output] = &k8senv.Files{
+					Name:    resOut.Output,
+					Content: []byte(resOut.Value),
+				}
+				continue
+			}
+			if vfr.Output != "" {
+				continue
+			}
+			// all resource outputs mounted.
+			keyChild := child.Path(vfr.Output)
+			keyChild.Content = []byte(resOut.Value)
+		}
+		return nil
+
 	default:
 		return fmt.Errorf("no definition for path %s", fileOp.Path)
 	}
@@ -273,4 +310,19 @@ func printTree(out io.Writer, files *k8senv.Files, depth int, last bool) error {
 		return nil
 	}
 	return err
+}
+
+func hasFileResourceOutput(sb *models.Sandbox) bool {
+	for _, local := range sb.Spec.Local {
+		for _, fileOp := range local.Files {
+			if fileOp.ValueFrom == nil {
+				continue
+			}
+			if fileOp.ValueFrom.Resource == nil {
+				continue
+			}
+			return true
+		}
+	}
+	return false
 }
