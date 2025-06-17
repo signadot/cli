@@ -69,7 +69,7 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 		}, nil
 	case vf.Secret != nil:
 		secret := &corev1.Secret{}
-		key := client.ObjectKey{Namespace: ns, Name: vf.ConfigMap.Name}
+		key := client.ObjectKey{Namespace: ns, Name: vf.Secret.Name}
 		err := kubeClient.Get(ctx, key, secret)
 		if err != nil && vf.Secret.Optional {
 			return nil, nil
@@ -77,12 +77,12 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 		if err != nil {
 			return nil, err
 		}
-		val, ok := secret.Data[vf.ConfigMap.Key]
+		val, ok := secret.Data[vf.Secret.Key]
 		if !ok && vf.Secret.Optional {
 			return nil, nil
 		}
 		if !ok {
-			return nil, fmt.Errorf("key %q not present in Secret %q", vf.ConfigMap.Key, vf.ConfigMap.Name)
+			return nil, fmt.Errorf("key %q not present in Secret %q", vf.Secret.Key, vf.Secret.Name)
 		}
 		return &k8senv.EnvItem{
 			Name:  sbEnvVar.Name,
