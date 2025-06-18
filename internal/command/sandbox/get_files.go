@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -93,14 +95,10 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 		return err
 	}
 	// print
+	k8sEnv.Files.Name = cfg.OutputDir
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		_, err := out.Write([]byte(cfg.OutputDir + "\n"))
-		if err != nil {
-			return err
-		}
-
-		return printTree(out, k8sEnv.Files, 0, k8sEnv.Files.IsDir() && len(k8sEnv.Files.Children) == 1)
+		return printTree(out, k8sEnv.Files, []bool{})
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, k8sEnv.Files)
 	case config.OutputFormatYAML:
@@ -248,25 +246,22 @@ func writeGCFiles(files *k8senv.Files, base string) error {
 }
 
 var (
-	turnStyle []byte = []byte("├")
-	bar       []byte = []byte(strings.Repeat("─", 2))
+	vBar      []byte = []byte("│   ")
+	highL     []byte = []byte("└── ")
+	turnStyle []byte = []byte("├── ")
 	space     []byte = []byte(strings.Repeat(" ", 4))
-	highL     []byte = []byte("└")
 )
 
-func printTree(out io.Writer, files *k8senv.Files, depth int, last bool) error {
+func printTree(out io.Writer, files *k8senv.Files, ended []bool) error {
 	var err error
-	for i := 0; i < depth; i++ {
-		if i > 0 {
-			_, err = out.Write(space)
-			if err != nil {
-				return err
+	for i, b := range ended {
+		if i < len(ended)-1 {
+			if !b {
+				_, err = out.Write(vBar)
+			} else {
+				_, err = out.Write(space)
 			}
-		}
-		if i != depth-1 {
-			continue
-		}
-		if last {
+		} else if b {
 			_, err = out.Write(highL)
 		} else {
 			_, err = out.Write(turnStyle)
@@ -274,36 +269,23 @@ func printTree(out io.Writer, files *k8senv.Files, depth int, last bool) error {
 		if err != nil {
 			return err
 		}
-		_, err = out.Write(bar)
-		if err != nil {
-			return err
-		}
-		_, err = out.Write([]byte(" " + files.Name + "\n"))
+	}
+	_, err = out.Write([]byte(files.Name + "\n"))
+	if err != nil {
+		return err
 	}
 	if files.IsDir() {
 		N := len(files.Children)
 		n := 0
-		for _, v := range files.Children {
-			if v.IsDir() {
-				continue
-			}
+		keys := slices.Sorted(maps.Keys(files.Children))
+		for _, k := range keys {
 			n++
-			if err := printTree(out, v, depth+1, n == N); err != nil {
+			if err := printTree(out, files.Children[k], append(ended, n == N)); err != nil {
 				return err
 			}
 		}
-		for _, v := range files.Children {
-			if !v.IsDir() {
-				continue
-			}
-			n++
-			if err := printTree(out, v, depth+1, n == N); err != nil {
-				return err
-			}
-		}
-		return nil
 	}
-	return err
+	return nil
 }
 
 func hasFileResourceOutput(sb *models.Sandbox) bool {
