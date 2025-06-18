@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts"
 	rolloutapi "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
@@ -96,7 +95,7 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 			if out.Resource != vfr.Name {
 				continue
 			}
-			if out.Output != reverseOutputKeySyntax(vfr.OutputKey) {
+			if out.Output != vfr.OutputKey {
 				continue
 			}
 			return &k8senv.EnvItem{
@@ -183,22 +182,4 @@ func resolveContainer(ctx context.Context, kubeClient client.Client, sel *metav1
 		}
 	}
 	return nil, nil, fmt.Errorf("no container %q in selected pods", containerName)
-}
-
-// when our API server creates secrets in the operator,
-// they are keyed by <key>.<stepName> but in the
-// apiserver they are parsed by <stepName>.<key>
-// this function reverses a key as provided in a spec
-// to match what is expected by the operator.
-//
-// If '.' not found, it returns the passed key and
-// this won't matter b/c when compared to operator output
-// keys it will always not be equal, which is desired.
-func reverseOutputKeySyntax(k string) string {
-	i := strings.LastIndex(k, ".")
-	if i == -1 || i == len(k)-1 {
-		return k
-	}
-	stepName, output := k[:i], k[i+1:]
-	return output + "." + stepName
 }
