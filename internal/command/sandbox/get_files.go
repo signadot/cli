@@ -192,7 +192,7 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 			if vfr.Name != resOut.Resource {
 				continue
 			}
-			if vfr.OutputKey == resOut.Output {
+			if reverseOutputKeySyntax(vfr.OutputKey) == resOut.Output {
 				child.Content = []byte(resOut.Value)
 				return nil
 			}
@@ -200,7 +200,7 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 				continue
 			}
 			// all resource outputs mounted.
-			keyChild := child.Path(resOut.Output)
+			keyChild := child.Path(reverseOutputKeySyntax(resOut.Output))
 			keyChild.Content = []byte(resOut.Value)
 		}
 		return nil
