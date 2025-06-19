@@ -7,6 +7,7 @@ import (
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts"
 	rolloutapi "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
+	"github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/k8senv"
 	appsv1 "k8s.io/api/apps/v1"
@@ -36,7 +37,7 @@ func extract(ctx context.Context, kubeClient client.Client, sb *models.Sandbox, 
 	return k8sEnv, sbLocal, nil
 }
 
-func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, sbEnvVar *models.SandboxEnvVar) (*k8senv.EnvItem, error) {
+func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, resOuts []sandboxmanager.ResourceOutput, sbEnvVar *models.SandboxEnvVar) (*k8senv.EnvItem, error) {
 	if sbEnvVar.ValueFrom == nil {
 		return &k8senv.EnvItem{
 			Name:  sbEnvVar.Name,
@@ -68,7 +69,7 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, s
 		}, nil
 	case vf.Secret != nil:
 		secret := &corev1.Secret{}
-		key := client.ObjectKey{Namespace: ns, Name: vf.ConfigMap.Name}
+		key := client.ObjectKey{Namespace: ns, Name: vf.Secret.Name}
 		err := kubeClient.Get(ctx, key, secret)
 		if err != nil && vf.Secret.Optional {
 			return nil, nil
@@ -76,20 +77,33 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, s
 		if err != nil {
 			return nil, err
 		}
-		val, ok := secret.Data[vf.ConfigMap.Key]
+		val, ok := secret.Data[vf.Secret.Key]
 		if !ok && vf.Secret.Optional {
 			return nil, nil
 		}
 		if !ok {
-			return nil, fmt.Errorf("key %q not present in Secret %q", vf.ConfigMap.Key, vf.ConfigMap.Name)
+			return nil, fmt.Errorf("key %q not present in Secret %q", vf.Secret.Key, vf.Secret.Name)
 		}
 		return &k8senv.EnvItem{
 			Name:  sbEnvVar.Name,
 			Value: string(val),
 		}, nil
 	case vf.Resource != nil:
-		// TODO
-		return nil, fmt.Errorf("valueFrom: resource: unsupported")
+		vfr := vf.Resource
+		for i := range resOuts {
+			out := &resOuts[i]
+			if out.Resource != vfr.Name {
+				continue
+			}
+			if out.Output != vfr.OutputKey {
+				continue
+			}
+			return &k8senv.EnvItem{
+				Name:  sbEnvVar.Name,
+				Value: out.Value,
+			}, nil
+		}
+		return nil, fmt.Errorf("output %q in resource %q unavailable", vfr.OutputKey, vfr.Name)
 	default:
 		return nil, fmt.Errorf("env var %q has no definition", sbEnvVar.Name)
 	}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/local"
+	"github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -42,20 +43,29 @@ func getEnv(cfg *config.SandboxGetEnv, out io.Writer, name string) error {
 	if err != nil {
 		return err
 	}
+	apiSB := resp.Payload
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	// get resource outputs if needed
+	var resourceOutputs []sandboxmanager.ResourceOutput
+	if hasEnvResourceRefs(apiSB) {
+		resourceOutputs, err = sandboxmanager.GetResourceOutputs(ctx, apiSB.RoutingKey)
+		if err != nil {
+			return err
+		}
+	}
 	// get kube client
 	kc, err := local.GetLocalKubeClient()
 	if err != nil {
 		return err
 	}
 	// extract
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	k8sEnv, sbLocal, err := extract(ctx, kc, resp.Payload, cfg.Local, cfg.Container)
+	k8sEnv, sbLocal, err := extract(ctx, kc, apiSB, cfg.Local, cfg.Container)
 	if err != nil {
 		return err
 	}
 	// overrides
-	resEnv, err := calculateOverrides(ctx, kc, *sbLocal.From.Namespace, k8sEnv.Env, sbLocal.Env)
+	resEnv, err := calculateOverrides(ctx, kc, *sbLocal.From.Namespace, resourceOutputs, k8sEnv.Env, sbLocal.Env)
 	if err != nil {
 		return err
 	}
@@ -82,10 +92,10 @@ func printEnv(out io.Writer, oFmt config.OutputFormat, resEnv []k8senv.EnvItem) 
 	}
 }
 
-func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string, xEnv []k8senv.EnvItem, sbEnv []*models.SandboxEnvVar) ([]k8senv.EnvItem, error) {
+func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string, resOuts []sandboxmanager.ResourceOutput, xEnv []k8senv.EnvItem, sbEnv []*models.SandboxEnvVar) ([]k8senv.EnvItem, error) {
 	sbEnvMap := map[string]string{}
 	for _, sbEnvVar := range sbEnv {
-		xEnvVar, err := extractSBEnvVar(ctx, kubeClient, ns, sbEnvVar)
+		xEnvVar, err := extractSBEnvVar(ctx, kubeClient, ns, resOuts, sbEnvVar)
 		if err != nil {
 			return nil, err
 		}
@@ -108,4 +118,20 @@ func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string
 		res = append(res, k8senv.EnvItem{Name: k, Value: v})
 	}
 	return res, nil
+}
+
+func hasEnvResourceRefs(apiSB *models.Sandbox) bool {
+	for _, local := range apiSB.Spec.Local {
+		for _, env := range local.Env {
+			if env.ValueFrom == nil {
+				continue
+			}
+			vf := env.ValueFrom
+			if vf.Resource == nil {
+				continue
+			}
+			return true
+		}
+	}
+	return false
 }
