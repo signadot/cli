@@ -12,6 +12,7 @@ import (
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	"github.com/signadot/libconnect/apiv1"
 	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"github.com/signadot/libconnect/common/portforward"
 	"google.golang.org/grpc"
@@ -96,6 +97,31 @@ func (s *sbmServer) RegisterSandbox(ctx context.Context, req *sbapi.RegisterSand
 	*sbapi.RegisterSandboxResponse, error) {
 	s.sbmWatcher.registerSandbox(req.SandboxName, req.RoutingKey)
 	return &sbapi.RegisterSandboxResponse{}, nil
+}
+
+func (s *sbmServer) GetResourceOutputs(ctx context.Context, req *sbapi.GetResourceOutputsRequest) (*sbapi.GetResourceOutputsResponse, error) {
+	tac := s.sbmWatcher.tunAPIClient
+	tunReq := &apiv1.GetResourceOutputsRequest{
+		SandboxRoutingKey: req.SandboxRoutingKey,
+	}
+	resp, err := tac.GetResourceOutputs(ctx, tunReq)
+	if err != nil {
+		// TODO: if method does not exist
+		return nil, fmt.Errorf("tunnel-api error getting resource outputs: %w", err)
+	}
+	res := &sbapi.GetResourceOutputsResponse{}
+	for _, rv := range resp.ResourceValues {
+		resRVs := &sbapi.ResourceOutputs{}
+		resRVs.ResourceName = rv.ResourceName
+		for _, out := range rv.Outputs {
+			resRVs.Outputs = append(resRVs.Outputs, &sbapi.ResourceOutputItem{
+				Key:   out.OutputKey,
+				Value: out.OutputValue,
+			})
+		}
+		res.ResourceOutputs = append(res.ResourceOutputs, resRVs)
+	}
+	return res, nil
 }
 
 func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {

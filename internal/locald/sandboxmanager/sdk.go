@@ -18,6 +18,7 @@ import (
 var (
 	ErrSandboxManagerUnavailable = errors.New(
 		`sandboxmanager is not running, start it with "signadot local connect"`)
+	ErrTunnelAPIMethodUnimplemented = errors.New("tunnel-api unsupported method")
 )
 
 func GetStatus() (*sbmapi.StatusResponse, error) {
@@ -168,6 +169,37 @@ func RegisterSandbox(sandboxName, routingKey string) error {
 	return nil
 }
 
+type ResourceOutput struct {
+	Resource string `json:"resource"`
+	Output   string `json:"output"`
+	Value    string `json:"value"`
+}
+
+func GetResourceOutputs(ctx context.Context, sbRoutingKey string) ([]ResourceOutput, error) {
+	grpcConn, err := connectSandboxManager()
+	if err != nil {
+		return nil, err
+	}
+	defer grpcConn.Close()
+
+	// get the status
+	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
+	req := &sbmapi.GetResourceOutputsRequest{
+		SandboxRoutingKey: sbRoutingKey,
+	}
+	resp, err := sbManagerClient.GetResourceOutputs(ctx, req)
+	if err != nil {
+		return nil, processGRPCError("unable to get resource outputs from sandboxmanager", err)
+	}
+	res := []ResourceOutput{}
+	for _, ro := range resp.ResourceOutputs {
+		for _, out := range ro.Outputs {
+			res = append(res, ResourceOutput{Resource: ro.ResourceName, Output: out.Key, Value: out.Value})
+		}
+	}
+	return res, nil
+}
+
 func connectSandboxManager() (*grpc.ClientConn, error) {
 	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -182,6 +214,8 @@ func processGRPCError(action string, err error) error {
 		switch grpcStatus.Code() {
 		case codes.Unavailable:
 			return ErrSandboxManagerUnavailable
+		case codes.Unimplemented:
+			return fmt.Errorf(": %w: consider upgrading the operator", ErrTunnelAPIMethodUnimplemented)
 		}
 	}
 	return fmt.Errorf("%s: %w", action, err)
