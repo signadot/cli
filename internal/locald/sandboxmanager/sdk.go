@@ -215,7 +215,7 @@ func processGRPCError(action string, err error) error {
 		case codes.Unavailable:
 			return ErrSandboxManagerUnavailable
 		case codes.Unimplemented:
-			return fmt.Errorf(": %w: consider upgrading the operator", ErrTunnelAPIMethodUnimplemented)
+			return fmt.Errorf("%w: consider upgrading the operator", ErrTunnelAPIMethodUnimplemented)
 		}
 	}
 	return fmt.Errorf("%s: %w", action, err)
