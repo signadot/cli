@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts"
 	rolloutapi "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
@@ -182,4 +183,22 @@ func resolveContainer(ctx context.Context, kubeClient client.Client, sel *metav1
 		}
 	}
 	return nil, nil, fmt.Errorf("no container %q in selected pods", containerName)
+}
+
+func printForbidden(out io.Writer, forbidden []k8senv.Forbidden) error {
+	if len(forbidden) == 0 {
+		return nil
+	}
+	_, err := fmt.Fprintf(out, "WARNING: Access forbidden to\n")
+	if err != nil {
+		return err
+	}
+	for i := range forbidden {
+		f := &forbidden[i]
+		_, err = fmt.Fprintf(out, "\t- %s %s/%s", f.Kind, f.Namespace, f.Name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

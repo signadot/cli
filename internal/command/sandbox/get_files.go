@@ -95,6 +95,9 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 		return err
 	}
 	// print
+	if err := printForbidden(errOut, k8sEnv.Forbidden); err != nil {
+		return err
+	}
 	k8sEnv.Files.Name = cfg.OutputDir
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
