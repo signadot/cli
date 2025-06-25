@@ -25,7 +25,7 @@ func newGetEnv(sandbox *config.Sandbox) *cobra.Command {
 		Short: "Get environment from a (local) sandbox",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return getEnv(cfg, cmd.OutOrStdout(), args[0])
+			return getEnv(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args[0])
 		},
 	}
 	cfg.AddFlags(cmd)
@@ -33,7 +33,7 @@ func newGetEnv(sandbox *config.Sandbox) *cobra.Command {
 	return cmd
 }
 
-func getEnv(cfg *config.SandboxGetEnv, out io.Writer, name string) error {
+func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -67,6 +67,10 @@ func getEnv(cfg *config.SandboxGetEnv, out io.Writer, name string) error {
 	// overrides
 	resEnv, err := calculateOverrides(ctx, kc, *sbLocal.From.Namespace, resourceOutputs, k8sEnv.Env, sbLocal.Env)
 	if err != nil {
+		return err
+	}
+	// print errors
+	if err := printForbidden(errOut, k8sEnv.Forbidden); err != nil {
 		return err
 	}
 	// print output
