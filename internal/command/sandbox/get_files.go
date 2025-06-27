@@ -21,7 +21,6 @@ import (
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/k8senv"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,22 +78,25 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 		return err
 	}
 	if cfg.OutputDir == "" {
-		fDir := viper.GetString("local_files_dir")
-		if fDir == "" {
-			sdDir, err := system.GetSignadotDir()
-			if err != nil {
-				return err
-			}
-			fDir = filepath.Join(sdDir, "data/sandboxes", name, "local", "files")
-		} else if fDir != "." {
-			fDir, err = filepath.Abs(fDir)
-			if err != nil {
-				return err
-			}
-			fDir = filepath.Join(fDir, "data/sandboxes", name, "local", "files")
+		baseDir, err := system.GetSandboxLocalFilesBaseDir(name)
+		if err != nil {
+			return err
 		}
-		cfg.OutputDir = fDir
+		_, err = os.Stat(baseDir)
+		if err == nil {
+			err := os.RemoveAll(baseDir)
+			if err != nil {
+				return err
+			}
+		} else {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		}
+		cfg.OutputDir = baseDir
 	}
+	// either no err from stat and no such baseDir
+	// or error is that baseDir doesn't exist
 	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
 		return err
 	}
@@ -294,28 +296,28 @@ var (
 
 func printTree(out io.Writer, files *k8senv.Files, base string, ended []bool) error {
 	var err error
-	//  	for i, b := range ended {
-	//  		if i < len(ended)-1 {
-	//  			if !b {
-	//  				_, err = out.Write(vBar)
-	//  			} else {
-	//  				_, err = out.Write(space)
-	//  			}
-	//  		} else if b {
-	//  			_, err = out.Write(highL)
-	//  		} else {
-	//  			_, err = out.Write(turnStyle)
-	//  		}
-	//  		if err != nil {
-	//  			return err
-	//  		}
-	//  	}
+	for i, b := range ended {
+		if i < len(ended)-1 {
+			if !b {
+				_, err = out.Write(vBar)
+			} else {
+				_, err = out.Write(space)
+			}
+		} else if b {
+			_, err = out.Write(highL)
+		} else {
+			_, err = out.Write(turnStyle)
+		}
+		if err != nil {
+			return err
+		}
+	}
 	src := "\t#"
 	if files.Source != nil {
 		src = fmt.Sprintf("\t# %s", files.Source)
 	}
 
-	_, err = fmt.Fprintf(out, "%s%s\n", base, src)
+	_, err = fmt.Fprintf(out, "%s%s\n", files.Name, src)
 	if err != nil {
 		return err
 	}

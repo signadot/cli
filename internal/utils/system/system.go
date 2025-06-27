@@ -62,3 +62,19 @@ func GetMachineID() (string, error) {
 	}
 	return machineID[:63], nil
 }
+
+func GetSandboxesDir() (string, error) {
+	sdDir, err := GetSignadotDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(sdDir, "sandboxes"), nil
+}
+
+func GetSandboxLocalFilesBaseDir(sbName string) (string, error) {
+	sbxsDir, err := GetSandboxesDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(sbxsDir, sbName, "local", "files"), nil
+}
