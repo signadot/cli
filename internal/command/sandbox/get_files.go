@@ -9,13 +9,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/local"
 	"github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/cli/internal/utils"
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/k8senv"
@@ -76,12 +77,27 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 	if err != nil {
 		return err
 	}
-	absOut, err := filepath.Abs(cfg.OutputDir)
-	if err != nil {
-		return err
+	if cfg.OutputDir == "" {
+		baseDir, err := system.GetSandboxLocalFilesBaseDir(name)
+		if err != nil {
+			return err
+		}
+		_, err = os.Stat(baseDir)
+		if err == nil {
+			err := os.RemoveAll(baseDir)
+			if err != nil {
+				return err
+			}
+		} else {
+			if !os.IsNotExist(err) {
+				return err
+			}
+		}
+		cfg.OutputDir = baseDir
 	}
-	err = writeGCFiles(k8sEnv.Files, absOut)
-	if err != nil {
+	// either no err from stat and no such baseDir
+	// or error is that baseDir doesn't exist
+	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
 		return err
 	}
 	// no-clobber
@@ -101,7 +117,11 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 	k8sEnv.Files.Name = cfg.OutputDir
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printTree(out, k8sEnv.Files, []bool{})
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', tabwriter.TabIndent)
+		if err := printTree(w, k8sEnv.Files, cfg.OutputDir, []bool{}); err != nil {
+			return err
+		}
+		return w.Flush()
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, k8sEnv.Files)
 	case config.OutputFormatYAML:
@@ -119,6 +139,7 @@ func calculateFileOverrides(ctx context.Context, kubeClient client.Client, ns st
 		child := files.Path(fileOp.Path)
 		if fileOp.ValueFrom == nil {
 			child.Content = []byte(fileOp.Value)
+			child.Source = &k8senv.Source{Override: true, Constant: &fileOp.Value}
 			continue
 		}
 		if err := overrideFileValueFrom(ctx, kubeClient, child, fileOp, ns, resOuts, cmMap, secMap); err != nil {
@@ -156,34 +177,50 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 				return nil
 			}
 			child.Content = []byte(val)
+			child.Source = &k8senv.Source{
+				Override: true,
+				ConfigMap: &k8senv.MapKey{
+					Namespace: cm.Namespace,
+					Name:      cm.Name,
+					Key:       cmSource.Key,
+				},
+			}
 		}
 		return nil
 
 	case vf.Secret != nil:
-		cmSource := vf.Secret
-		cm := secMap[cmSource.Name]
-		if cm == nil {
-			cm = &corev1.Secret{}
-			err := kubeClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: cmSource.Name}, cm)
-			if cmSource.Optional && k8serrors.IsNotFound(err) {
+		secSource := vf.Secret
+		sec := secMap[secSource.Name]
+		if sec == nil {
+			sec = &corev1.Secret{}
+			err := kubeClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: secSource.Name}, sec)
+			if secSource.Optional && k8serrors.IsNotFound(err) {
 				return nil
 			}
 			if err != nil {
 				return err
 			}
-			secMap[cmSource.Name] = cm
+			secMap[secSource.Name] = sec
 		}
-		if cmSource.Key == "" {
-			child.MountSecret(cm)
+		if secSource.Key == "" {
+			child.MountSecret(sec)
 		} else {
-			val, ok := cm.Data[cmSource.Key]
-			if !cmSource.Optional && !ok {
-				return fmt.Errorf("key %q not found in secret %q", cmSource.Key, cmSource.Name)
+			val, ok := sec.Data[secSource.Key]
+			if !secSource.Optional && !ok {
+				return fmt.Errorf("key %q not found in secret %q", secSource.Key, secSource.Name)
 			}
 			if !ok {
 				return nil
 			}
 			child.Content = val
+			child.Source = &k8senv.Source{
+				Override: true,
+				Secret: &k8senv.MapKey{
+					Namespace: sec.Namespace,
+					Name:      sec.Name,
+					Key:       secSource.Key,
+				},
+			}
 		}
 		return nil
 	case vf.Resource != nil:
@@ -195,6 +232,13 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 			}
 			if vfr.OutputKey == resOut.Output {
 				child.Content = []byte(resOut.Value)
+				child.Source = &k8senv.Source{
+					Override: true,
+					SandboxResource: &k8senv.SandboxResource{
+						Name:      vfr.Name,
+						OutputKey: vfr.OutputKey,
+					},
+				}
 				return nil
 			}
 			if vfr.OutputKey != "" {
@@ -203,6 +247,13 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 			// all resource outputs mounted.
 			keyChild := child.Path(resOut.Output)
 			keyChild.Content = []byte(resOut.Value)
+			keyChild.Source = &k8senv.Source{
+				Override: true,
+				SandboxResource: &k8senv.SandboxResource{
+					Name:      vfr.Name,
+					OutputKey: resOut.Output,
+				},
+			}
 		}
 		return nil
 
@@ -232,20 +283,8 @@ func noClobber(errOut io.Writer, files *k8senv.Files, base string) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	fmt.Fprintf(errOut, "%s already exists, skipping\n", base)
+	fmt.Fprintf(errOut, "WARNING: %s already exists, skipping\n", base)
 	return true, nil
-}
-
-func writeGCFiles(files *k8senv.Files, base string) error {
-	if files.IsDir() {
-		for k, child := range files.Children {
-			if err := writeGCFiles(child, filepath.Join(base, k)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	return utils.RegisterPathForGC(base)
 }
 
 var (
@@ -255,7 +294,7 @@ var (
 	space     []byte = []byte(strings.Repeat(" ", 4))
 )
 
-func printTree(out io.Writer, files *k8senv.Files, ended []bool) error {
+func printTree(out io.Writer, files *k8senv.Files, base string, ended []bool) error {
 	var err error
 	for i, b := range ended {
 		if i < len(ended)-1 {
@@ -273,7 +312,12 @@ func printTree(out io.Writer, files *k8senv.Files, ended []bool) error {
 			return err
 		}
 	}
-	_, err = out.Write([]byte(files.Name + "\n"))
+	src := "\t#"
+	if files.Source != nil {
+		src = fmt.Sprintf("\t# %s", files.Source)
+	}
+
+	_, err = fmt.Fprintf(out, "%s%s\n", files.Name, src)
 	if err != nil {
 		return err
 	}
@@ -283,7 +327,7 @@ func printTree(out io.Writer, files *k8senv.Files, ended []bool) error {
 		keys := slices.Sorted(maps.Keys(files.Children))
 		for _, k := range keys {
 			n++
-			if err := printTree(out, files.Children[k], append(ended, n == N)); err != nil {
+			if err := printTree(out, files.Children[k], filepath.Join(base, k), append(ended, n == N)); err != nil {
 				return err
 			}
 		}

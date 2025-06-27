@@ -43,6 +43,10 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 		return &k8senv.EnvItem{
 			Name:  sbEnvVar.Name,
 			Value: sbEnvVar.Value,
+			Source: k8senv.Source{
+				Override: true,
+				Constant: &sbEnvVar.Value,
+			},
 		}, nil
 	}
 	vf := sbEnvVar.ValueFrom
@@ -67,6 +71,14 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 		return &k8senv.EnvItem{
 			Name:  sbEnvVar.Name,
 			Value: val,
+			Source: k8senv.Source{
+				Override: true,
+				ConfigMap: &k8senv.MapKey{
+					Namespace: ns,
+					Name:      key.Name,
+					Key:       vf.ConfigMap.Key,
+				},
+			},
 		}, nil
 	case vf.Secret != nil:
 		secret := &corev1.Secret{}
@@ -88,6 +100,14 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 		return &k8senv.EnvItem{
 			Name:  sbEnvVar.Name,
 			Value: string(val),
+			Source: k8senv.Source{
+				Override: true,
+				Secret: &k8senv.MapKey{
+					Namespace: ns,
+					Name:      key.Name,
+					Key:       vf.ConfigMap.Key,
+				},
+			},
 		}, nil
 	case vf.Resource != nil:
 		vfr := vf.Resource
@@ -102,6 +122,13 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 			return &k8senv.EnvItem{
 				Name:  sbEnvVar.Name,
 				Value: out.Value,
+				Source: k8senv.Source{
+					Override: true,
+					SandboxResource: &k8senv.SandboxResource{
+						Name:      vfr.Name,
+						OutputKey: vfr.OutputKey,
+					},
+				},
 			}, nil
 		}
 		return nil, fmt.Errorf("output %q in resource %q unavailable", vfr.OutputKey, vfr.Name)

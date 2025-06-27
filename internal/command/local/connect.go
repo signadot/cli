@@ -18,7 +18,6 @@ import (
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
-	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	clusters "github.com/signadot/go-sdk/client/cluster"
 	"github.com/signadot/libconnect/common/processes"
@@ -126,10 +125,6 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 	}
 	if isRunning {
 		return fmt.Errorf("signadot is already connected\n")
-	}
-
-	if err := utils.GCPaths(); err != nil {
-		return err
 	}
 
 	// Check version skew

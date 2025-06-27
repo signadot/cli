@@ -67,7 +67,7 @@ func (c *SandboxGetFiles) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Local, "local", "l", "", "local workload name (default to first)")
 	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container name (defaults to first)")
 	cmd.Flags().BoolVar(&c.NoClobber, "no-clobber", false, "do not overwrite files")
-	cmd.Flags().StringVarP(&c.OutputDir, "output-dir", "d", ".", "output directory")
+	cmd.Flags().StringVarP(&c.OutputDir, "output-dir", "d", "", "output directory")
 }
 
 type SandboxCleanFiles struct {
