@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"text/tabwriter"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
@@ -80,13 +82,14 @@ func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error
 func printEnv(out io.Writer, oFmt config.OutputFormat, resEnv []k8senv.EnvItem) error {
 	switch oFmt {
 	case config.OutputFormatDefault:
+		w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', tabwriter.TabIndent)
 		for _, item := range resEnv {
-			_, err := out.Write([]byte(item.ToShellEval() + "\n"))
+			_, err := w.Write([]byte(item.ToShellEval() + "\n"))
 			if err != nil {
 				return err
 			}
 		}
-		return nil
+		return w.Flush()
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resEnv)
 	case config.OutputFormatYAML:
@@ -97,7 +100,7 @@ func printEnv(out io.Writer, oFmt config.OutputFormat, resEnv []k8senv.EnvItem) 
 }
 
 func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string, resOuts []sandboxmanager.ResourceOutput, xEnv []k8senv.EnvItem, sbEnv []*models.SandboxEnvVar) ([]k8senv.EnvItem, error) {
-	sbEnvMap := map[string]string{}
+	sbEnvMap := map[string]*k8senv.EnvItem{}
 	for _, sbEnvVar := range sbEnv {
 		xEnvVar, err := extractSBEnvVar(ctx, kubeClient, ns, resOuts, sbEnvVar)
 		if err != nil {
@@ -106,20 +109,21 @@ func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string
 		if xEnvVar == nil {
 			continue
 		}
-		sbEnvMap[xEnvVar.Name] = xEnvVar.Value
+		sbEnvMap[xEnvVar.Name] = xEnvVar
 	}
 	for i := range xEnv {
 		xEnvVar := &xEnv[i]
-		sbVal, ok := sbEnvMap[xEnvVar.Name]
+		sbEnvVar, ok := sbEnvMap[xEnvVar.Name]
 		if !ok {
 			continue
 		}
-		xEnvVar.Value = sbVal
+		xEnvVar.Value = sbEnvVar.Value
+		xEnvVar.Source = sbEnvVar.Source
 		delete(sbEnvMap, xEnvVar.Name)
 	}
 	res := xEnv
-	for k, v := range sbEnvMap {
-		res = append(res, k8senv.EnvItem{Name: k, Value: v})
+	for _, v := range sbEnvMap {
+		res = append(res, *v)
 	}
 	return res, nil
 }
