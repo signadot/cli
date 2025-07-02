@@ -19,7 +19,7 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
 	github.com/signadot/go-sdk v0.3.8-0.20250617214735-334394d59150
-	github.com/signadot/libconnect v0.1.1-0.20250701212018-82633963fb38
+	github.com/signadot/libconnect v0.1.1-0.20250702071230-3bb360c4ca13
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
@@ -41,7 +41,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.1.5 // indirect
 	github.com/bwmarrin/snowflake v0.3.0 // indirect
-	github.com/cloudflare/circl v1.6.0 // indirect
+	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
