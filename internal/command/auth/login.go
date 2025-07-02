@@ -132,9 +132,9 @@ func waitForUserAuth(cfg *config.AuthLogin, out io.Writer,
 		// If browser opening fails, fall back to just showing the URL
 		fmt.Fprintf(out, "Please visit: %s\n", code.VerificationURI)
 	} else {
-		fmt.Fprintf(out, "Opening browser to authenticate at: %s\n", code.VerificationURI)
+		fmt.Fprintf(out, "Opening browser at: %s\n", code.VerificationURI)
 	}
-	fmt.Fprintf(out, "Enter the code: %s\n\n", code.UserCode)
+	fmt.Fprintf(out, "to authenticate using the code: %s\n\n", code.UserCode)
 	spin := spinner.Start(out, "Waiting for authentication")
 	defer spin.Stop()
 
