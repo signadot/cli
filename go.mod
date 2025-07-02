@@ -7,6 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/argoproj/argo-rollouts v1.8.3
+	github.com/chainguard-dev/git-urls v1.0.2
 	github.com/docker/go-units v0.5.0
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/go-openapi/runtime v0.28.0
@@ -23,7 +24,6 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
-	github.com/whilp/git-urls v1.0.0
 	github.com/xeonx/timeago v1.0.0-rc5
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/net v0.40.0
