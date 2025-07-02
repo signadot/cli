@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 
 	"github.com/panta/machineid"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -61,6 +63,20 @@ func GetMachineID() (string, error) {
 		return "", fmt.Errorf("couldn't read machine-id, %v", err)
 	}
 	return machineID[:63], nil
+}
+
+// OpenBrowser opens the specified URL in the user's default browser
+func OpenBrowser(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", url)
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = exec.Command("xdg-open", url)
+	}
+	return cmd.Start()
 }
 
 func GetSandboxesDir() (string, error) {
