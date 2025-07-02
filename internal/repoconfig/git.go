@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	giturls "github.com/chainguard-dev/git-urls"
 	"github.com/go-git/go-git/v5"
-	giturls "github.com/whilp/git-urls"
 )
 
 type GitRepo struct {
