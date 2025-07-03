@@ -17,10 +17,11 @@ const (
 )
 
 type Auth struct {
-	APIKey      string     `json:"apiKey,omitempty"`
-	BearerToken string     `json:"bearerToken,omitempty"`
-	OrgName     string     `json:"orgName"`
-	ExpiresAt   *time.Time `json:"expiresAt,omitempty"`
+	APIKey       string     `json:"apiKey,omitempty"`
+	BearerToken  string     `json:"bearerToken,omitempty"`
+	RefreshToken string     `json:"refreshToken,omitempty"`
+	OrgName      string     `json:"orgName"`
+	ExpiresAt    *time.Time `json:"expiresAt,omitempty"`
 }
 
 type ResolvedAuth struct {
@@ -33,6 +34,7 @@ func ResolveAuth() (*ResolvedAuth, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if auth == nil {
 		return nil, nil
 	}
