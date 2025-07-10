@@ -105,7 +105,7 @@ func extractSBEnvVar(ctx context.Context, kubeClient client.Client, ns string, r
 				Secret: &k8senv.MapKey{
 					Namespace: ns,
 					Name:      key.Name,
-					Key:       vf.ConfigMap.Key,
+					Key:       vf.Secret.Key,
 				},
 			},
 		}, nil
