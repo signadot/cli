@@ -4,14 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/go-sdk/client"
 	sdkauth "github.com/signadot/go-sdk/client/auth"
-	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/go-sdk/transport"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
@@ -129,9 +127,7 @@ func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAut
 	}
 
 	params := &sdkauth.AuthDeviceRefreshTokenParams{
-		Data: &models.AuthdevicesRefreshTokenInput{
-			RefreshToken: authInfo.RefreshToken,
-		},
+		Data: authInfo.RefreshToken,
 	}
 
 	resp, err := a.Client.Auth.AuthDeviceRefreshToken(params)
