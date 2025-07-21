@@ -123,7 +123,7 @@ func formatTTL(sb *models.Sandbox) string {
 	}
 	eol := ttlBase.Add(offset)
 	local := eol.Local().Format(time.RFC1123)
-	remaining := eol.Sub(time.Now())
+	remaining := time.Until(eol)
 	return fmt.Sprintf("%s (%s)", local, units.HumanDuration(remaining))
 }
 
