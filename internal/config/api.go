@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	AuthExpiredError    = errors.New("Authentication expired. Please log in using 'signadot auth login'")
-	AuthNoOrgFoundError = errors.New("No organisation found. Please log in using 'signadot auth login'")
-	AuthNoFoundError    = errors.New("No authentication found. Please log in using 'signadot auth login'")
+	ErrAuthExpired    = errors.New("Authentication expired. Please log in using 'signadot auth login'")
+	ErrAuthNoOrgFound = errors.New("No organisation found. Please log in using 'signadot auth login'")
+	ErrAuthNoFound    = errors.New("No authentication found. Please log in using 'signadot auth login'")
 )
 
 type API struct {
@@ -73,13 +73,13 @@ func (a *API) init() error {
 	}
 
 	if authInfo == nil || (authInfo.APIKey == "" && authInfo.BearerToken == "") {
-		return AuthNoFoundError
+		return ErrAuthNoFound
 	}
 	if authInfo.ExpiresAt != nil && authInfo.ExpiresAt.Before(time.Now()) && authInfo.Source != auth.KeyringAuthSource {
-		return AuthExpiredError
+		return ErrAuthExpired
 	}
 	if authInfo.OrgName == "" {
-		return AuthNoOrgFoundError
+		return ErrAuthNoOrgFound
 	}
 
 	// Init basic settings and return
@@ -102,7 +102,7 @@ func (a *API) checkKeyringAuth(authInfo *auth.ResolvedAuth) error {
 	// If the auth is expired, we need to refresh the token
 	if authInfo.ExpiresAt != nil && time.Now().After(*authInfo.ExpiresAt) {
 		if authInfo.RefreshToken == "" {
-			return AuthExpiredError
+			return ErrAuthExpired
 		}
 
 		newAuthInfo, err := a.refreshKeyringAuth(authInfo)
