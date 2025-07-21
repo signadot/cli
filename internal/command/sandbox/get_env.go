@@ -67,7 +67,16 @@ func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error
 		return err
 	}
 	// overrides
-	resEnv, err := calculateOverrides(ctx, kc, *sbLocal.From.Namespace, resourceOutputs, k8sEnv.Env, sbLocal.Env)
+	// 1. add downward API
+	sbEnv := append(sbLocal.Env, &models.SandboxEnvVar{
+		Name:  "SIGNADOT_SANDBOX_NAME",
+		Value: apiSB.Name,
+	}, &models.SandboxEnvVar{
+		Name:  "SIGNADOT_SANDBOX_ROUTING_KEY",
+		Value: apiSB.RoutingKey,
+	})
+	// 2. merge with baseline cluster values
+	resEnv, err := calculateOverrides(ctx, kc, *sbLocal.From.Namespace, resourceOutputs, k8sEnv.Env, sbEnv)
 	if err != nil {
 		return err
 	}
