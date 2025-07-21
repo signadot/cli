@@ -109,7 +109,7 @@ func (a *API) checkKeyringAuth(authInfo *auth.ResolvedAuth) error {
 		if err != nil {
 			return err
 		}
-		authInfo = newAuthInfo
+		*authInfo = *newAuthInfo
 		return nil
 	}
 
