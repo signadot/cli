@@ -108,9 +108,10 @@ func bearerTokenLogin(cfg *config.AuthLogin, out io.Writer) error {
 	// store the auth info
 	expiresAt := time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	err = auth.StoreAuthInKeyring(&auth.Auth{
-		BearerToken: token.AccessToken,
-		OrgName:     org.Name,
-		ExpiresAt:   &expiresAt,
+		BearerToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		OrgName:      org.Name,
+		ExpiresAt:    &expiresAt,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to store auth info: %w", err)

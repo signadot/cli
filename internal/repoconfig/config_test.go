@@ -7,7 +7,7 @@ import (
 
 func TestLabelAggregation(t *testing.T) {
 	// Create a test finder
-	tf, err := NewTestFinder("../../tests/fixtures/smart-tests-git/backend")
+	tf, err := NewTestFinder("../../tests/fixtures/smart-tests-git/backend", nil, nil)
 	if err != nil {
 		t.Fatalf("NewTestFinder failed: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestLabelAggregation(t *testing.T) {
 
 func TestFileDiscovery(t *testing.T) {
 	// Create a test finder
-	tf, err := NewTestFinder("")
+	tf, err := NewTestFinder("", nil, nil)
 	if err != nil {
 		t.Fatalf("NewTestFinder failed: %v", err)
 	}
@@ -138,7 +138,7 @@ func TestFileDiscovery(t *testing.T) {
 
 func TestDirectFilePathInConfig(t *testing.T) {
 	// Create a test finder
-	tf, err := NewTestFinder("")
+	tf, err := NewTestFinder("", nil, nil)
 	if err != nil {
 		t.Fatalf("NewTestFinder failed: %v", err)
 	}
