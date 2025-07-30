@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"github.com/signadot/cli/internal/command/cluster/devmesh"
 	"github.com/signadot/cli/internal/command/cluster/token"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
@@ -19,6 +20,7 @@ func New(api *config.API) *cobra.Command {
 		newAdd(cfg),
 		newList(cfg),
 		token.New(cfg),
+		devmesh.New(cfg),
 	)
 
 	return cmd
