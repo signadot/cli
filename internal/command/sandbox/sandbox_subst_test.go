@@ -53,7 +53,7 @@ var substCases = []SubstTest{
 	{
 		Yaml:   `{"name":"aaa","spec":{"cluster":"@{dev}-cluster"}}`,
 		Args:   []string{"dev=jane"},
-		Result: `{"endpoints":null,"name":"aaa","spec":{"cluster":"jane-cluster","endpoints":null,"forks":null,"local":null,"resources":null}}`,
+		Result: `{"endpoints":null,"name":"aaa","spec":{"cluster":"jane-cluster","endpoints":null,"forks":null,"local":null,"resources":null,"virtual":null}}`,
 	},
 }
 
