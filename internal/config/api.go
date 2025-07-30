@@ -9,9 +9,16 @@ import (
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/go-sdk/client"
+	sdkauth "github.com/signadot/go-sdk/client/auth"
 	"github.com/signadot/go-sdk/transport"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	ErrAuthExpired    = errors.New("Authentication expired. Please log in using 'signadot auth login'")
+	ErrAuthNoOrgFound = errors.New("No organisation found. Please log in using 'signadot auth login'")
+	ErrAuthNoFound    = errors.New("No authentication found. Please log in using 'signadot auth login'")
 )
 
 type API struct {
@@ -66,22 +73,87 @@ func (a *API) init() error {
 	}
 
 	if authInfo == nil || (authInfo.APIKey == "" && authInfo.BearerToken == "") {
-		return errors.New("No authentication found. Please log in using 'signadot auth login'")
+		return ErrAuthNoFound
 	}
-	if authInfo.ExpiresAt != nil && authInfo.ExpiresAt.Before(time.Now()) {
-		return errors.New("Authentication expired. Please log in using 'signadot auth login'")
+	if authInfo.ExpiresAt != nil && authInfo.ExpiresAt.Before(time.Now()) && authInfo.Source != auth.KeyringAuthSource {
+		return ErrAuthExpired
 	}
 	if authInfo.OrgName == "" {
-		return errors.New("No organisation found. Please log in using 'signadot auth login'")
+		return ErrAuthNoOrgFound
+	}
+
+	// Init basic settings and return
+	a.basicInit()
+
+	if authInfo.Source == auth.KeyringAuthSource {
+		if err := a.checkKeyringAuth(authInfo); err != nil {
+			return err
+		}
 	}
 
 	a.ApiKey = authInfo.APIKey
 	a.BearerToken = authInfo.BearerToken
 	a.Org = authInfo.OrgName
-
-	// Init basic settings and return
-	a.basicInit()
 	return nil
+}
+
+func (a *API) checkKeyringAuth(authInfo *auth.ResolvedAuth) error {
+
+	// If the auth is expired, we need to refresh the token
+	if authInfo.ExpiresAt != nil && time.Now().After(*authInfo.ExpiresAt) {
+		if authInfo.RefreshToken == "" {
+			return ErrAuthExpired
+		}
+
+		newAuthInfo, err := a.refreshKeyringAuth(authInfo)
+		if err != nil {
+			return err
+		}
+		*authInfo = *newAuthInfo
+		return nil
+	}
+
+	// If using API key, just return
+	if authInfo.APIKey != "" {
+		return nil
+	}
+
+	return nil
+}
+
+func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error) {
+	if err := a.InitUnauthAPIConfig(); err != nil {
+		return nil, err
+	}
+
+	params := &sdkauth.AuthDeviceRefreshTokenParams{
+		Data: authInfo.RefreshToken,
+	}
+
+	resp, err := a.Client.Auth.AuthDeviceRefreshToken(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to refresh token: %w", err)
+	}
+
+	expiresAt := time.Now().Add(time.Duration(resp.Payload.ExpiresIn) * time.Second)
+	authInfo.BearerToken = resp.Payload.AccessToken
+	authInfo.RefreshToken = resp.Payload.RefreshToken
+	authInfo.ExpiresAt = &expiresAt
+
+	newAuthInfo := auth.Auth{
+		APIKey:       authInfo.APIKey,
+		BearerToken:  authInfo.BearerToken,
+		RefreshToken: authInfo.RefreshToken,
+		OrgName:      authInfo.OrgName,
+		ExpiresAt:    &expiresAt,
+	}
+
+	// Store updated auth in keyring
+	if err := auth.StoreAuthInKeyring(&newAuthInfo); err != nil {
+		return nil, fmt.Errorf("failed to store refreshed auth: %w", err)
+	}
+
+	return authInfo, nil
 }
 
 func (a *API) basicInit() {

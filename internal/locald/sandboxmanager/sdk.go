@@ -94,7 +94,7 @@ func checkPortforwardStatus(portforward *commonapi.PortForwardStatus) error {
 			}
 		}
 	}
-	return fmt.Errorf(errorMsg)
+	return errors.New(errorMsg)
 }
 
 func checkControlPlaneProxyStatus(ctlPlaneProxy *commonapi.ControlPlaneProxyStatus) error {
@@ -109,7 +109,7 @@ func checkControlPlaneProxyStatus(ctlPlaneProxy *commonapi.ControlPlaneProxyStat
 			}
 		}
 	}
-	return fmt.Errorf(errorMsg)
+	return errors.New(errorMsg)
 }
 
 func checkLocalNetStatus(localnet *commonapi.LocalNetStatus) error {
@@ -124,7 +124,7 @@ func checkLocalNetStatus(localnet *commonapi.LocalNetStatus) error {
 			}
 		}
 	}
-	return fmt.Errorf(errorMsg)
+	return errors.New(errorMsg)
 }
 
 func checkHostsStatus(hosts *commonapi.HostsStatus) error {
@@ -139,7 +139,7 @@ func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 			}
 		}
 	}
-	return fmt.Errorf(errorMsg)
+	return errors.New(errorMsg)
 }
 
 func IsWatcherRunning(status *sbmapi.StatusResponse) (bool, string) {
