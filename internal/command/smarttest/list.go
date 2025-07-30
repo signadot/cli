@@ -108,7 +108,7 @@ func listOutput(cfg *config.SmartTestList, w io.Writer, tfs []repoconfig.TestFil
 	case config.OutputFormatDefault:
 		for i := range tfs {
 			tf := &tfs[i]
-			if _, err := fmt.Fprintf(w, tf.Name+"\n"); err != nil {
+			if _, err := fmt.Fprint(w, tf.Name+"\n"); err != nil {
 				return err
 			}
 		}

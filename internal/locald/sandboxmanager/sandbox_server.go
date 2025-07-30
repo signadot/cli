@@ -153,7 +153,7 @@ func (s *sbmServer) getRootClient() rootapi.RootManagerAPIClient {
 	if s.rootClient != nil {
 		return s.rootClient
 	}
-	grpcConn, err := grpc.Dial(
+	grpcConn, err := grpc.NewClient(
 		"127.0.0.1:6667",
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 

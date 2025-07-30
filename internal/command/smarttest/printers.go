@@ -105,12 +105,12 @@ func getResults(tx *models.TestExecution) string {
 	diffMsg := getDiffsDetails(tx)
 	if diffMsg != "" {
 		resultsMsg += "* Diffs\n"
-		resultsMsg += fmt.Sprintf("\t" + diffMsg + "\n")
+		resultsMsg += fmt.Sprint("\t" + diffMsg + "\n")
 	}
 	checksMsg := getChecksDetails(tx)
 	if checksMsg != "" {
 		resultsMsg += "* Checks\n"
-		resultsMsg += fmt.Sprintf("\t" + checksMsg + "\n")
+		resultsMsg += fmt.Sprint("\t" + checksMsg + "\n")
 	}
 	return resultsMsg
 }

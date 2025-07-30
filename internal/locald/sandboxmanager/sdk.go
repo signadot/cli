@@ -201,7 +201,7 @@ func GetResourceOutputs(ctx context.Context, sbRoutingKey string) ([]ResourceOut
 }
 
 func connectSandboxManager() (*grpc.ClientConn, error) {
-	grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	grpcConn, err := grpc.NewClient("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("couldn't connect sandboxmanager: %w", err)
 	}
