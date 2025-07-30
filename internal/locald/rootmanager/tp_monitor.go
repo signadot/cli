@@ -79,7 +79,7 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 	mon.log.Debug("checking tunnel-proxy access")
 	if mon.sbClient == nil {
 		// Establish the connection if needed
-		grpcConn, err := grpc.Dial(mon.sbManagerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpcConn, err := grpc.NewClient(mon.sbManagerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			if mon.starting {
 				mon.log.Debug("waiting for sandbox manager to be ready (not running yet)")

@@ -124,7 +124,7 @@ func (rs *runState) isDone() bool {
 func (rs *runState) tryKill() error {
 	if rs.RootPIDFilePresent {
 		// Establish a connection with sandbox manager
-		grpcConn, err := grpc.Dial("127.0.0.1:6667", grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpcConn, err := grpc.NewClient("127.0.0.1:6667", grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return fmt.Errorf("couldn't connect sandbox manager api, %w", err)
 		}
@@ -141,7 +141,7 @@ func (rs *runState) tryKill() error {
 	}
 	if rs.NotRootPIDFilePresent {
 		// Establish a connection with root manager
-		grpcConn, err := grpc.Dial("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpcConn, err := grpc.NewClient("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return fmt.Errorf("couldn't connect sandbox manager api, %w", err)
 		}

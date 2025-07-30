@@ -181,7 +181,7 @@ func resolveLabelSelector(ctx context.Context, kubeClient client.Client, sbLocal
 		}
 		return d.Spec.Selector, nil
 	default:
-		return nil, fmt.Errorf("unknown kind %q (expected %s or %s)", sbLocal.From.Kind, "Deployment", rollouts.RolloutKind)
+		return nil, fmt.Errorf("unknown kind %q (expected %s or %s)", *from.Kind, "Deployment", rollouts.RolloutKind)
 
 	}
 }
