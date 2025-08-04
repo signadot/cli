@@ -13,7 +13,7 @@ type devMeshAnalysisRow struct {
 	Kind      string `sdtab:"KIND"`
 	Namespace string `sdtab:"NAMESPACE"`
 	Name      string `sdtab:"NAME"`
-	Updated   string `sdtab:"UPDATED"`
+	UpToDate  string `sdtab:"UP-TO-DATE"`
 	Status    string `sdtab:"STATUS"`
 	Reason    string `sdtab:"REASON"`
 }
@@ -23,12 +23,12 @@ func printDevMeshAnalysisTable(out io.Writer, workloads []*models.ClustersDevMes
 	t.AddHeader()
 
 	for _, w := range workloads {
-		up, reason := getUpdatedAndReason(w)
+		up, reason := getUpToDateAndReason(w)
 		t.AddRow(devMeshAnalysisRow{
 			Kind:      *w.Workload.Kind,
 			Namespace: *w.Workload.Namespace,
 			Name:      *w.Workload.Name,
-			Updated:   up,
+			UpToDate:  up,
 			Status:    printStatus(w),
 			Reason:    reason,
 		})
@@ -59,7 +59,7 @@ func printStatus(w *models.ClustersDevMeshEnabledWorkload) string {
 	}
 }
 
-func getUpdatedAndReason(w *models.ClustersDevMeshEnabledWorkload) (string, string) {
+func getUpToDateAndReason(w *models.ClustersDevMeshEnabledWorkload) (string, string) {
 	var ok, missing, needsUpdate int64
 	for _, c := range w.StatusCounts {
 		switch c.Status {
@@ -72,7 +72,7 @@ func getUpdatedAndReason(w *models.ClustersDevMeshEnabledWorkload) (string, stri
 		}
 	}
 
-	updated := fmt.Sprintf("%d/%d", ok, ok+missing+needsUpdate)
+	upToDate := fmt.Sprintf("%d/%d", ok, ok+missing+needsUpdate)
 	var reasons []string
 	if needsUpdate > 0 {
 		reasons = append(reasons, fmt.Sprintf("%d pods without expected version", needsUpdate))
@@ -80,5 +80,5 @@ func getUpdatedAndReason(w *models.ClustersDevMeshEnabledWorkload) (string, stri
 	if missing > 0 {
 		reasons = append(reasons, fmt.Sprintf("%d pods with missing sidecar", missing))
 	}
-	return updated, strings.Join(reasons, ", ")
+	return upToDate, strings.Join(reasons, ", ")
 }
