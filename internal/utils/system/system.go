@@ -17,7 +17,7 @@ import (
 func GetSignadotDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error getting user home dir: %w", err)
 	}
 	return filepath.Join(homeDir, ".signadot"), nil
 }
@@ -76,7 +76,10 @@ func OpenBrowser(url string) error {
 	default: // "linux", "freebsd", "openbsd", "netbsd"
 		cmd = exec.Command("xdg-open", url)
 	}
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("unable to open url %q: %w", url, err)
+	}
+	return nil
 }
 
 func GetSandboxesDir() (string, error) {

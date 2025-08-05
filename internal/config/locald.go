@@ -41,7 +41,7 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 	if ld.ConnectInvocationConfigFile != "" {
 		ciBytes, err = os.ReadFile(ld.ConnectInvocationConfigFile)
 		if err != nil {
-			return err
+			return fmt.Errorf("error reading connect invocation config file %q: %w", ld.ConnectInvocationConfigFile, err)
 		}
 	} else {
 		ciBytes = []byte(os.Getenv("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG"))
