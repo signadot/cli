@@ -40,6 +40,7 @@ func (l *Local) InitLocalProxyConfig() error {
 
 func (l *Local) InitLocalConfig() error {
 	if err := l.InitLocalProxyConfig(); err != nil {
+		panic(err)
 		return err
 	}
 
@@ -47,12 +48,16 @@ func (l *Local) InitLocalConfig() error {
 		Local *config.Config `json:"local"`
 	}
 	localConfig := &Tmp{}
-	d, e := os.ReadFile(viper.ConfigFileUsed())
+	configFile := viper.ConfigFileUsed()
+	if configFile == "" {
+		return errors.New("config file needed for local configuration, see https://www.signadot.com/docs/getting-started/installation/signadot-cli")
+	}
+	d, e := os.ReadFile(configFile)
 	if e != nil {
-		return e
+		return fmt.Errorf("error reading config file %q: %w", configFile, e)
 	}
 	if e := yaml.Unmarshal(d, localConfig); e != nil {
-		return e
+		return fmt.Errorf("error unmarshalling config file %q: %w", configFile, e)
 	}
 	if localConfig.Local == nil {
 		return fmt.Errorf("no local section in %s", viper.ConfigFileUsed())
