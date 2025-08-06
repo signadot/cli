@@ -40,7 +40,6 @@ func (l *Local) InitLocalProxyConfig() error {
 
 func (l *Local) InitLocalConfig() error {
 	if err := l.InitLocalProxyConfig(); err != nil {
-		panic(err)
 		return err
 	}
 
