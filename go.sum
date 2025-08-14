@@ -360,6 +360,8 @@ github.com/signadot/go-sdk v0.3.8-0.20250730210632-13a6fc0827df h1:3Ii88OxvhZFzN
 github.com/signadot/go-sdk v0.3.8-0.20250730210632-13a6fc0827df/go.mod h1:oX12C9I/8QaXcl9XLIrc6bUOYVCOGrYPExe+Sln/3IY=
 github.com/signadot/libconnect v0.1.1-0.20250703140626-33d077a287d1 h1:9uaGWISFv6En+V+WG38VtI6l4aYO/Z65lmhOqqtRJqs=
 github.com/signadot/libconnect v0.1.1-0.20250703140626-33d077a287d1/go.mod h1:3OVwfvTsENxOIY7mRuhvygEPkdYMKKhaWl35Ll3LcEI=
+github.com/signadot/libconnect v0.1.1-0.20250814203329-98381c7863de h1:nSClpbMu2p7aJMFDSNiEtwYXY4RqoToE+wsHiP0tK9M=
+github.com/signadot/libconnect v0.1.1-0.20250814203329-98381c7863de/go.mod h1:slkLIQlZTXajyc16CmuA2s4E2dcfYpykp9dBYn2Z8Do=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
 github.com/skeema/knownhosts v1.3.1 h1:X2osQ+RAjK76shCbvhHHHVl3ZlgDm8apHEHFqRjnBY8=
 github.com/skeema/knownhosts v1.3.1/go.mod h1:r7KTdC8l4uxWRyK2TpQZ/1o5HaSzh06ePQNxPwTcfiY=
