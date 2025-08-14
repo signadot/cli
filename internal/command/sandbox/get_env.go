@@ -62,7 +62,7 @@ func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error
 		return err
 	}
 	// extract
-	k8sEnv, sbLocal, err := extract(ctx, kc, apiSB, cfg.Local, cfg.Container)
+	containerEnv, sbLocal, err := extract(ctx, kc, apiSB, cfg.Local, cfg.Container)
 	if err != nil {
 		return err
 	}
@@ -75,15 +75,23 @@ func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error
 		Name:  "SIGNADOT_SANDBOX_ROUTING_KEY",
 		Value: apiSB.RoutingKey,
 	})
+
 	// 2. merge with baseline cluster values
-	resEnv, err := calculateOverrides(ctx, kc, *sbLocal.From.Namespace, resourceOutputs, k8sEnv.Env, sbEnv)
+	resEnv, err := calculateOverrides(ctx, kc, *sbLocal.From.Namespace, resourceOutputs, containerEnv.Env, sbEnv)
 	if err != nil {
 		return err
 	}
+
 	// print errors
-	if err := printForbidden(errOut, k8sEnv.Forbidden); err != nil {
+	if err := printForbidden(errOut, containerEnv.Forbidden); err != nil {
 		return err
 	}
+
+	resEnv = k8senv.ResolveEnv(ctx, resEnv)
+	if err != nil {
+		return err
+	}
+
 	// print output
 	return printEnv(out, cfg.OutputFormat, resEnv)
 }
@@ -109,7 +117,9 @@ func printEnv(out io.Writer, oFmt config.OutputFormat, resEnv []k8senv.EnvItem) 
 }
 
 func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string, resOuts []sandboxmanager.ResourceOutput, xEnv []k8senv.EnvItem, sbEnv []*models.SandboxEnvVar) ([]k8senv.EnvItem, error) {
-	sbEnvMap := map[string]*k8senv.EnvItem{}
+	// Extract sandbox environment variables while preserving order
+	sbEnvItems := make([]*k8senv.EnvItem, 0, len(sbEnv))
+	sbEnvMap := make(map[string]*k8senv.EnvItem)
 	for _, sbEnvVar := range sbEnv {
 		xEnvVar, err := extractSBEnvVar(ctx, kubeClient, ns, resOuts, sbEnvVar)
 		if err != nil {
@@ -118,8 +128,11 @@ func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string
 		if xEnvVar == nil {
 			continue
 		}
+		sbEnvItems = append(sbEnvItems, xEnvVar)
 		sbEnvMap[xEnvVar.Name] = xEnvVar
 	}
+
+	// Override existing environment variables
 	for i := range xEnv {
 		xEnvVar := &xEnv[i]
 		sbEnvVar, ok := sbEnvMap[xEnvVar.Name]
@@ -130,9 +143,13 @@ func calculateOverrides(ctx context.Context, kubeClient client.Client, ns string
 		xEnvVar.Source = sbEnvVar.Source
 		delete(sbEnvMap, xEnvVar.Name)
 	}
+
+	// Append remaining sandbox environment variables in their original order
 	res := xEnv
-	for _, v := range sbEnvMap {
-		res = append(res, *v)
+	for _, sbEnvItem := range sbEnvItems {
+		if _, stillExists := sbEnvMap[sbEnvItem.Name]; stillExists {
+			res = append(res, *sbEnvItem)
+		}
 	}
 	return res, nil
 }
