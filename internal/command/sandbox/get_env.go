@@ -87,7 +87,7 @@ func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error
 		return err
 	}
 
-	resEnv, err = k8senv.ResolveEnv(ctx, resEnv)
+	resEnv = k8senv.ResolveEnv(ctx, resEnv)
 	if err != nil {
 		return err
 	}
