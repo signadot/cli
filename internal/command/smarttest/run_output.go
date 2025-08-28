@@ -88,24 +88,24 @@ func (o *defaultRunOutput) renderTestXsTable(txs []*models.TestExecution, runnin
 	for _, tx := range txs {
 		var icon, statusText string
 		switch tx.Status.Phase {
-		case "pending":
+		case models.TestexecutionsPhasePending:
 			icon = runningIcon
 			statusText = "pending"
-		case "in_progress":
+		case models.TestexecutionsPhaseInProgress:
 			icon = runningIcon
 			statusText = "running"
-		case "failed":
+		case models.TestexecutionsPhaseFailed:
 			icon = "❌"
 			statusText = "failed"
-		case "canceled":
+		case models.TestexecutionsPhaseCanceled:
 			icon = "❌"
 			statusText = "canceled"
-		case "succeeded":
+		case models.TestexecutionsPhaseSucceeded:
 			icon = "✅"
 			statusText = "completed"
 		default:
 			icon = "⚪"
-			statusText = tx.Status.Phase
+			statusText = string(tx.Status.Phase)
 		}
 		fmt.Fprintf(tw, "%s\t%s\t[ID: %s, STATUS: %s]\n", icon, truncateTestName(tx.Spec.External.TestName, 48),
 			tx.ID, statusText)
@@ -137,7 +137,7 @@ func (o *defaultRunOutput) renderTestXsSummary(txs []*models.TestExecution) {
 
 func (o *defaultRunOutput) getExecutionsDetails(txs []*models.TestExecution) string {
 	total := 0
-	phaseMap := map[string]int{}
+	phaseMap := map[models.TestexecutionsPhase]int{}
 	for _, tx := range txs {
 		total += 1
 		phaseMap[tx.Status.Phase] += 1
@@ -145,23 +145,23 @@ func (o *defaultRunOutput) getExecutionsDetails(txs []*models.TestExecution) str
 
 	var icon string
 	switch {
-	case phaseMap["canceled"] > 0 || phaseMap["failed"] > 0:
+	case phaseMap[models.TestexecutionsPhaseCanceled] > 0 || phaseMap[models.TestexecutionsPhaseFailed] > 0:
 		icon = "❌"
 	default:
 		icon = "✅"
 	}
 
-	details := fmt.Sprintf("%s %d/%d tests completed", icon, phaseMap["succeeded"], total)
-	if phaseMap["succeeded"] != total {
+	details := fmt.Sprintf("%s %d/%d tests completed", icon, phaseMap[models.TestexecutionsPhaseSucceeded], total)
+	if phaseMap[models.TestexecutionsPhaseSucceeded] != total {
 		details += " ("
 		var otherSts []string
-		if phaseMap["canceled"] > 0 {
+		if phaseMap[models.TestexecutionsPhaseCanceled] > 0 {
 			otherSts = append(otherSts,
-				fmt.Sprintf("%d canceled", phaseMap["canceled"]))
+				fmt.Sprintf("%d canceled", phaseMap[models.TestexecutionsPhaseCanceled]))
 		}
-		if phaseMap["failed"] > 0 {
+		if phaseMap[models.TestexecutionsPhaseFailed] > 0 {
 			otherSts = append(otherSts,
-				fmt.Sprintf("%d failed", phaseMap["failed"]))
+				fmt.Sprintf("%d failed", phaseMap[models.TestexecutionsPhaseFailed]))
 		}
 		details += strings.Join(otherSts, ", ") + ")"
 	}
