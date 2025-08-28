@@ -153,7 +153,7 @@ func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResu
 			Environment: environment,
 			CreatedAt:   createdAt,
 			Duration:    duration,
-			Status:      tx.Status.Phase,
+			Status:      string(tx.Status.Phase),
 		})
 	}
 	return tab.Flush()

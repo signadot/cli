@@ -125,7 +125,7 @@ type endpointRow struct {
 	URL    string `sdtab:"URL"`
 }
 
-func printEndpointTable(out io.Writer, endpoints []*models.RouteGroupEndpoint) error {
+func printEndpointTable(out io.Writer, endpoints []*models.RoutegroupsEndpointURL) error {
 	t := sdtab.New[endpointRow](out)
 	t.AddHeader()
 	for _, ep := range endpoints {
