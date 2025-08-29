@@ -147,6 +147,7 @@ func waitForReady(cfg *config.SandboxApply, out io.Writer, sb *models.Sandbox) (
 	retry := poll.
 		NewPoll().
 		WithTimeout(cfg.WaitTimeout)
+	var failedErr error
 	err := retry.Until(func() bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
@@ -156,12 +157,20 @@ func waitForReady(cfg *config.SandboxApply, out io.Writer, sb *models.Sandbox) (
 		}
 		sb = result.Payload
 		if !sb.Status.Ready {
+			if sb.Status.Reason == "ResourceFailed" {
+				failedErr = errors.New(sb.Status.Message)
+				return true
+			}
 			spin.Messagef("Not Ready: %s", sb.Status.Message)
 			return false
 		}
 		spin.StopMessagef("Ready: %s", sb.Status.Message)
 		return true
 	})
+	if failedErr != nil {
+		spin.StopFail()
+		return sb, failedErr
+	}
 	if err != nil {
 		spin.StopFail()
 		return sb, err
