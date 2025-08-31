@@ -35,14 +35,14 @@ func getArtifacts(cfg *config.JobGet, job *models.Job) ([]*models.JobArtifact, e
 	return resp.Payload, nil
 }
 
-func isJobPhaseToPrintDefault(ph string) bool {
-	if ph == "failed" {
+func isJobPhaseToPrintDefault(ph models.JobsPhase) bool {
+	if ph == models.JobsPhaseFailed {
 		return false
 	}
-	if ph == "succeeded" {
+	if ph == models.JobsPhaseSucceeded {
 		return false
 	}
-	if ph == "canceled" {
+	if ph == models.JobsPhaseCanceled {
 		return false
 	}
 	return true
@@ -102,15 +102,15 @@ func getJobEnvironment(job *models.Job) string {
 
 func getJobStatus(job *models.Job) string {
 	switch job.Status.Attempts[0].Phase {
-	case "queued":
+	case models.JobsPhaseQueued:
 		return "Queued"
-	case "running":
+	case models.JobsPhaseRunning:
 		return "Running"
-	case "failed":
+	case models.JobsPhaseFailed:
 		return "Failed"
-	case "succeeded":
+	case models.JobsPhaseSucceeded:
 		return "Succeeded"
-	case "canceled":
+	case models.JobsPhaseCanceled:
 		return "Canceled"
 	}
 	return "Unknown"
