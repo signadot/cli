@@ -2,6 +2,7 @@ package smarttest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -99,26 +100,14 @@ func validateRun(cfg *config.SmartTestRun) error {
 	if err := validateList(cfg.SmartTestList); err != nil {
 		return err
 	}
-	count := 0
-	if cfg.Cluster != "" {
-		count++
-	}
-	if cfg.Sandbox != "" {
-		count++
-	}
-	if cfg.RouteGroup != "" {
-		count++
-	}
-
-	if count == 0 {
-		return fmt.Errorf("you must specify one of '--cluster', '--sandbox' or '--route-group'")
-	}
-	if count > 1 {
-		return fmt.Errorf("only one of '--cluster', '--sandbox' or '--route-group' should be specified")
+	if err := cfg.Validate(); err != nil {
+		return err
 	}
 
 	// load the corresponding entity from the API
-	if cfg.Sandbox != "" {
+	switch {
+	case cfg.Sandbox != "":
+		// validate that the sandbox exists and resolve the cluster based on it
 		params := sandboxes.NewGetSandboxParams().
 			WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
 		resp, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
@@ -127,16 +116,33 @@ func validateRun(cfg *config.SmartTestRun) error {
 		}
 		// store the cluster for later use
 		cfg.Cluster = *resp.Payload.Spec.Cluster
-	} else if cfg.RouteGroup != "" {
+
+	case cfg.RouteGroup != "":
+		// validate that the route group exists and try resolving the cluster
+		// based on it
 		params := routegroups.NewGetRoutegroupParams().
 			WithOrgName(cfg.Org).WithRoutegroupName(cfg.RouteGroup)
 		resp, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			return fmt.Errorf("failed to load routegroup %q: %v", cfg.RouteGroup, err)
 		}
-		// store the cluster for later use
-		cfg.Cluster = resp.Payload.Spec.Cluster
-	} else {
+		if resp.Payload.Spec.Cluster != "" {
+			// store the cluster for later use
+			cfg.Cluster = resp.Payload.Spec.Cluster
+		} else {
+			// this is a multi-cluster RG, the cluster must be explicitly defined
+			if cfg.Cluster == "" {
+				return errors.New("--cluster must be specified in multi-cluster route groups")
+			}
+			// validate the cluster exists
+			params := clusters.NewGetClusterParams().
+				WithOrgName(cfg.Org).WithClusterName(cfg.Cluster)
+			if _, err := cfg.Client.Cluster.GetCluster(params, nil); err != nil {
+				return fmt.Errorf("failed to load cluster %q: %v", cfg.Cluster, err)
+			}
+		}
+
+	default:
 		// validate the cluster exists
 		params := clusters.NewGetClusterParams().
 			WithOrgName(cfg.Org).WithClusterName(cfg.Cluster)

@@ -41,7 +41,7 @@ func printRouteGroupTable(cfg *config.RouteGroupList, out io.Writer, rgs []*mode
 		t.AddRow(routegroupRow{
 			Name:       rg.Name,
 			RoutingKey: rg.RoutingKey,
-			Cluster:    rg.Spec.Cluster,
+			Cluster:    getCluster(rg.Spec.Cluster),
 			Created:    timeago.NoMax(timeago.English).Format(createdAt),
 			Status:     readiness(rg.Status),
 			Ready:      sbxStatus,
@@ -55,7 +55,7 @@ func printRouteGroupDetails(cfg *config.RouteGroup, out io.Writer, rg *models.Ro
 
 	fmt.Fprintf(tw, "Name:\t%s\n", rg.Name)
 	fmt.Fprintf(tw, "Routing Key:\t%s\n", rg.RoutingKey)
-	fmt.Fprintf(tw, "Cluster:\t%s\n", rg.Spec.Cluster)
+	fmt.Fprintf(tw, "Cluster:\t%s\n", getCluster(rg.Spec.Cluster))
 	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(rg.CreatedAt))
 	fmt.Fprintf(tw, "TTL:\t%s\n", formatTTL(rg.Spec, rg.Status.ScheduledDeleteTime))
 	fmt.Fprintf(tw, "Dashboard page:\t%s\n", cfg.DashboardURL)
@@ -67,12 +67,19 @@ func printRouteGroupDetails(cfg *config.RouteGroup, out io.Writer, rg *models.Ro
 
 	if len(rg.Endpoints) > 0 {
 		fmt.Fprintln(out)
-		if err := printEndpointTable(out, rg.Endpoints); err != nil {
+		if err := printEndpointTable(out, rg); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func getCluster(cluster string) string {
+	if cluster != "" {
+		return cluster
+	}
+	return "- (multi-cluster)"
 }
 
 func readiness(status *models.RouteGroupStatus) string {
@@ -119,20 +126,48 @@ func formatTTL(spec *models.RouteGroupSpec, deletionTime string) string {
 	return fmt.Sprintf("%s (%s)", local, timeago.NoMax(timeago.English).Format(t))
 }
 
-type endpointRow struct {
-	Name   string `sdtab:"ROUTEGROUP ENDPOINT"`
-	Target string `sdtab:"TARGET"`
-	URL    string `sdtab:"URL"`
+func printEndpointTable(out io.Writer, rg *models.RouteGroup) error {
+	if rg.Spec.Cluster == "" {
+		return printMultiClusterRGEndpointTable(out, rg.Endpoints)
+	}
+	return printRegularRGEndpointTable(out, rg.Endpoints)
 }
 
-func printEndpointTable(out io.Writer, endpoints []*models.RoutegroupsEndpointURL) error {
-	t := sdtab.New[endpointRow](out)
+func printRegularRGEndpointTable(out io.Writer, endpoints []*models.RoutegroupsEndpointURL) error {
+	type row struct {
+		Name   string `sdtab:"ROUTEGROUP ENDPOINT"`
+		Target string `sdtab:"TARGET"`
+		URL    string `sdtab:"URL"`
+	}
+
+	t := sdtab.New[row](out)
 	t.AddHeader()
 	for _, ep := range endpoints {
-		t.AddRow(endpointRow{
+		t.AddRow(row{
 			Name:   ep.Name,
 			Target: ep.Target,
 			URL:    ep.URL,
+		})
+	}
+	return t.Flush()
+}
+
+func printMultiClusterRGEndpointTable(out io.Writer, endpoints []*models.RoutegroupsEndpointURL) error {
+	type row struct {
+		Name    string `sdtab:"ROUTEGROUP ENDPOINT"`
+		Cluster string `sdtab:"CLUSTER"`
+		Target  string `sdtab:"TARGET"`
+		URL     string `sdtab:"URL"`
+	}
+
+	t := sdtab.New[row](out)
+	t.AddHeader()
+	for _, ep := range endpoints {
+		t.AddRow(row{
+			Name:    ep.Name,
+			Cluster: ep.Cluster,
+			Target:  ep.Target,
+			URL:     ep.URL,
 		})
 	}
 	return t.Flush()

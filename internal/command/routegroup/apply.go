@@ -51,8 +51,13 @@ func apply(cfg *config.RouteGroupApply, out, log io.Writer, args []string) error
 	}
 	resp := result.Payload
 
-	fmt.Fprintf(log, "Created routegroup %q (routing key: %s) in cluster %q.\n\n",
-		req.Name, resp.RoutingKey, req.Spec.Cluster)
+	if req.Spec.Cluster != "" {
+		fmt.Fprintf(log, "Created routegroup %q (routing key: %s) in cluster %q.\n\n",
+			req.Name, resp.RoutingKey, req.Spec.Cluster)
+	} else {
+		fmt.Fprintf(log, "Created multi-cluster routegroup %q (routing key: %s).\n\n",
+			req.Name, resp.RoutingKey)
+	}
 
 	if cfg.Wait {
 		// Wait for the routegroup to be ready.
@@ -79,7 +84,7 @@ func writeOutput(cfg *config.RouteGroupApply, out io.Writer, resp *models.RouteG
 		fmt.Fprintf(out, "\nDashboard page: %v\n\n", sbURL)
 
 		if len(resp.Endpoints) > 0 {
-			if err := printEndpointTable(out, resp.Endpoints); err != nil {
+			if err := printEndpointTable(out, resp); err != nil {
 				return err
 			}
 		}
