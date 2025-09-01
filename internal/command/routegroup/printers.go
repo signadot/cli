@@ -79,7 +79,7 @@ func getCluster(cluster string) string {
 	if cluster != "" {
 		return cluster
 	}
-	return "- (multi-cluster)"
+	return "(multi-cluster)"
 }
 
 func readiness(status *models.RouteGroupStatus) string {
