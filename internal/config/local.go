@@ -233,10 +233,17 @@ func (lp *LocalProxy) Validate() error {
 	if c == 0 {
 		return errors.New("you should specify one of '--sandbox', '--routegroup' or '--cluster'")
 	}
+	// Allow routeGroup + cluster combination
+	if c == 2 && lp.RouteGroup != "" && lp.Cluster != "" {
+		return lp.validateProxyMappings()
+	}
 	if c > 1 {
 		return errors.New("only one of '--sandbox', '--routegroup' or '--cluster' should be specified")
 	}
+	return lp.validateProxyMappings()
+}
 
+func (lp *LocalProxy) validateProxyMappings() error {
 	for i := range lp.ProxyMappings {
 		pm := &lp.ProxyMappings[i]
 		if err := pm.Validate(); err != nil {

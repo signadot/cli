@@ -2,6 +2,7 @@ package local
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -27,7 +28,7 @@ func newProxy(localConfig *config.Local) *cobra.Command {
 		Use:   "proxy [--sandbox SANDBOX|--routegroup ROUTEGROUP|--cluster CLUSTER] --map <target-protocol>://<target-addr>@<bind-addr> [--map <target-protocol>://<target-addr>@<bind-addr>]",
 		Short: "Proxy connections based on the specified mappings",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runProxy(cmd, cmd.OutOrStdout(), cfg, args)
+			return runProxy(cmd.OutOrStdout(), cfg)
 		},
 	}
 	cfg.AddFlags(cmd)
@@ -35,7 +36,7 @@ func newProxy(localConfig *config.Local) *cobra.Command {
 	return cmd
 }
 
-func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []string) error {
+func runProxy(out io.Writer, cfg *config.LocalProxy) error {
 	ctx := context.Background()
 
 	if err := cfg.InitLocalProxyConfig(); err != nil {
@@ -48,7 +49,8 @@ func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []
 	// define the cluster and routing key to use
 	var cluster, routingKey string
 
-	if cfg.Sandbox != "" {
+	switch {
+	case cfg.Sandbox != "":
 		// resolve the sandbox
 		params := sandboxes.NewGetSandboxParams().
 			WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
@@ -59,7 +61,8 @@ func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []
 
 		cluster = *resp.Payload.Spec.Cluster
 		routingKey = resp.Payload.RoutingKey
-	} else if cfg.RouteGroup != "" {
+
+	case cfg.RouteGroup != "":
 		// resolve the routegroup
 		params := routegroups.NewGetRoutegroupParams().
 			WithOrgName(cfg.Org).WithRoutegroupName(cfg.RouteGroup)
@@ -70,7 +73,21 @@ func runProxy(cmd *cobra.Command, out io.Writer, cfg *config.LocalProxy, args []
 
 		cluster = resp.Payload.Spec.Cluster
 		routingKey = resp.Payload.RoutingKey
-	} else {
+		if cluster == "" {
+			// this is a multi-cluster RG, the cluster must be explicitly defined
+			if cfg.Cluster == "" {
+				return errors.New("--cluster must be specified in multi-cluster route groups")
+			}
+			// validate the cluster
+			params := clusters.NewGetClusterParams().
+				WithOrgName(cfg.Org).WithClusterName(cfg.Cluster)
+			if _, err := cfg.Client.Cluster.GetCluster(params, nil); err != nil {
+				return err
+			}
+			cluster = cfg.Cluster
+		}
+
+	default:
 		// validate the cluster
 		params := clusters.NewGetClusterParams().
 			WithOrgName(cfg.Org).WithClusterName(cfg.Cluster)
