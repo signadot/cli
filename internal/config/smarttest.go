@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -43,6 +44,31 @@ type SmartTestRun struct {
 	Publish    bool
 	Timeout    time.Duration
 	NoWait     bool
+}
+
+func (smr *SmartTestRun) Validate() error {
+	c := 0
+	if smr.Cluster != "" {
+		c++
+	}
+	if smr.Sandbox != "" {
+		c++
+	}
+	if smr.RouteGroup != "" {
+		c++
+	}
+
+	if c == 0 {
+		return errors.New("you must specify one of '--cluster', '--sandbox' or '--route-group'")
+	}
+	// Allow routeGroup + cluster combination
+	if c == 2 && smr.RouteGroup != "" && smr.Cluster != "" {
+		return nil
+	}
+	if c > 1 {
+		return errors.New("only one of '--cluster', '--sandbox' or '--route-group' should be specified")
+	}
+	return nil
 }
 
 type TestExecLabels map[string]string
