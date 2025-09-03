@@ -74,7 +74,7 @@ func printJobTable(cfg *config.JobList, out io.Writer, jobs []*models.Job) error
 			Environment: environment,
 			StartedAt:   createdAt,
 			Duration:    duration,
-			Status:      job.Status.Attempts[0].Phase,
+			Status:      string(job.Status.Attempts[0].Phase),
 			CreatedAt:   getCreatedAt(job),
 		})
 	}
