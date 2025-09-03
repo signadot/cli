@@ -235,7 +235,7 @@ func printWarnings(out io.Writer, warnings []string) error {
 		return nil
 	}
 	for _, warning := range warnings {
-		_, err := fmt.Fprintf(out, "WARNING %s\n", warning)
+		_, err := fmt.Fprintf(out, "WARNING: %s\n", warning)
 		if err != nil {
 			return err
 		}
