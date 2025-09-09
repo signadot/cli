@@ -59,13 +59,13 @@ func (m *rootManager) Run(ctx context.Context) error {
 
 	// Run the API server
 	if err := m.runAPIServer(ctx); err != nil {
-		return err
+		return fmt.Errorf("error running root-manager apiserver: %w", err)
 	}
 
 	// start the ip mapping
 	ipMap, err := ipmap.NewIPMap(m.ciConfig.VirtualIPNet)
 	if err != nil {
-		return err
+		return fmt.Errorf("error creating ipmap: %w", err)
 	}
 
 	// Run the sandbox manager
@@ -102,9 +102,10 @@ func (m *rootManager) Run(ctx context.Context) error {
 }
 
 func (m *rootManager) runAPIServer(ctx context.Context) error {
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.ciConfig.LocalNetPort))
+	addr := fmt.Sprintf(":%d", m.ciConfig.LocalNetPort)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("error running api server: couldnot listen on %s: %w", addr, err)
 	}
 	go m.grpcServer.Serve(ln)
 	return nil
@@ -143,7 +144,9 @@ func (m *rootManager) runEtcHostsService(ctx context.Context, socks5Addr string,
 func (m *rootManager) stopEtcHostsService() error {
 	etcHostsSVC := m.root.getEtcHostsService()
 	if etcHostsSVC != nil {
-		return etcHostsSVC.Close()
+		if err := etcHostsSVC.Close(); err != nil {
+			m.log.Warn("error closing etc hosts svc", "error", err)
+		}
 	}
 	return nil
 }

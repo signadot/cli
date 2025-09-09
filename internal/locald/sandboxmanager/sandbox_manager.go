@@ -97,11 +97,11 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		// Start the port-forward
 		restConfig, err := m.connConfig.GetRESTConfig()
 		if err != nil {
-			return err
+			return fmt.Errorf("error getting RESTConfig for port-forward: %w", err)
 		}
 		clientSet, err := kubernetes.NewForConfig(restConfig)
 		if err != nil {
-			return err
+			return fmt.Errorf("error getting k8x clientset for port-forward: %w", err)
 		}
 		m.portForward = portforward.NewPortForward(
 			runCtx,
@@ -112,7 +112,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		getHeaders := func() (http.Header, error) {
 			headers, err := auth.GetHeaders()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error getting auth headers: %w", err)
 			}
 			if len(headers) == 0 && m.ciConfig.APIKey != "" {
 				// give precedence to auth info coming from the keying store
@@ -131,14 +131,14 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 			GetInjectHeaders: getHeaders,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("error creating control plane proxy: %w", err)
 		}
 		m.ctlPlaneProxy = ctlPlaneProxy
 		go m.ctlPlaneProxy.Run(ctx)
 	default:
 		// Create the tunnel API client
 		if err := m.setTunnelAPIClient(m.connConfig.ProxyAddress); err != nil {
-			return err
+			return fmt.Errorf("error creating tunnel api client: %w", err)
 		}
 	}
 
@@ -157,7 +157,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 
 	// Run the gRPC server
 	if err := m.runAPIServer(); err != nil {
-		return err
+		return fmt.Errorf("error running gRPC server: %w", err)
 	}
 
 	if m.portForward != nil {
@@ -213,9 +213,10 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 }
 
 func (m *sandboxManager) runAPIServer() error {
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", m.ciConfig.APIPort))
+	addr := fmt.Sprintf(":%d", m.ciConfig.APIPort)
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("error listening on %s: %w", addr, err)
 	}
 	go m.grpcServer.Serve(ln)
 	return nil
