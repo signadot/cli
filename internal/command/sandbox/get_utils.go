@@ -222,7 +222,20 @@ func printForbidden(out io.Writer, forbidden []k8senv.Forbidden) error {
 	}
 	for i := range forbidden {
 		f := &forbidden[i]
-		_, err = fmt.Fprintf(out, "\t- %s %s/%s", f.Kind, f.Namespace, f.Name)
+		_, err = fmt.Fprintf(out, "\t- %s %s/%s\n", f.Kind, f.Namespace, f.Name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func printWarnings(out io.Writer, warnings []string) error {
+	if len(warnings) == 0 {
+		return nil
+	}
+	for _, warning := range warnings {
+		_, err := fmt.Fprintf(out, "WARNING: %s\n", warning)
 		if err != nil {
 			return err
 		}
