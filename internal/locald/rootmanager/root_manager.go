@@ -105,7 +105,7 @@ func (m *rootManager) runAPIServer(ctx context.Context) error {
 	addr := fmt.Sprintf(":%d", m.ciConfig.LocalNetPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return fmt.Errorf("error running api server: couldnot listen on %s: %w", addr, err)
+		return fmt.Errorf("error running api server: could not listen on %s: %w", addr, err)
 	}
 	go m.grpcServer.Serve(ln)
 	return nil
