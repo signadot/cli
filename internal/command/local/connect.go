@@ -97,6 +97,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		ProxyURL:         cfg.ProxyURL,
 		APIKey:           cfg.GetAPIKey(),
 		Debug:            cfg.LocalConfig.Debug,
+		ConnectTimeout:   cfg.WaitTimeout.String(),
 	}
 	if cfg.DumpCIConfig {
 		d, _ := yaml.Marshal(ciConfig)

@@ -55,6 +55,11 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		if err != nil {
 			return fmt.Errorf("locald --daemon: error finding executable path for %s: %w", os.Args[0], err)
 		}
+		waitTimeout, err := time.ParseDuration(cfg.ConnectInvocationConfig.ConnectTimeout)
+		if err != nil {
+			return fmt.Errorf("locald --daemon: invalid wait timeout %q: %w", cfg.ConnectInvocationConfigFile, err)
+
+		}
 		args := []string{"locald"}
 		env := []string{
 			fmt.Sprintf("HOME=%s", ciConfig.User.UIDHome),
@@ -78,7 +83,7 @@ func run(cfg *config.LocalDaemon, args []string) error {
 			return fmt.Errorf("locald %s --daemon: error starting command binary=%s args=%v: %w", mgr(cfg), binary, cmd.Args, err)
 		}
 		// and check to see that it succeeded
-		if err := processes.WaitReady(pidFile, 30*time.Second, cmd.Process, log); err != nil {
+		if err := processes.WaitReady(pidFile, waitTimeout, cmd.Process, log); err != nil {
 			// we can't return an error here because signadot local connect
 			// won't get cleaned up but will continue running and can say that it
 			// is working (for example airlock tool slows this down).
