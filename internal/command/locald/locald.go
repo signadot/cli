@@ -39,12 +39,12 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	signal.Ignore(syscall.SIGHUP)
 
 	if err := cfg.InitLocalDaemon(); err != nil {
-		return err
+		return fmt.Errorf("could not init local daemon config: %w", err)
 	}
 	ciConfig := cfg.ConnectInvocationConfig
 	log, err := getLogger(ciConfig, cfg.RootManager)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not get logger: %w", err)
 	}
 	pidFile := ciConfig.GetPIDfile(cfg.RootManager)
 
@@ -53,7 +53,12 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		// it is is independent of PATH.
 		binary, err := exec.LookPath(os.Args[0])
 		if err != nil {
-			return err
+			return fmt.Errorf("locald --daemon: error finding executable path for %s: %w", os.Args[0], err)
+		}
+		waitTimeout, err := time.ParseDuration(cfg.ConnectInvocationConfig.ConnectTimeout)
+		if err != nil {
+			return fmt.Errorf("locald --daemon: invalid wait timeout %q: %w", cfg.ConnectInvocationConfigFile, err)
+
 		}
 		args := []string{"locald"}
 		env := []string{
@@ -75,15 +80,21 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		cmd.Env = env
 
 		if err := cmd.Start(); err != nil {
-			return err
+			return fmt.Errorf("locald %s --daemon: error starting command binary=%s args=%v: %w", mgr(cfg), binary, cmd.Args, err)
 		}
 		// and check to see that it succeeded
-		return processes.WaitReady(pidFile, time.Second, cmd.Process, log)
+		if err := processes.WaitReady(pidFile, waitTimeout, cmd.Process, log); err != nil {
+			// we can't return an error here because signadot local connect
+			// won't get cleaned up but will continue running and can say that it
+			// is working (for example airlock tool slows this down).
+			log.Warn(fmt.Sprintf("error checking locald %s --daemon sub-process ready", mgr(cfg)), "binary", binary, "args", cmd.Args)
+		}
+		return nil
 	}
 
 	// write our pidfile
 	if err := processes.WritePIDFile(pidFile); err != nil {
-		return err
+		return fmt.Errorf("locald %s error writing pid file: %w", mgr(cfg), err)
 	}
 	// make sure pidfile perms are correct
 	if err := os.Chown(pidFile, ciConfig.User.UID, ciConfig.User.GID); err != nil {
@@ -122,4 +133,11 @@ func getLogger(ciConfig *config.ConnectInvocationConfig, isRootManager bool) (*s
 		Level: logLevel,
 	}))
 	return log, nil
+}
+
+func mgr(cfg *config.LocalDaemon) string {
+	if cfg.RootManager {
+		return "root-manager"
+	}
+	return "sandbox-manager"
 }

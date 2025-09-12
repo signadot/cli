@@ -97,6 +97,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		ProxyURL:         cfg.ProxyURL,
 		APIKey:           cfg.GetAPIKey(),
 		Debug:            cfg.LocalConfig.Debug,
+		ConnectTimeout:   cfg.WaitTimeout.String(),
 	}
 	if cfg.DumpCIConfig {
 		d, _ := yaml.Marshal(ciConfig)
@@ -110,10 +111,10 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	return runConnectImpl(out, logger, cfg, ciConfig)
+	return runConnectImpl(out, cmd.ErrOrStderr(), logger, cfg, ciConfig)
 }
 
-func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalConnect, ciConfig *config.ConnectInvocationConfig) error {
+func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config.LocalConnect, ciConfig *config.ConnectInvocationConfig) error {
 	// Check if the corresponding manager is already running
 	// this gives fail fast response and is safe to return
 	// an error here, but the check is _not_ used to assume
@@ -190,10 +191,10 @@ func runConnectImpl(out io.Writer, log *slog.Logger, localConfig *config.LocalCo
 		fmt.Fprintf(out, "you can check its status with: %s\n", white("signadot local status"))
 		return nil
 	}
-	return waitConnect(localConfig, out)
+	return waitConnect(localConfig, out, errOut)
 }
 
-func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
+func waitConnect(localConfig *config.LocalConnect, out, errOut io.Writer) error {
 	var (
 		ciConfig    *config.ConnectInvocationConfig
 		ticker      = time.NewTicker(time.Second / 10)
@@ -207,7 +208,9 @@ func waitConnect(localConfig *config.LocalConnect, out io.Writer) error {
 	for {
 		status, err = sbmgr.GetStatus()
 		if err != nil {
-			fmt.Fprintf(out, "error getting status: %s", err.Error())
+			if localConfig.Debug {
+				fmt.Fprintf(errOut, "error getting status: %s\n", err.Error())
+			}
 			connectErrs = []error{err}
 			goto tick
 		}
