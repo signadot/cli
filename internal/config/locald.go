@@ -78,6 +78,7 @@ type ConnectInvocationConfig struct {
 	ProxyURL         string                       `json:"proxyURL"`
 	APIKey           string                       `json:"apiKey"`
 	Debug            bool                         `json:"debug"`
+	ConnectTimeout   string                       `json:"connectTimeout"`
 }
 
 type ConnectInvocationUser struct {

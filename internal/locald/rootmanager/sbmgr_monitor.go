@@ -65,6 +65,9 @@ func (mon *sbmgrMonitor) getRunSandboxCmd(ciConfig *config.ConnectInvocationConf
 		fmt.Sprintf("PATH=%s", ciConfig.User.UIDPath),
 		fmt.Sprintf("SIGNADOT_LOCAL_CONNECT_INVOCATION_CONFIG=%s", string(ciBytes)),
 	)
+	if ciConfig.Debug {
+		mon.log.Debug("root-manager launch sbmgr", "pid", os.Getpid(), "uid", os.Getuid(), "euid", os.Geteuid(), "binary", binary, "args", cmd.Args)
+	}
 	return cmd, nil
 }
 
@@ -152,7 +155,7 @@ func (mon *sbmgrMonitor) stop() error {
 	}
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		return err
+		return fmt.Errorf("root-manager sbmgr-monitor: could not find process %d: %w", pid, err)
 	}
 
 	// Establish a connection with sandbox manager

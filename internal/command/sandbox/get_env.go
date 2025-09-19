@@ -86,11 +86,11 @@ func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error
 	if err := printForbidden(errOut, containerEnv.Forbidden); err != nil {
 		return err
 	}
-
-	resEnv = k8senv.ResolveEnv(ctx, resEnv)
-	if err != nil {
+	if err := printWarnings(errOut, containerEnv.Warnings); err != nil {
 		return err
 	}
+
+	resEnv = k8senv.ResolveEnv(ctx, resEnv)
 
 	// print output
 	return printEnv(out, cfg.OutputFormat, resEnv)

@@ -18,7 +18,7 @@ func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string)
 		"locald-component", "sandbox-manager",
 		"pid", os.Getpid()))
 	if err != nil {
-		return err
+		return fmt.Errorf("locald sandbox-manager error creating sandbox-manager: %w", err)
 	}
 	return sbMgr.Run(ctx)
 }
