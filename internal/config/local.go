@@ -323,3 +323,50 @@ func (lp *LocalProxy) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&lp.PProfAddr, "pprof", "", "pprof listen address")
 	cmd.Flags().MarkHidden("pprof")
 }
+
+type LocalOverride struct {
+	*Local
+}
+
+type LocalOverrideCreate struct {
+	*LocalOverride
+
+	// Flags
+	Sandbox string
+	To      string
+	Detach  bool
+}
+
+func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "", "sandbox to override traffic for")
+	cmd.Flags().StringVar(&lo.To, "to", "", "target address to redirect traffic to (e.g., localhost:9999)")
+	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false, "run in detached mode, preserving changes after session termination")
+}
+
+func (lo *LocalOverrideCreate) Validate() error {
+	if lo.Sandbox == "" {
+		return errors.New("--sandbox is required")
+	}
+	if lo.To == "" {
+		return errors.New("--to is required")
+	}
+	return nil
+}
+
+type LocalOverrideDelete struct {
+	*LocalOverride
+}
+
+func (lod *LocalOverrideDelete) AddFlags(cmd *cobra.Command) {
+}
+
+type LocalOverrideList struct {
+	*LocalOverride
+
+	// Flags
+	Cluster string
+}
+
+func (lol *LocalOverrideList) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&lol.Cluster, "cluster", "", "target cluster")
+}
