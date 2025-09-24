@@ -84,3 +84,48 @@ func (c *SandboxGetEnv) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Local, "local", "l", "", "local workload name (default to first)")
 	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container")
 }
+
+type SandboxCreate struct {
+	*Sandbox
+
+	// Flags
+	Cluster            string
+	KubernetesWorkload string
+	TTL                string
+	Wait               bool
+	WaitTimeout        time.Duration
+}
+
+func (c *SandboxCreate) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
+	cmd.Flags().StringVar(&c.KubernetesWorkload, "kubernetes-workload", "", "Kubernetes workload in format kind/namespace/name (e.g., deploy/default/my-app)")
+	cmd.Flags().StringVar(&c.TTL, "ttl", "", "Time to live for the sandbox (e.g., 20h, 30m, 1d)")
+	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for the sandbox status to be Ready before returning")
+	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout when waiting for the sandbox to be Ready")
+}
+
+type SandboxSetImage struct {
+	*Sandbox
+
+	// Flags
+	Workload string
+	Image    string
+}
+
+func (c *SandboxSetImage) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.Workload, "workload", "", "workload name to set image for")
+	cmd.MarkFlagRequired("workload")
+}
+
+type SandboxSetEnv struct {
+	*Sandbox
+
+	// Flags
+	Workload string
+	EnvVars  []string
+}
+
+func (c *SandboxSetEnv) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.Workload, "workload", "", "workload name to set environment variables for")
+	cmd.MarkFlagRequired("workload")
+}
