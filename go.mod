@@ -106,7 +106,6 @@ require (
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
@@ -155,4 +154,4 @@ require (
 // Used for local dev
 // replace github.com/signadot/libconnect => ../libconnect/
 
-// replace github.com/signadot/go-sdk => ../go-sdk
+replace github.com/signadot/go-sdk => ../go-sdk
