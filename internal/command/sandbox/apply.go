@@ -50,7 +50,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	}
 
 	var status *sbmapi.StatusResponse
-	if len(req.Spec.Local) > 0 {
+	if len(req.Spec.Local) > 0 || req.Spec.Routing != nil && len(req.Spec.Routing.Forwards) > 0 {
 		// Confirm sandboxmanager is running and connected to the right cluster
 		status, err = sbmgr.GetStatus()
 		if err != nil {
