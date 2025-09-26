@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"github.com/fatih/color"
+	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -54,6 +57,16 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 
 	// Initialize API client
 	if err := cfg.API.InitAPIConfig(); err != nil {
+		return err
+	}
+
+	sandbox, err := getSandbox(cfg)
+	if err != nil {
+		return err
+	}
+
+	sandbox, err = createSandboxWithMiddleware(cfg, sandbox)
+	if err != nil {
 		return err
 	}
 
@@ -104,4 +117,34 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 	}
 
 	return nil
+}
+
+func getSandbox(cfg *config.LocalOverrideCreate) (*models.Sandbox, error) {
+	sandboxParams := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
+
+	resp, err := cfg.Client.Sandboxes.
+		GetSandbox(sandboxParams, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Payload, nil
+}
+
+func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox) (*models.Sandbox, error) {
+	sb := builder.BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox))
+	sb.AddOverrideMiddleware(80, cfg.To, "locations")
+
+	sbData := sb.Build()
+
+	sbParams := sandboxes.
+		NewApplySandboxParams().
+		WithOrgName(cfg.Org).
+		WithSandboxName(cfg.Sandbox).
+		WithData(&sbData)
+
+	resp, err := cfg.Client.Sandboxes.ApplySandbox(sbParams, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Payload, nil
 }
