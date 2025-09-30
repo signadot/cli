@@ -110,20 +110,20 @@ func waitForReady(cfg *config.RouteGroupApply, out io.Writer, rg *models.RouteGr
 		NewPoll().
 		WithTimeout(cfg.WaitTimeout)
 
-	err := retry.Until(func() bool {
+	err := retry.Until(func() poll.PollingState {
 		result, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.
 			spin.Messagef("error: %v", err)
-			return false
+			return poll.KeepPolling
 		}
 		rg = result.Payload
 		if !rg.Status.Ready {
 			spin.Messagef("Not Ready: %s", rg.Status.Message)
-			return false
+			return poll.KeepPolling
 		}
 		spin.StopMessagef("Ready: %s", rg.Status.Message)
-		return true
+		return poll.StopPolling
 	})
 	if err != nil {
 		spin.StopFail()
