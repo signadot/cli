@@ -6,6 +6,8 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
+	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -39,20 +41,14 @@ func runList(out io.Writer, cfg *config.LocalOverrideList) error {
 		return err
 	}
 
-	// TODO: Implement actual override listing logic
-	// This is a skeleton implementation
+	sandboxes, err := getSandboxes(cfg)
+	if err != nil {
+		return err
+	}
 
-	// Create sample overrides for demonstration
-	overrides := []*Override{
-		{
-			Name:      "my-override",
-			Sandbox:   "test",
-			Target:    "localhost:5000",
-			Cluster:   cfg.Cluster,
-			CreatedAt: "2024-01-15T10:30:00Z",
-			Status:    "active",
-			Detached:  false,
-		},
+	overrides, err := getOverridesFromSandboxes(sandboxes)
+	if err != nil {
+		return err
 	}
 
 	switch cfg.OutputFormat {
@@ -65,4 +61,40 @@ func runList(out io.Writer, cfg *config.LocalOverrideList) error {
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
+}
+
+func getSandboxes(cfg *config.LocalOverrideList) ([]*models.Sandbox, error) {
+	resp, err := cfg.Client.Sandboxes.
+		ListSandboxes(sandboxes.NewListSandboxesParams().
+			WithOrgName(cfg.Org), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Payload, nil
+}
+
+func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*Override, error) {
+	overrides := make([]*Override, 0)
+	for _, sandbox := range sandboxes {
+
+		if sandbox.Spec.Routing == nil {
+			continue
+		}
+
+		if sandbox.Spec.Routing.Forwards == nil {
+			continue
+		}
+
+		for _, override := range sandbox.Spec.Routing.Forwards {
+			overrides = append(overrides, &Override{
+				Name:      override.Name,
+				Sandbox:   sandbox.Name,
+				ToLocal:   override.ToLocal,
+				CreatedAt: sandbox.CreatedAt,
+			})
+		}
+	}
+
+	return overrides, nil
 }

@@ -14,17 +14,14 @@ import (
 type Override struct {
 	Name      string `json:"name"`
 	Sandbox   string `json:"sandbox"`
-	Target    string `json:"target"`
-	Cluster   string `json:"cluster"`
+	ToLocal   string `json:"toLocal"`
 	CreatedAt string `json:"createdAt"`
-	Status    string `json:"status"`
-	Detached  bool   `json:"detached"`
 }
 
 type overrideRow struct {
 	Name    string `sdtab:"NAME"`
 	Target  string `sdtab:"TARGET"`
-	Status  string `sdtab:"STATUS"`
+	ToLocal string `sdtab:"TO"`
 	Created string `sdtab:"CREATED"`
 }
 
@@ -41,21 +38,13 @@ func printOverrideTable(out io.Writer, overrides []*Override) error {
 
 		t.AddRow(overrideRow{
 			Name:    override.Name,
-			Target:  fmt.Sprintf("sandbox=%s -> %s", override.Sandbox, override.Target),
-			Status:  getOverrideStatus(override),
+			Target:  fmt.Sprintf("sandbox=%s", override.Sandbox),
+			ToLocal: override.ToLocal,
 			Created: timeago.NoMax(timeago.English).Format(createdAt),
 		})
 	}
 
 	return t.Flush()
-}
-
-// getOverrideStatus returns a human-readable status for the override
-func getOverrideStatus(override *Override) string {
-	if override.Detached {
-		return "detached"
-	}
-	return "active"
 }
 
 // printOverrideStatus prints the status of an override operation
