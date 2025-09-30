@@ -6,8 +6,13 @@ import (
 	"time"
 )
 
+type PollingState int
+
 const (
 	pollDelay = 1 * time.Second
+
+	KeepPolling PollingState = iota
+	StopPolling
 )
 
 type Poll struct {
@@ -39,7 +44,7 @@ func (p *Poll) WithResetOnLoop(resetOnLoop bool) *Poll {
 
 // UntilWithError polls until the given function returns true, or the timeout expires.
 // But also can return error so can be pass down to handle proper errors
-func (p *Poll) UntilWithError(fn func() (bool, error)) error {
+func (p *Poll) UntilWithError(fn func() (PollingState, error)) error {
 	start := time.Now()
 
 	for {
@@ -47,8 +52,8 @@ func (p *Poll) UntilWithError(fn func() (bool, error)) error {
 			return fmt.Errorf("timed out after %v", p.timeout)
 		}
 
-		ok, err := fn()
-		if ok {
+		state, err := fn()
+		if state == StopPolling {
 			return nil
 		}
 
@@ -65,8 +70,8 @@ func (p *Poll) UntilWithError(fn func() (bool, error)) error {
 }
 
 // Until polls until the given function returns true, or the timeout expires.
-func (p *Poll) Until(fn func() bool) error {
-	return p.UntilWithError(func() (bool, error) {
+func (p *Poll) Until(fn func() PollingState) error {
+	return p.UntilWithError(func() (PollingState, error) {
 		return fn(), nil
 	})
 }
