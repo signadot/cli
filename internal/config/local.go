@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"regexp"
 	"time"
@@ -22,24 +21,12 @@ const (
 type Local struct {
 	*API
 
-	ProxyURL string
 	// initialized from ~/.signadot/config.yaml
 	LocalConfig *config.Config
 }
 
-func (l *Local) InitLocalProxyConfig() error {
-	var err error
-	if err = l.API.InitAPIConfig(); err != nil {
-		return err
-	}
-	if l.ProxyURL, err = l.GetProxyURL(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (l *Local) InitLocalConfig() error {
-	if err := l.InitLocalProxyConfig(); err != nil {
+	if err := l.API.InitAPIConfig(); err != nil {
 		return err
 	}
 
@@ -96,18 +83,6 @@ func (l *Local) GetConnectionConfig(cluster string) (*config.ConnectionConfig, e
 		}
 	}
 	return nil, fmt.Errorf("no such cluster %q, expecting one of %v", cluster, clusters)
-}
-
-func (l *Local) GetProxyURL() (string, error) {
-	// Allow Proxy URL to be overridden (e.g. for talking to dev/staging).
-	if proxyURL := viper.GetString("proxy_url"); proxyURL != "" {
-		_, err := url.Parse(proxyURL)
-		if err != nil {
-			return "", fmt.Errorf("invalid proxy_url: %w", err)
-		}
-		return proxyURL, nil
-	}
-	return "https://proxy.signadot.com", nil
 }
 
 func (l *Local) GetAPIKey() string {

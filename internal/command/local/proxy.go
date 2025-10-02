@@ -39,7 +39,7 @@ func newProxy(localConfig *config.Local) *cobra.Command {
 func runProxy(out io.Writer, cfg *config.LocalProxy) error {
 	ctx := context.Background()
 
-	if err := cfg.InitLocalProxyConfig(); err != nil {
+	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
 	if err := cfg.Validate(); err != nil {

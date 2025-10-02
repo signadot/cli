@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/signadot/cli/internal/auth"
@@ -29,6 +30,7 @@ type API struct {
 	MaskedAPIKey    string
 	APIURL          string
 	ArtifactsAPIURL string
+	ProxyURL        string
 
 	// Runtime values
 	Client *client.SignadotAPI `json:"-"`
@@ -55,6 +57,7 @@ func (a *API) marshal(marshaller func(interface{}) ([]byte, error)) ([]byte, err
 		Org          string
 		MaskedAPIKey string
 		APIURL       string
+		ProxyURL     string
 	}
 	t := &T{
 		Debug:        a.Debug,
@@ -62,6 +65,7 @@ func (a *API) marshal(marshaller func(interface{}) ([]byte, error)) ([]byte, err
 		Org:          a.Org,
 		MaskedAPIKey: a.MaskedAPIKey,
 		APIURL:       a.APIURL,
+		ProxyURL:     a.ProxyURL,
 	}
 	return marshaller(t)
 }
@@ -83,7 +87,9 @@ func (a *API) init() error {
 	}
 
 	// Init basic settings and return
-	a.basicInit()
+	if err := a.basicInit(); err != nil {
+		return err
+	}
 
 	if authInfo.Source == auth.KeyringAuthSource {
 		if err := a.checkKeyringAuth(authInfo); err != nil {
@@ -156,17 +162,28 @@ func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAut
 	return authInfo, nil
 }
 
-func (a *API) basicInit() {
+func (a *API) basicInit() error {
 	if apiURL := viper.GetString("api_url"); apiURL != "" {
 		a.APIURL = apiURL
 	} else {
 		a.APIURL = "https://api.signadot.com"
 	}
 
+	if proxyURL := viper.GetString("proxy_url"); proxyURL != "" {
+		_, err := url.Parse(proxyURL)
+		if err != nil {
+			return fmt.Errorf("invalid proxy_url: %w", err)
+		}
+		a.ProxyURL = proxyURL
+	} else {
+		a.ProxyURL = "https://proxy.signadot.com"
+	}
+
 	// Allow defining a custom URL for artifacts (useful for local development).
 	// Empty means using the API URL from above for accessing artifacts.
 	a.ArtifactsAPIURL = viper.GetString("artifacts_api_url")
 	a.UserAgent = fmt.Sprintf("signadot-cli:%s", buildinfo.Version)
+	return nil
 }
 
 func (a *API) InitAPIConfig() error {
@@ -178,19 +195,25 @@ func (a *API) InitAPIConfig() error {
 }
 
 func (a *API) InitUnauthAPIConfig() error {
-	a.basicInit()
+	if err := a.basicInit(); err != nil {
+		return err
+	}
 	return a.InitAPITransport()
 }
 
 func (a *API) InitAPIConfigWithApiKey(apiKey string) error {
 	a.ApiKey = apiKey
-	a.basicInit()
+	if err := a.basicInit(); err != nil {
+		return err
+	}
 	return a.InitAPITransport()
 }
 
 func (a *API) InitAPIConfigWithBearerToken(bearerToken string) error {
 	a.BearerToken = bearerToken
-	a.basicInit()
+	if err := a.basicInit(); err != nil {
+		return err
+	}
 	return a.InitAPITransport()
 }
 
