@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/sandboxes"
@@ -74,26 +75,20 @@ func getSandboxes(cfg *config.LocalOverrideList) ([]*models.Sandbox, error) {
 	return resp.Payload, nil
 }
 
-func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*Override, error) {
-	overrides := make([]*Override, 0)
+func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForward, error) {
+	overrides := make([]*sandboxWithForward, 0)
 	for _, sandbox := range sandboxes {
 
-		if sandbox.Spec.Routing == nil {
+		forwards := builder.GetAvailableForwardForOverrideMiddlewares(*sandbox)
+		if len(forwards) == 0 {
 			continue
 		}
 
-		if sandbox.Spec.Routing.Forwards == nil {
-			continue
-		}
+		overrides = append(overrides, &sandboxWithForward{
+			Sandbox:  sandbox.Name,
+			Forwards: forwards,
+		})
 
-		for _, override := range sandbox.Spec.Routing.Forwards {
-			overrides = append(overrides, &Override{
-				Name:      override.Name,
-				Sandbox:   sandbox.Name,
-				ToLocal:   override.ToLocal,
-				CreatedAt: sandbox.CreatedAt,
-			})
-		}
 	}
 
 	return overrides, nil

@@ -93,10 +93,10 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	// err = waitForLocalReady(out, cfg)
-	// if err != nil {
-	// 	return err
-	// }
+	err = waitForLocalReady(out, cfg)
+	if err != nil {
+		return err
+	}
 
 	if cfg.Detach {
 		if len(workloadNames) == 1 {

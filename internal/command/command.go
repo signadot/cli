@@ -16,6 +16,7 @@ import (
 	"github.com/signadot/cli/internal/command/logs"
 	"github.com/signadot/cli/internal/command/resourceplugin"
 	"github.com/signadot/cli/internal/command/routegroup"
+	"github.com/signadot/cli/internal/command/sandbox"
 	"github.com/signadot/cli/internal/command/smarttest"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
@@ -40,6 +41,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		auth.New(cfg),
 		cluster.New(cfg),
+		sandbox.New(cfg),
 		routegroup.New(cfg),
 		resourceplugin.New(cfg),
 		local.New(cfg),

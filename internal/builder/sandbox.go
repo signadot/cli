@@ -291,3 +291,51 @@ func getMaxForwardIndex(forwards []*models.SandboxesForward) int {
 	}
 	return maxIndex
 }
+
+// GetAvailableOverrideMiddlewares returns all available override middlewares from a sandbox
+func GetAvailableForwardForOverrideMiddlewares(sandbox models.Sandbox) []*models.SandboxesForward {
+	var overrides []*models.SandboxesForward
+
+	// Check if sandbox has middleware and routing
+	if sandbox.Spec.Middleware == nil || sandbox.Spec.Routing == nil || sandbox.Spec.Routing.Forwards == nil {
+		return overrides
+	}
+
+	// Create a map of forwards for quick lookup
+	forwardMap := make(map[string]*models.SandboxesForward)
+	for _, forward := range sandbox.Spec.Routing.Forwards {
+		forwardMap[forward.Name] = forward
+	}
+
+	// Find all override middlewares
+	for _, middleware := range sandbox.Spec.Middleware {
+		if middleware.Name != string(OverrideMiddleware) {
+			continue
+		}
+
+		// Extract workload names from middleware matches
+		var workloads []string
+		for _, match := range middleware.Match {
+			if match.Workload != "" {
+				workloads = append(workloads, match.Workload)
+			}
+		}
+
+		// Find the forward referenced by this middleware
+		for _, arg := range middleware.Args {
+			if arg.Name == "overrideHost" && arg.ValueFrom != nil && arg.ValueFrom.Forward != "" {
+				forwardName := arg.ValueFrom.Forward
+				if forward, exists := forwardMap[forwardName]; exists {
+					overrides = append(overrides, &models.SandboxesForward{
+						Name:        forwardName,
+						Port:        forward.Port,
+						ToLocal:     forward.ToLocal,
+						AppProtocol: forward.AppProtocol,
+					})
+				}
+			}
+		}
+	}
+
+	return overrides
+}
