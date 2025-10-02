@@ -1,11 +1,16 @@
 package builder
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/models"
+)
+
+var (
+	ErrOverrideNotFound = errors.New("override not found in the sandbox")
 )
 
 type SandboxBuilder struct {
@@ -74,7 +79,7 @@ func (sb *SandboxBuilder) HasError() bool {
 type MiddlewareName string
 
 const (
-	AltflowMiddleware MiddlewareName = "altflow"
+	OverrideMiddleware MiddlewareName = "override"
 )
 
 func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, workloadNames ...string) *SandboxBuilder {
@@ -82,13 +87,26 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 		return sb
 	}
 
+	spec := sb.internal.Spec
+
+	if spec.Routing == nil {
+		spec.Routing = &models.SandboxesRouting{
+			Forwards: make([]*models.SandboxesForward, 0),
+		}
+	}
+
+	nextForwardIndex := getNextForwardIndex(spec.Routing.Forwards)
+	forwardName := "override-" + strconv.Itoa(nextForwardIndex)
+
 	hostArg := &models.SandboxesArgument{
-		Name:  "altHost",
-		Value: sb.internal.Name,
+		Name: "overrideHost",
+		ValueFrom: &models.SandboxesArgValueFrom{
+			Forward: forwardName,
+		},
 	}
 
 	mw := &models.SandboxesMiddleware{
-		Name:  string(AltflowMiddleware),
+		Name:  string(OverrideMiddleware),
 		Match: make([]*models.SandboxesMiddlewareMatch, 0, len(workloadNames)),
 		Args:  []*models.SandboxesArgument{hostArg},
 	}
@@ -99,21 +117,12 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 		})
 	}
 
-	spec := sb.internal.Spec
 	if spec.Middleware == nil {
 		spec.Middleware = make([]*models.SandboxesMiddleware, 0)
 	}
 
 	spec.Middleware = append(spec.Middleware, mw)
 
-	if spec.Routing == nil {
-		spec.Routing = &models.SandboxesRouting{
-			Forwards: make([]*models.SandboxesForward, 0),
-		}
-	}
-
-	nextForwardIndex := getNextForwardIndex(spec.Routing.Forwards)
-	forwardName := "override-" + strconv.Itoa(nextForwardIndex)
 	forwardRouting := &models.SandboxesForward{
 		Name:    forwardName,
 		Port:    worklaodPort,
@@ -127,9 +136,17 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 	return sb
 }
 
+// DeleteOverrideMiddleware deletes the override middleware and the forward by name
+// The condition to delete the override is that the overrideName needs to have a valid forward
+// and a valid middleware with "overrideHost" with valueFrom.Forward as the arg value
 func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *SandboxBuilder {
 	if sb.checkError() {
 		return sb
+	}
+
+	// Check if the overrideName is a valid forward name
+	if !hasOverrideMiddleware(sb.internal.Spec.Middleware, sb.internal.Spec.Routing.Forwards, overrideName) {
+		return sb.setError(ErrOverrideNotFound)
 	}
 
 	spec := sb.internal.Spec
@@ -151,6 +168,43 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	return sb
 }
 
+func hasOverrideMiddleware(middlewares []*models.SandboxesMiddleware, forwards []*models.SandboxesForward, overrideName string) bool {
+	filteredMiddlewares := make([]*models.SandboxesMiddleware, 0)
+	for _, middleware := range middlewares {
+		if middleware.Name == string(OverrideMiddleware) {
+			filteredMiddlewares = append(filteredMiddlewares, middleware)
+		}
+	}
+
+	if len(filteredMiddlewares) == 0 {
+		return false
+	}
+
+	middlewareMetForward := false
+	// Check if any middleware contains the overrideName as the valueFrom.Forward
+	for _, middleware := range filteredMiddlewares {
+		for _, arg := range middleware.Args {
+			if arg.ValueFrom != nil && arg.ValueFrom.Forward == overrideName {
+				middlewareMetForward = true
+				break
+			}
+		}
+	}
+
+	if !middlewareMetForward {
+		return false
+	}
+
+	// Check if any routing.forward has the overrideName as the name
+	for _, forward := range forwards {
+		if forward.Name == overrideName {
+			return true
+		}
+	}
+
+	return false
+}
+
 func removeForwardByName(forwards []*models.SandboxesForward, name string) []*models.SandboxesForward {
 	newForwards := make([]*models.SandboxesForward, 0)
 	for _, forward := range forwards {
@@ -162,28 +216,35 @@ func removeForwardByName(forwards []*models.SandboxesForward, name string) []*mo
 }
 
 func removeMiddleareByValueFrom(middlewares []*models.SandboxesMiddleware, value string) []*models.SandboxesMiddleware {
-	newMiddlewares := make([]*models.SandboxesMiddleware, 0)
-
-	getAltHostArg := func(middleware *models.SandboxesMiddleware) *models.SandboxesArgument {
-		for _, arg := range middleware.Args {
-			if arg.Name == "altHost" {
-				return arg
-			}
-		}
-		return nil
-	}
+	var filteredMiddlewares []*models.SandboxesMiddleware
 
 	for _, middleware := range middlewares {
-		altHostArg := getAltHostArg(middleware)
+		if !hasOverrideHostArgWithValue(middleware, value) {
+			filteredMiddlewares = append(filteredMiddlewares, middleware)
+		}
+	}
 
-		// TODO: Replace the value with "valueFrom" argument
-		if altHostArg != nil && altHostArg.Value == value {
+	return filteredMiddlewares
+}
+
+// hasOverrideHostArgWithValue checks if a middleware has an overrideHost argument
+// that references the specified forward value
+func hasOverrideHostArgWithValue(middleware *models.SandboxesMiddleware, forwardValue string) bool {
+	for _, arg := range middleware.Args {
+
+		if arg.Name != "overrideHost" {
 			continue
 		}
 
-		newMiddlewares = append(newMiddlewares, middleware)
+		if arg.ValueFrom == nil {
+			continue
+		}
+
+		if arg.ValueFrom.Forward == forwardValue {
+			return true
+		}
 	}
-	return newMiddlewares
+	return false
 }
 
 func (sb *SandboxBuilder) GetLastAddedOverrideName() *string {
