@@ -95,27 +95,27 @@ func waitForDeleted(cfg *config.SandboxDelete, log io.Writer, sandboxName string
 		NewPoll().
 		WithTimeout(cfg.WaitTimeout)
 
-	err := retry.Until(func() bool {
+	err := retry.Until(func() poll.PollingState {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.
 			// TODO: Pass through an error code so we don't have to rely on the error message.
 			if strings.Contains(err.Error(), "can't get sandbox: not found") {
 				spin.StopMessage("Terminated")
-				return true
+				return poll.StopPolling
 			}
 
 			// Otherwise, keep retrying in case it's a transient error.
 			spin.Messagef("error: %v", err)
-			return false
+			return poll.KeepPolling
 		}
 		status := result.Payload.Status
 		if status.Ready {
 			spin.Message("Waiting for sandbox to terminate")
-			return false
+			return poll.KeepPolling
 		}
 		spin.Messagef("%s: %s", status.Reason, status.Message)
-		return false
+		return poll.KeepPolling
 	})
 	if err != nil {
 		spin.StopFail()

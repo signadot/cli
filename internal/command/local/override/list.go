@@ -79,7 +79,7 @@ func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForwa
 	overrides := make([]*sandboxWithForward, 0)
 	for _, sandbox := range sandboxes {
 
-		forwards := builder.GetAvailableForwardForOverrideMiddlewares(*sandbox)
+		forwards := builder.GetAvailableOverrideMiddlewares(*sandbox)
 		if len(forwards) == 0 {
 			continue
 		}

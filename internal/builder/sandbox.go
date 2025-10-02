@@ -168,41 +168,64 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	return sb
 }
 
-func hasOverrideMiddleware(middlewares []*models.SandboxesMiddleware, forwards []*models.SandboxesForward, overrideName string) bool {
-	filteredMiddlewares := make([]*models.SandboxesMiddleware, 0)
-	for _, middleware := range middlewares {
-		if middleware.Name == string(OverrideMiddleware) {
-			filteredMiddlewares = append(filteredMiddlewares, middleware)
+// GetAvailableOverrideMiddlewares returns all available override forwards from a sandbox
+func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*models.SandboxesForward {
+	var overrides []*models.SandboxesForward
+
+	// Check if sandbox has middleware and routing
+	if sandbox.Spec.Middleware == nil || sandbox.Spec.Routing == nil || sandbox.Spec.Routing.Forwards == nil {
+		return overrides
+	}
+
+	// Create a map of forwards for quick lookup
+	forwardMap := make(map[string]*models.SandboxesForward)
+	for _, forward := range sandbox.Spec.Routing.Forwards {
+		forwardMap[forward.Name] = forward
+	}
+
+	// Find all override middlewares
+	for _, middleware := range sandbox.Spec.Middleware {
+		if middleware.Name != string(OverrideMiddleware) {
+			continue
 		}
-	}
 
-	if len(filteredMiddlewares) == 0 {
-		return false
-	}
-
-	middlewareMetForward := false
-	// Check if any middleware contains the overrideName as the valueFrom.Forward
-	for _, middleware := range filteredMiddlewares {
+		// Find the forward referenced by this middleware
 		for _, arg := range middleware.Args {
-			if arg.ValueFrom != nil && arg.ValueFrom.Forward == overrideName {
-				middlewareMetForward = true
-				break
+			if arg.Name == "overrideHost" && arg.ValueFrom != nil && arg.ValueFrom.Forward != "" {
+				forwardName := arg.ValueFrom.Forward
+				if forward, exists := forwardMap[forwardName]; exists {
+					overrides = append(overrides, forward)
+				}
 			}
 		}
 	}
 
-	if !middlewareMetForward {
-		return false
-	}
+	return overrides
+}
 
-	// Check if any routing.forward has the overrideName as the name
-	for _, forward := range forwards {
-		if forward.Name == overrideName {
+// HasOverrideMiddleware checks if a specific override middleware exists by name
+func HasOverrideMiddleware(sandbox models.Sandbox, overrideName string) bool {
+	overrides := GetAvailableOverrideMiddlewares(sandbox)
+	for _, override := range overrides {
+		if override.Name == overrideName {
 			return true
 		}
 	}
-
 	return false
+}
+
+// hasOverrideMiddleware is a legacy function that maintains backward compatibility
+func hasOverrideMiddleware(middlewares []*models.SandboxesMiddleware, forwards []*models.SandboxesForward, overrideName string) bool {
+	// Create a temporary sandbox structure for the new function
+	sandbox := models.Sandbox{
+		Spec: &models.SandboxSpec{
+			Middleware: middlewares,
+			Routing: &models.SandboxesRouting{
+				Forwards: forwards,
+			},
+		},
+	}
+	return HasOverrideMiddleware(sandbox, overrideName)
 }
 
 func removeForwardByName(forwards []*models.SandboxesForward, name string) []*models.SandboxesForward {
@@ -290,52 +313,4 @@ func getMaxForwardIndex(forwards []*models.SandboxesForward) int {
 		}
 	}
 	return maxIndex
-}
-
-// GetAvailableOverrideMiddlewares returns all available override middlewares from a sandbox
-func GetAvailableForwardForOverrideMiddlewares(sandbox models.Sandbox) []*models.SandboxesForward {
-	var overrides []*models.SandboxesForward
-
-	// Check if sandbox has middleware and routing
-	if sandbox.Spec.Middleware == nil || sandbox.Spec.Routing == nil || sandbox.Spec.Routing.Forwards == nil {
-		return overrides
-	}
-
-	// Create a map of forwards for quick lookup
-	forwardMap := make(map[string]*models.SandboxesForward)
-	for _, forward := range sandbox.Spec.Routing.Forwards {
-		forwardMap[forward.Name] = forward
-	}
-
-	// Find all override middlewares
-	for _, middleware := range sandbox.Spec.Middleware {
-		if middleware.Name != string(OverrideMiddleware) {
-			continue
-		}
-
-		// Extract workload names from middleware matches
-		var workloads []string
-		for _, match := range middleware.Match {
-			if match.Workload != "" {
-				workloads = append(workloads, match.Workload)
-			}
-		}
-
-		// Find the forward referenced by this middleware
-		for _, arg := range middleware.Args {
-			if arg.Name == "overrideHost" && arg.ValueFrom != nil && arg.ValueFrom.Forward != "" {
-				forwardName := arg.ValueFrom.Forward
-				if forward, exists := forwardMap[forwardName]; exists {
-					overrides = append(overrides, &models.SandboxesForward{
-						Name:        forwardName,
-						Port:        forward.Port,
-						ToLocal:     forward.ToLocal,
-						AppProtocol: forward.AppProtocol,
-					})
-				}
-			}
-		}
-	}
-
-	return overrides
 }
