@@ -142,7 +142,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 	lastErrCursor := ""
 	looped := false
 
-	err := retry.Until(func() poll.PollingState {
+	err := retry.Until(func() bool {
 		defer func() {
 			looped = true
 		}()
@@ -152,7 +152,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 			fmt.Fprintf(errW, "Error getting job: %s", err.Error())
 
 			// We want to keep retrying if the timeout has not been exceeded
-			return poll.KeepPolling
+			return false
 		}
 
 		// Increases the time, so if the queue is empty will be likely to start
@@ -165,11 +165,11 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 		attempt := j.Status.Attempts[0]
 		switch attempt.Phase {
 		case "succeeded":
-			return poll.StopPolling
+			return true
 
 		case "failed":
 			handleFailedJobPhase(errW, j)
-			return poll.StopPolling
+			return true
 
 		case "queued":
 			if looped {
@@ -177,7 +177,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 			}
 
 			fmt.Fprintf(outW, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
-			return poll.KeepPolling
+			return false
 
 		case "running":
 			if looped {
@@ -221,19 +221,19 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 				switch j.Status.Attempts[0].Phase {
 				case "failed":
 					handleFailedJobPhase(errW, j)
-					return poll.StopPolling
+					return true
 				case "succeeded":
-					return poll.StopPolling
+					return true
 				}
 			}
-			return poll.KeepPolling
+			return false
 
 		case "canceled":
 			fmt.Fprintf(outW, "The job execution was canceled\n")
-			return poll.StopPolling
+			return true
 		}
 
-		return poll.KeepPolling
+		return false
 	})
 
 	return err

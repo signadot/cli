@@ -27,24 +27,24 @@ func WaitForSandboxReady(cfg *config.API, out io.Writer, sandboxName string, wai
 		NewPoll().
 		WithTimeout(waitTimeout)
 	var failedErr error
-	err := retry.Until(func() poll.PollingState {
+	err := retry.Until(func() bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.
 			spin.Messagef("error: %v", err)
-			return poll.KeepPolling
+			return false
 		}
 		sb = result.Payload
 		if !sb.Status.Ready {
 			if sb.Status.Reason == "ResourceFailed" {
 				failedErr = errors.New(sb.Status.Message)
-				return poll.StopPolling
+				return true
 			}
 			spin.Messagef("Not Ready: %s", sb.Status.Message)
-			return poll.KeepPolling
+			return false
 		}
 		spin.StopMessagef("Ready: %s", sb.Status.Message)
-		return poll.StopPolling
+		return true
 	})
 
 	if failedErr != nil {
