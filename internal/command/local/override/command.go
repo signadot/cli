@@ -4,19 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
-	"github.com/signadot/cli/internal/poll"
-	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -34,7 +29,9 @@ This is useful for testing local changes against a sandbox environment.
 
 Examples:
   signadot local override --sandbox=my-sandbox --to=localhost:9999
-  signadot local override --sandbox=my-sandbox --to=localhost:9999 --detach`,
+  signadot local override --sandbox=my-sandbox --to=localhost:9999 --detach
+  signadot local override list
+  signadot local override delete <name> --sandbox=<sandbox>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runOverride(cmd.OutOrStdout(), cfg)
 		},
@@ -73,7 +70,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	workloadNames, err := getOverrideWorkloadNames(sandbox, cfg.Workloads)
+	workloadName, err := getOverrideWorkloadName(sandbox, cfg.Workload)
 	if err != nil {
 		return err
 	}
@@ -83,7 +80,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	sandbox, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadNames)
+	sandbox, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName)
 	if err != nil {
 		return err
 	}
@@ -93,17 +90,8 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	err = waitForLocalReady(out, cfg)
-	if err != nil {
-		return err
-	}
-
 	if cfg.Detach {
-		if len(workloadNames) == 1 {
-			fmt.Fprintf(out, "Overriding traffic from sandbox '%s' workload '%s' to %s\n", cfg.Sandbox, workloadNames[0], cfg.To)
-		} else {
-			fmt.Fprintf(out, "Overriding traffic from sandbox '%s' workloads '%s' to %s\n", cfg.Sandbox, strings.Join(workloadNames, ", "), cfg.To)
-		}
+		fmt.Fprintf(out, "Overriding traffic from sandbox '%s' workload '%s' to %s\n", cfg.Sandbox, workloadName, cfg.To)
 
 		fmt.Fprintf(out, "Traffic override will persist after this session ends\n")
 
@@ -126,7 +114,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 	case <-sigChan:
 		fmt.Fprintf(out, "\nSession terminated\n")
 		printOverrideProgress(out, fmt.Sprintf("Removing redirect in %s", cfg.Sandbox))
-		if err := deleteSandboxWithMiddleware(cfg, sandbox, overrideName); err != nil {
+		if err := deleteMiddlewareFromSandbox(cfg, sandbox, overrideName); err != nil {
 			return err
 		}
 	case <-ctx.Done():
@@ -147,39 +135,73 @@ func getSandbox(cfg *config.LocalOverrideCreate) (*models.Sandbox, error) {
 	return resp.Payload, nil
 }
 
-// getOverrideWorkloadNames returns the workload names for the given target workload. If no target workload is provided, all workload names are returned.
+// getOverrideWorkloadName returns the workload name for the given target workload. If no target workload is provided, the first available workload name is returned.
 // If a target workload is provided, but not found, an error is returned.
-func getOverrideWorkloadNames(sandbox *models.Sandbox, targetWorkloads []string) ([]string, error) {
-	workloadNames := make([]string, 0)
-
-	if len(targetWorkloads) == 0 {
-		for _, fork := range sandbox.Spec.Forks {
-			workloadNames = append(workloadNames, fork.Name)
+func getOverrideWorkloadName(sandbox *models.Sandbox, targetWorkload string) (string, error) {
+	if targetWorkload == "" {
+		workloadName, err := getFirstAvailableWorkloadName(sandbox)
+		if err != nil {
+			return "", err
 		}
-	} else {
-		for _, target := range targetWorkloads {
-			found := false
-			for _, fork := range sandbox.Spec.Forks {
-				if fork.Name == target {
-					workloadNames = append(workloadNames, fork.Name)
-					found = true
-					continue
-				}
-			}
 
-			if !found {
-				return nil, fmt.Errorf("workload %s not found in sandbox %s", target, sandbox.Name)
-			}
+		return workloadName, nil
+
+	}
+
+	workloadName, err := getWorkloadByName(sandbox, targetWorkload)
+	if err != nil {
+		return "", err
+	}
+
+	return workloadName, nil
+}
+
+// getWorkloadByName returns the workload name for the given name
+func getWorkloadByName(sandbox *models.Sandbox, name string) (string, error) {
+
+	for _, virtual := range sandbox.Spec.Virtual {
+		if virtual.Name == name {
+			return virtual.Name, nil
 		}
 	}
 
-	return workloadNames, nil
+	for _, fork := range sandbox.Spec.Forks {
+		if fork.Name == name {
+			return fork.Name, nil
+		}
+	}
+
+	for _, local := range sandbox.Spec.Local {
+		if local.Name == name {
+			return local.Name, nil
+		}
+	}
+
+	return "", fmt.Errorf("workload %s not found in sandbox %s", name, sandbox.Name)
 }
 
-func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadNames []string) (*models.Sandbox, string, error) {
+// getFirstAvailableWorkloadName returns the first available workload name for the given sandbox
+// The order is virtual, forks and local
+func getFirstAvailableWorkloadName(sandbox *models.Sandbox) (string, error) {
+	if len(sandbox.Spec.Virtual) > 0 {
+		return sandbox.Spec.Virtual[0].Name, nil
+	}
+
+	if len(sandbox.Spec.Forks) > 0 {
+		return sandbox.Spec.Forks[0].Name, nil
+	}
+
+	if len(sandbox.Spec.Local) > 0 {
+		return sandbox.Spec.Local[0].Name, nil
+	}
+
+	return "", fmt.Errorf("no available workload found in sandbox %s", sandbox.Name)
+}
+
+func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadName string) (*models.Sandbox, string, error) {
 	sbBuilder := builder.
 		BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox)).
-		AddOverrideMiddleware(cfg.Port, cfg.To, workloadNames...).
+		AddOverrideMiddleware(cfg.Port, cfg.To, workloadName).
 		SetMachineID()
 
 	sb, err := sbBuilder.Build()
@@ -203,7 +225,7 @@ func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *m
 	return resp.Payload, *overrideName, nil
 }
 
-func deleteSandboxWithMiddleware(cfg *config.LocalOverrideCreate, sandbox *models.Sandbox, overrideName string) error {
+func deleteMiddlewareFromSandbox(cfg *config.LocalOverrideCreate, sandbox *models.Sandbox, overrideName string) error {
 	sbBuilder := builder.
 		BuildSandbox(cfg.Sandbox, builder.WithData(*sandbox)).
 		SetMachineID().
@@ -226,42 +248,4 @@ func deleteSandboxWithMiddleware(cfg *config.LocalOverrideCreate, sandbox *model
 
 	_, err = cfg.Client.Sandboxes.ApplySandbox(sbParams, nil)
 	return err
-}
-
-func waitForLocalReady(out io.Writer, cfg *config.LocalOverrideCreate) error {
-	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for local to be ready...\n", cfg.WaitTimeout)
-
-	spin := spinner.Start(out, "Local status")
-	defer spin.Stop()
-
-	retry := poll.
-		NewPoll().
-		WithTimeout(cfg.WaitTimeout)
-
-	var lastErr error
-	err := retry.Until(func() poll.PollingState {
-		// Ping to port cfg.To
-		conn, err := net.DialTimeout("tcp", cfg.To, 1*time.Second)
-		spin.Messagef("%v", err)
-
-		if err != nil {
-			lastErr = err
-			return poll.KeepPolling
-		}
-
-		conn.Close()
-		return poll.StopPolling
-	})
-
-	if lastErr != nil {
-		spin.StopFail()
-		return lastErr
-	}
-
-	if err != nil {
-		spin.StopFail()
-		return err
-	}
-
-	return nil
 }
