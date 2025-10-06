@@ -15,6 +15,8 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+var onlyDigitsString = regexp.MustCompile(`^[0-9]+$`)
+
 const (
 	DefaultVirtualIPNet = "242.242.0.1/16"
 )
@@ -363,7 +365,23 @@ func (lo *LocalOverrideCreate) Validate() error {
 		return errors.New("--port is required")
 	}
 
+	to, err := parseTo(lo.To)
+	if err != nil {
+		return err
+	}
+	lo.To = to
+
 	return nil
+}
+
+// parseTo allow to receive only the numeric port without the hostname
+// and return the formatted string with the hostname
+func parseTo(to string) (string, error) {
+	if onlyDigitsString.MatchString(to) {
+		return fmt.Sprintf("localhost:%s", to), nil
+	}
+
+	return to, nil
 }
 
 type LocalOverrideDelete struct {
