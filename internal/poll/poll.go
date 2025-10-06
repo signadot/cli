@@ -47,8 +47,8 @@ func (p *Poll) UntilWithError(fn func() (bool, error)) error {
 			return fmt.Errorf("timed out after %v", p.timeout)
 		}
 
-		ok, err := fn()
-		if ok {
+		done, err := fn()
+		if done {
 			return nil
 		}
 

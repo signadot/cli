@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
-	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/cli/internal/spinner"
-	"github.com/signadot/cli/internal/utils/system"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
+
 	"github.com/spf13/cobra"
 )
 
@@ -51,30 +51,21 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 
 	var status *sbmapi.StatusResponse
 	if len(req.Spec.Local) > 0 || req.Spec.Routing != nil && len(req.Spec.Routing.Forwards) > 0 {
-		// Confirm sandboxmanager is running and connected to the right cluster
-		status, err = sbmgr.GetStatus()
+		// Validate sandboxmanager is running and connected to the right cluster
+		status, err = sbmgr.ValidateSandboxManager(req.Spec.Cluster)
 		if err != nil {
 			return err
-		}
-		ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
-		if err != nil {
-			return fmt.Errorf("couldn't unmarshal ci-config from sandboxmanager status, %v", err)
-		}
-		connectErrs := sbmgr.CheckStatusConnectErrors(status, ciConfig)
-		if len(connectErrs) != 0 {
-			return fmt.Errorf("sandboxmanager is still starting")
-		}
-		if *req.Spec.Cluster != ciConfig.ConnectionConfig.Cluster {
-			return fmt.Errorf("sandbox spec cluster %q does not match connected cluster (%q)",
-				*req.Spec.Cluster, ciConfig.ConnectionConfig.Cluster)
 		}
 
-		// Set the local machine ID
-		machineID, err := system.GetMachineID()
+		// Set machine ID for local sandboxes
+		sb, err := builder.
+			BuildSandbox(req.Name, builder.WithData(*req)).
+			SetMachineID().
+			Build()
 		if err != nil {
 			return err
 		}
-		req.Spec.LocalMachineID = machineID
+		req = &sb
 	}
 
 	// Send the request to the SaaS
@@ -100,7 +91,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
 		// store latest resp for output below
-		resp, err = waitForReady(cfg, log, resp)
+		resp, err = utils.WaitForSandboxReady(cfg.API, log, resp.Name, cfg.WaitTimeout)
 		if err != nil {
 			writeOutput(cfg, out, resp)
 			fmt.Fprintf(log, "\nThe sandbox was applied, but it may not be ready yet. To check status, run:\n\n")
@@ -134,46 +125,4 @@ func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) 
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-}
-
-func waitForReady(cfg *config.SandboxApply, out io.Writer, sb *models.Sandbox) (*models.Sandbox, error) {
-	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
-
-	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sb.Name)
-
-	spin := spinner.Start(out, "Sandbox status")
-	defer spin.Stop()
-
-	retry := poll.
-		NewPoll().
-		WithTimeout(cfg.WaitTimeout)
-	var failedErr error
-	err := retry.Until(func() bool {
-		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
-		if err != nil {
-			// Keep retrying in case it's a transient error.
-			spin.Messagef("error: %v", err)
-			return false
-		}
-		sb = result.Payload
-		if !sb.Status.Ready {
-			if sb.Status.Reason == "ResourceFailed" {
-				failedErr = errors.New(sb.Status.Message)
-				return true
-			}
-			spin.Messagef("Not Ready: %s", sb.Status.Message)
-			return false
-		}
-		spin.StopMessagef("Ready: %s", sb.Status.Message)
-		return true
-	})
-	if failedErr != nil {
-		spin.StopFail()
-		return sb, failedErr
-	}
-	if err != nil {
-		spin.StopFail()
-		return sb, err
-	}
-	return sb, nil
 }
