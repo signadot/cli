@@ -473,8 +473,14 @@ func (p *statusPrinter) printSandboxStatus() {
 						localwl.Baseline.Name,
 						localwl.Baseline.Namespace), "-")
 				for _, portMap := range localwl.WorkloadPortMapping {
-					p.printLine(p.out, 3, fmt.Sprintf("remote port %d -> %s",
-						portMap.BaselinePort, portMap.LocalAddress), "-")
+					if localwl.Baseline.Kind == "Forward" {
+						remoteAddr := fmt.Sprintf("fwd-%s-%s.signadot.svc:%d",
+							sandbox.Name, localwl.Name, portMap.BaselinePort)
+						p.printLine(p.out, 3, fmt.Sprintf("%s -> %s", remoteAddr, portMap.LocalAddress), "-")
+					} else {
+						p.printLine(p.out, 3, fmt.Sprintf("remote port %d -> %s",
+							portMap.BaselinePort, portMap.LocalAddress), "-")
+					}
 				}
 				if localwl.TunnelHealth.Healthy {
 					p.printLine(p.out, 2, "connection ready", p.green("✓"))

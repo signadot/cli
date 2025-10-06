@@ -98,6 +98,8 @@ func kindToRemoteURLTLD(kind string) (string, error) {
 		return "deploy", nil
 	case "Rollout":
 		return "rollout", nil
+	case "Forward":
+		return "revtun", nil
 	default:
 		return "", fmt.Errorf("invalid baseline kind: %q", kind)
 	}

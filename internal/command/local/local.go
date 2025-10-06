@@ -1,6 +1,7 @@
 package local
 
 import (
+	"github.com/signadot/cli/internal/command/local/override"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -19,6 +20,7 @@ func New(api *config.API) *cobra.Command {
 		newStatus(cfg),
 		newDisconnect(cfg),
 		newProxy(cfg),
+		override.New(cfg),
 	)
 
 	return cmd

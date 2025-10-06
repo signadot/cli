@@ -169,6 +169,11 @@ func (a *API) basicInit() {
 	a.UserAgent = fmt.Sprintf("signadot-cli:%s", buildinfo.Version)
 }
 
+// RefreshAPIConfig refreshes the API config by re-initializing the API client
+func (a *API) RefreshAPIConfig() error {
+	return a.InitAPIConfig()
+}
+
 func (a *API) InitAPIConfig() error {
 	if err := a.init(); err != nil {
 		return err
