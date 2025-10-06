@@ -47,7 +47,7 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 		return err
 	}
 	routingKey := resp.Payload.RoutingKey
-	log := getTerminalLogger(cfg, w)
+	log := getTerminalLogger(cfg, wErr)
 	if !cfg.MetaOnly {
 		if err := setupToDir(cfg.ToDir); err != nil {
 			return err
@@ -62,9 +62,9 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	defer cancel()
 
 	if cfg.MetaOnly {
-		return trafficwatch.ConsumeMetaOnly(ctx, log, tw)
+		return trafficwatch.ConsumeMetaOnly(ctx, log, tw, w)
 	}
-	return trafficwatch.ConsumeToDir(ctx, log, cfg, tw)
+	return trafficwatch.ConsumeToDir(ctx, log, cfg, tw, w)
 }
 
 func getTerminalLogger(cfg *config.TrafficWatch, w io.Writer) *slog.Logger {
