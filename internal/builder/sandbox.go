@@ -57,8 +57,6 @@ func BuildSandbox(name string, opts ...Option) *SandboxBuilder {
 		sb = opt(sb)
 	}
 
-	sb.internal.Name = "overridden"
-
 	return &sb
 }
 
