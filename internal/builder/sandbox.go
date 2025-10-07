@@ -1,6 +1,7 @@
 package builder
 
 import (
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -80,7 +81,37 @@ const (
 	OverrideMiddleware MiddlewareName = "override"
 )
 
-func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, workloadNames ...string) *SandboxBuilder {
+type OverridePolicies struct {
+	internal    *models.SandboxesArgument
+	hasPolicies bool
+}
+
+func NewOverridePolicy(defaultFallThroughStatus string, unimplementedResponseCodes []int) (OverridePolicies, error) {
+	policies := make(map[string]interface{})
+
+	if defaultFallThroughStatus != "" {
+		policies["defaultFallThroughStatus"] = defaultFallThroughStatus
+	}
+
+	if len(unimplementedResponseCodes) > 0 {
+		policies["unimplementedResponseCodes"] = unimplementedResponseCodes
+	}
+
+	policy, err := json.Marshal(policies)
+	if err != nil {
+		return OverridePolicies{}, err
+	}
+
+	return OverridePolicies{
+		internal: &models.SandboxesArgument{
+			Name:  "policy",
+			Value: string(policy),
+		},
+		hasPolicies: len(policies) > 0,
+	}, nil
+}
+
+func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, policy *OverridePolicies, workloadNames ...string) *SandboxBuilder {
 	if sb.checkError() {
 		return sb
 	}
@@ -107,6 +138,10 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 		Name:  string(OverrideMiddleware),
 		Match: make([]*models.SandboxesMiddlewareMatch, 0, len(workloadNames)),
 		Args:  []*models.SandboxesArgument{hostArg},
+	}
+
+	if policy != nil && policy.hasPolicies {
+		mw.Args = append(mw.Args, policy.internal)
 	}
 
 	for _, workloadName := range workloadNames {

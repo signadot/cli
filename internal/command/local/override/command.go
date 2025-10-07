@@ -22,16 +22,16 @@ func New(local *config.Local) *cobra.Command {
 	cfg := &config.LocalOverrideCreate{LocalOverride: &config.LocalOverride{Local: local}}
 
 	cmd := &cobra.Command{
-		Use:   "override --sandbox=<sandbox> --to=<target> [--detach]",
+		Use:   "override --sandbox=<sandbox> --to=<target> --port=<port> [--detach] [--workload=<workload>]",
 		Short: "Override traffic routing for sandboxes",
 		Long: `Override traffic routing allows you to route traffic from a sandbox to a local service.
 This is useful for testing local changes against a sandbox environment.
-
-Examples:
-  signadot local override --sandbox=my-sandbox --to=localhost:9999
-  signadot local override --sandbox=my-sandbox --to=localhost:9999 --detach
+`,
+		Example: `  signadot local override --sandbox=my-sandbox --to=9999 --port=8080
+  signadot local override --sandbox=my-sandbox --to=localhost:9999 --port=8080 --detach
   signadot local override list
-  signadot local override delete <name> --sandbox=<sandbox>`,
+  signadot local override delete <name> --sandbox=<sandbox>
+  signadot local override --sandbox=my-sandbox --to=localhost:9999 --port=8080 --workload=my-workload`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runOverride(cmd.OutOrStdout(), cfg)
 		},
@@ -199,9 +199,15 @@ func getFirstAvailableWorkloadName(sandbox *models.Sandbox) (string, error) {
 }
 
 func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadName string) (*models.Sandbox, string, error) {
+
+	policy, err := builder.NewOverridePolicy(cfg.PolicyDefaultFallThroughStatus, cfg.PolicyUnimplementedResponseCodes)
+	if err != nil {
+		return nil, "", err
+	}
+
 	sbBuilder := builder.
 		BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox)).
-		AddOverrideMiddleware(cfg.Port, cfg.To, workloadName).
+		AddOverrideMiddleware(cfg.Port, cfg.To, &policy, workloadName).
 		SetMachineID()
 
 	sb, err := sbBuilder.Build()
