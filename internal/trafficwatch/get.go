@@ -18,6 +18,7 @@ import (
 )
 
 func GetTrafficWatch(ctx context.Context, cfg *config.TrafficWatch, log *slog.Logger, rk string) (*trafficwatch.TrafficWatch, error) {
+	watchOpts := getWatchOpts(cfg)
 	hdrs, err := auth.GetHeaders()
 	if err != nil {
 		return nil, err
@@ -33,15 +34,26 @@ func GetTrafficWatch(ctx context.Context, cfg *config.TrafficWatch, log *slog.Lo
 		return nil, err
 	}
 	tw, err := twClient.Watch(ctx, conn, &api.RequestMetadata{
-		RoutingKey: rk,
-	}, cfg.MetaOnly)
+		RoutingKey:   rk,
+		WatchOptions: *api.WatchAll(),
+	}, watchOpts)
 	if err != nil {
 		return nil, err
 	}
 	return tw, nil
 }
 
-func ConsumeMetaOnly(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
+func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
+	if cfg.Short {
+		return api.WatchShort()
+	}
+	if cfg.HeadersOnly {
+		return api.WatchTruncate(0)
+	}
+	return api.WatchAll()
+}
+
+func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
 	waitDone := setupTW(ctx, tw, log)
 	for meta := range tw.Meta {
 		d, err := json.Marshal(meta)
