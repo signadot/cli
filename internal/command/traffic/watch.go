@@ -19,7 +19,7 @@ func newWatch(cfg *config.Traffic) *cobra.Command {
 		Traffic: cfg,
 	}
 	cmd := &cobra.Command{
-		Use:   "watch --sandbox SANDBOX [ --meta-only ]",
+		Use:   "watch --sandbox SANDBOX [ --short | --headers-only  ]",
 		Short: "watch sandbox traffic",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -34,11 +34,14 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	if cfg.ToDir == "" && !cfg.MetaOnly {
-		return fmt.Errorf("must specify output directory when running without --meta-only")
+	if cfg.ToDir == "" && !cfg.Short {
+		return fmt.Errorf("must specify output directory when running without --short")
 	}
 	if cfg.Sandbox == "" {
 		return fmt.Errorf("must specify sandbox")
+	}
+	if cfg.Short && cfg.HeadersOnly {
+		return fmt.Errorf("only one of --short or --headers-only can be provided")
 	}
 	params := sandboxes.NewGetSandboxParams().
 		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
@@ -48,7 +51,7 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	}
 	routingKey := resp.Payload.RoutingKey
 	log := getTerminalLogger(cfg, wErr)
-	if !cfg.MetaOnly {
+	if !cfg.Short {
 		if err := setupToDir(cfg.ToDir); err != nil {
 			return err
 		}
@@ -61,8 +64,8 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
 
-	if cfg.MetaOnly {
-		return trafficwatch.ConsumeMetaOnly(ctx, log, tw, w)
+	if cfg.Short {
+		return trafficwatch.ConsumeShort(ctx, log, tw, w)
 	}
 	return trafficwatch.ConsumeToDir(ctx, log, cfg, tw, w)
 }
