@@ -88,7 +88,7 @@ type MiddlewareOverrideArg struct {
 }
 
 func NewOverrideArgPolicy(defaultFallThroughStatus string, unimplementedResponseCodes []int) (*MiddlewareOverrideArg, error) {
-	policies := make(map[string]interface{})
+	policies := make(map[string]any)
 
 	if defaultFallThroughStatus != "" {
 		policies["defaultFallThroughStatus"] = defaultFallThroughStatus
@@ -121,7 +121,6 @@ func getLogForwardName(overrideName string) string {
 }
 
 func NewOverrideLogArg(logListenerPort int64) (*MiddlewareOverrideArg, error) {
-
 	arg := &models.SandboxesArgument{
 		Name: "logHost",
 		ValueFrom: &models.SandboxesArgValueFrom{
