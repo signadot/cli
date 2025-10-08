@@ -3,6 +3,7 @@ package builder
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -81,12 +82,12 @@ const (
 	OverrideMiddleware MiddlewareName = "override"
 )
 
-type OverridePolicies struct {
-	internal    *models.SandboxesArgument
-	hasPolicies bool
+type MiddlewareOverrideArg struct {
+	internal func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument
+	isSet    bool
 }
 
-func NewOverridePolicy(defaultFallThroughStatus string, unimplementedResponseCodes []int) (OverridePolicies, error) {
+func NewOverrideArgPolicy(defaultFallThroughStatus string, unimplementedResponseCodes []int) (*MiddlewareOverrideArg, error) {
 	policies := make(map[string]interface{})
 
 	if defaultFallThroughStatus != "" {
@@ -99,19 +100,55 @@ func NewOverridePolicy(defaultFallThroughStatus string, unimplementedResponseCod
 
 	policy, err := json.Marshal(policies)
 	if err != nil {
-		return OverridePolicies{}, err
+		return nil, err
 	}
 
-	return OverridePolicies{
-		internal: &models.SandboxesArgument{
+	applyInternal := func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument {
+		return &models.SandboxesArgument{
 			Name:  "policy",
 			Value: string(policy),
-		},
-		hasPolicies: len(policies) > 0,
+		}
+	}
+
+	return &MiddlewareOverrideArg{
+		internal: applyInternal,
+		isSet:    len(policies) > 0,
 	}, nil
 }
 
-func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, policy *OverridePolicies, workloadNames ...string) *SandboxBuilder {
+func getLogForwardName(overrideName string) string {
+	return fmt.Sprintf("%s-log", overrideName)
+}
+
+func NewOverrideLogArg(logListenerPort int64) (*MiddlewareOverrideArg, error) {
+
+	arg := &models.SandboxesArgument{
+		Name: "logHost",
+		ValueFrom: &models.SandboxesArgValueFrom{
+			Forward: "logHost",
+		},
+	}
+
+	applyInternal := func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument {
+		routing := &models.SandboxesForward{
+			Name:    getLogForwardName(overrideName),
+			Port:    7777,
+			ToLocal: "localhost:" + strconv.FormatInt(logListenerPort, 10),
+		}
+
+		sb.internal.Spec.Routing.Forwards = append(sb.internal.Spec.Routing.Forwards, routing)
+		arg.ValueFrom.Forward = routing.Name
+
+		return arg
+	}
+
+	return &MiddlewareOverrideArg{
+		internal: applyInternal,
+		isSet:    true,
+	}, nil
+}
+
+func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, workloadNames []string, args ...*MiddlewareOverrideArg) *SandboxBuilder {
 	if sb.checkError() {
 		return sb
 	}
@@ -140,8 +177,12 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 		Args:  []*models.SandboxesArgument{hostArg},
 	}
 
-	if policy != nil && policy.hasPolicies {
-		mw.Args = append(mw.Args, policy.internal)
+	for _, arg := range args {
+		if arg.isSet {
+			if arg.internal != nil {
+				mw.Args = append(mw.Args, arg.internal(sb, forwardName))
+			}
+		}
 	}
 
 	for _, workloadName := range workloadNames {
@@ -190,6 +231,7 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	}
 
 	spec.Routing.Forwards = removeForwardByName(spec.Routing.Forwards, overrideName)
+	spec.Routing.Forwards = removeForwardByName(spec.Routing.Forwards, getLogForwardName(overrideName))
 
 	// Delete match in the middleware when the args.altHost is the same as the overrideName
 	if spec.Middleware == nil {
