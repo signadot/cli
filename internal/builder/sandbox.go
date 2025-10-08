@@ -178,10 +178,8 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 	}
 
 	for _, arg := range args {
-		if arg.isSet {
-			if arg.internal != nil {
-				mw.Args = append(mw.Args, arg.internal(sb, forwardName))
-			}
+		if arg.isSet && arg.internal != nil {
+			mw.Args = append(mw.Args, arg.internal(sb, forwardName))
 		}
 	}
 
