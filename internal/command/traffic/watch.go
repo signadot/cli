@@ -75,7 +75,7 @@ func getTerminalLogger(cfg *config.TrafficWatch, w io.Writer) *slog.Logger {
 	if cfg.Debug {
 		logLevel = slog.LevelDebug
 	}
-	log := slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
+	log := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
 		Level: logLevel,
 	}))
 	return log

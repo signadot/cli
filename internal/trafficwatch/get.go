@@ -55,15 +55,10 @@ func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
 
 func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
 	waitDone := setupTW(ctx, tw, log)
+	enc := json.NewEncoder(w)
 	for meta := range tw.Meta {
-		d, err := json.Marshal(meta)
-		if err != nil {
-			log.Warn("error unmarshaling request metadata", "error", err)
-			continue
-		}
-		_, err = w.Write(d)
-		if err != nil {
-			log.Warn("unable to write request metadata", "error", err)
+		if err := enc.Encode(meta); err != nil {
+			log.Warn("error encoding request metadata", "error", err)
 			continue
 		}
 	}
