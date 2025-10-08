@@ -420,6 +420,8 @@ type LocalOverrideDelete struct {
 
 func (lod *LocalOverrideDelete) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&lod.Sandbox, "sandbox", "", "sandbox containing the override to delete")
+
+	cmd.MarkFlagRequired("sandbox")
 }
 
 type LocalOverrideList struct {

@@ -325,7 +325,6 @@ func getFirstAvailableWorkloadName(sandbox *models.Sandbox) (string, error) {
 }
 
 func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadName string, logHost int64) (*models.Sandbox, string, error) {
-
 	policy, err := builder.NewOverrideArgPolicy(cfg.PolicyDefaultFallThroughStatus, cfg.PolicyUnimplementedResponseCodes)
 	if err != nil {
 		return nil, "", err

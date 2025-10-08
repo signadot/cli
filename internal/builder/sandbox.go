@@ -177,7 +177,7 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 	}
 
 	for _, arg := range args {
-		if arg.isSet && arg.internal != nil {
+		if arg != nil && arg.isSet && arg.internal != nil {
 			mw.Args = append(mw.Args, arg.internal(sb, forwardName))
 		}
 	}
@@ -240,9 +240,14 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	return sb
 }
 
+type DetailedOverrideMiddleware struct {
+	Forward    *models.SandboxesForward
+	LogForward *models.SandboxesForward
+}
+
 // GetAvailableOverrideMiddlewares returns all available override forwards from a sandbox
-func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*models.SandboxesForward {
-	var overrides []*models.SandboxesForward
+func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*DetailedOverrideMiddleware {
+	var overrides []*DetailedOverrideMiddleware
 
 	// Check if sandbox has middleware and routing
 	if sandbox.Spec.Middleware == nil || sandbox.Spec.Routing == nil || sandbox.Spec.Routing.Forwards == nil {
@@ -265,9 +270,18 @@ func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*models.Sandboxes
 		for _, arg := range middleware.Args {
 			if arg.Name == "overrideHost" && arg.ValueFrom != nil && arg.ValueFrom.Forward != "" {
 				forwardName := arg.ValueFrom.Forward
-				if forward, exists := forwardMap[forwardName]; exists {
-					overrides = append(overrides, forward)
+				forward, exists := forwardMap[forwardName]
+				if !exists {
+					continue
 				}
+
+				logForwardName := getLogForwardName(forwardName)
+				logForward, exists := forwardMap[logForwardName]
+
+				overrides = append(overrides, &DetailedOverrideMiddleware{
+					Forward:    forward,
+					LogForward: logForward,
+				})
 			}
 		}
 	}
@@ -279,7 +293,7 @@ func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*models.Sandboxes
 func HasOverrideMiddleware(sandbox models.Sandbox, overrideName string) bool {
 	overrides := GetAvailableOverrideMiddlewares(sandbox)
 	for _, override := range overrides {
-		if override.Name == overrideName {
+		if override.Forward.Name == overrideName {
 			return true
 		}
 	}
