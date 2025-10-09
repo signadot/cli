@@ -179,7 +179,10 @@ func ensureDir(p string) error {
 		return err
 	}
 	if err != nil {
-		return os.Mkdir(p, 0755)
+		err := os.Mkdir(p, 0755)
+		if err != nil && os.IsExist(err) {
+			return nil
+		}
 	}
 	return nil
 }
