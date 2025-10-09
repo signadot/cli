@@ -208,6 +208,37 @@ func connectSandboxManager() (*grpc.ClientConn, error) {
 	return grpcConn, nil
 }
 
+// ValidateSandboxManager validates that sandboxmanager is running, connected to the right cluster,
+// and returns the status and a sandbox with machine ID set if needed.
+// This function is useful for operations that require local sandbox functionality.
+func ValidateSandboxManager(expectedCluster *string) (*sbmapi.StatusResponse, error) {
+	// Get sandboxmanager status
+	status, err := GetStatus()
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse CI config
+	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't unmarshal ci-config from sandboxmanager status, %v", err)
+	}
+
+	// Check for connection errors
+	connectErrs := CheckStatusConnectErrors(status, ciConfig)
+	if len(connectErrs) != 0 {
+		return nil, fmt.Errorf("sandboxmanager is still starting")
+	}
+
+	// Validate cluster matches
+	if expectedCluster != nil && *expectedCluster != ciConfig.ConnectionConfig.Cluster {
+		return nil, fmt.Errorf("sandbox spec cluster %q does not match connected cluster (%q)",
+			expectedCluster, ciConfig.ConnectionConfig.Cluster)
+	}
+
+	return status, nil
+}
+
 func processGRPCError(action string, err error) error {
 	grpcStatus, ok := status.FromError(err)
 	if ok {

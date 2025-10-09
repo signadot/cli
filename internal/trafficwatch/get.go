@@ -18,6 +18,7 @@ import (
 )
 
 func GetTrafficWatch(ctx context.Context, cfg *config.TrafficWatch, log *slog.Logger, rk string) (*trafficwatch.TrafficWatch, error) {
+	watchOpts := getWatchOpts(cfg)
 	hdrs, err := auth.GetHeaders()
 	if err != nil {
 		return nil, err
@@ -33,24 +34,39 @@ func GetTrafficWatch(ctx context.Context, cfg *config.TrafficWatch, log *slog.Lo
 		return nil, err
 	}
 	tw, err := twClient.Watch(ctx, conn, &api.RequestMetadata{
-		RoutingKey: rk,
-	}, cfg.MetaOnly)
+		RoutingKey:   rk,
+		WatchOptions: *api.WatchAll(),
+	}, watchOpts)
 	if err != nil {
 		return nil, err
 	}
 	return tw, nil
 }
 
-func ConsumeMetaOnly(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch) error {
+func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
+	if cfg.Short {
+		return api.WatchShort()
+	}
+	if cfg.HeadersOnly {
+		return api.WatchTruncate(0)
+	}
+	return api.WatchAll()
+}
+
+func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
 	waitDone := setupTW(ctx, tw, log)
+	enc := json.NewEncoder(w)
 	for meta := range tw.Meta {
-		log.Info("received", "request-metadata", meta)
+		if err := enc.Encode(meta); err != nil {
+			log.Warn("error encoding request metadata", "error", err)
+			continue
+		}
 	}
 	<-waitDone
 	return nil
 }
 
-func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch) error {
+func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch, w io.Writer) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	waitDone := setupTW(ctx, tw, log)
@@ -81,9 +97,10 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 		cancel()
 
 	}()
-	enc := json.NewEncoder(metaF)
+	fEnc := json.NewEncoder(metaF)
+	oEnc := json.NewEncoder(w)
 	for meta := range tw.Meta {
-		if err := handleMetaToDir(cfg, log, enc, meta); err != nil {
+		if err := handleMetaToDir(cfg, log, fEnc, oEnc, meta); err != nil {
 			return err
 		}
 	}
@@ -91,9 +108,11 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	return retErr
 }
 
-func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, enc *json.Encoder, meta *api.RequestMetadata) error {
-	log.Info("received", "request-metadata", meta)
-	if err := enc.Encode(meta); err != nil {
+func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc, oEnc *json.Encoder, meta *api.RequestMetadata) error {
+	if err := oEnc.Encode(meta); err != nil {
+		return err
+	}
+	if err := fEnc.Encode(meta); err != nil {
 		return err
 	}
 	p := filepath.Join(cfg.ToDir, meta.MiddlewareRequestID)
@@ -137,6 +156,7 @@ func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC
 func setupTW(ctx context.Context, tw *trafficwatch.TrafficWatch, log *slog.Logger) <-chan struct{} {
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, os.Interrupt)
+	res := make(chan struct{})
 	go func() {
 		select {
 		case <-sigC:
@@ -148,8 +168,9 @@ func setupTW(ctx context.Context, tw *trafficwatch.TrafficWatch, log *slog.Logge
 			safeClose(tw.Close)
 		}
 		signal.Ignore(os.Interrupt)
+		close(res)
 	}()
-	return tw.Close
+	return res
 }
 
 func ensureDir(p string) error {
@@ -158,7 +179,10 @@ func ensureDir(p string) error {
 		return err
 	}
 	if err != nil {
-		return os.Mkdir(p, 0755)
+		err := os.Mkdir(p, 0755)
+		if err != nil && !os.IsExist(err) {
+			return err
+		}
 	}
 	return nil
 }

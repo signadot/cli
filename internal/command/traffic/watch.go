@@ -24,7 +24,7 @@ func newWatch(cfg *config.Traffic) *cobra.Command {
 		Traffic: cfg,
 	}
 	cmd := &cobra.Command{
-		Use:   "watch --sandbox SANDBOX [ --meta-only ]",
+		Use:   "watch --sandbox SANDBOX [ --short | --headers-only  ]",
 		Short: "watch sandbox traffic",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,11 +39,14 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	if cfg.ToDir == "" && !cfg.MetaOnly {
-		return fmt.Errorf("must specify output directory when running without --meta-only")
+	if cfg.ToDir == "" && !cfg.Short {
+		return fmt.Errorf("must specify output directory when running without --short")
 	}
 	if cfg.Sandbox == "" {
 		return fmt.Errorf("must specify sandbox")
+	}
+	if cfg.Short && cfg.HeadersOnly {
+		return fmt.Errorf("only one of --short or --headers-only can be provided")
 	}
 	params := sandboxes.NewGetSandboxParams().
 		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
@@ -64,10 +67,10 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 		return retErr
 	}
 	routingKey := resp.Payload.RoutingKey
-	log := getTerminalLogger(cfg, w)
-	if !cfg.MetaOnly {
-		if retErr = setupToDir(cfg.ToDir); retErr != nil {
-			return retErr
+	log := getTerminalLogger(cfg, wErr)
+	if !cfg.Short {
+		if err := setupToDir(cfg.ToDir); err != nil {
+			return err
 		}
 	}
 
@@ -78,15 +81,10 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
-
-	if cfg.MetaOnly {
-		// for unedit defer error handling
-		retErr = trafficwatch.ConsumeMetaOnly(ctx, log, tw)
-		return retErr
+	if cfg.Short {
+		return trafficwatch.ConsumeShort(ctx, log, tw, w)
 	}
-	// for unedit defer error handling
-	retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw)
-	return retErr
+	return trafficwatch.ConsumeToDir(ctx, log, cfg, tw, w)
 }
 
 func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *models.Sandbox) (func() error, error) {
@@ -165,7 +163,7 @@ func getTerminalLogger(cfg *config.TrafficWatch, w io.Writer) *slog.Logger {
 	if cfg.Debug {
 		logLevel = slog.LevelDebug
 	}
-	log := slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
+	log := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
 		Level: logLevel,
 	}))
 	return log

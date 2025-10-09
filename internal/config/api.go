@@ -186,6 +186,11 @@ func (a *API) basicInit() error {
 	return nil
 }
 
+// RefreshAPIConfig refreshes the API config by re-initializing the API client
+func (a *API) RefreshAPIConfig() error {
+	return a.InitAPIConfig()
+}
+
 func (a *API) InitAPIConfig() error {
 	if err := a.init(); err != nil {
 		return err

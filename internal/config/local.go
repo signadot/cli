@@ -298,3 +298,67 @@ func (lp *LocalProxy) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&lp.PProfAddr, "pprof", "", "pprof listen address")
 	cmd.Flags().MarkHidden("pprof")
 }
+
+type LocalOverride struct {
+	*Local
+}
+
+type LocalOverrideCreate struct {
+	*LocalOverride
+
+	// Flags
+	Sandbox  string
+	Port     int64
+	To       string
+	Workload string
+	Detach   bool
+
+	WaitTimeout time.Duration
+}
+
+func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "", "sandbox to override traffic for")
+	cmd.Flags().Int64Var(&lo.Port, "port", -1, "port to override traffic for")
+	cmd.Flags().StringVar(&lo.To, "to", "", "target address to redirect traffic to (e.g., localhost:9999)")
+	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "", "workload to override traffic for")
+	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false, "run in detached mode, preserving changes after session termination")
+	cmd.Flags().DurationVar(&lo.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout to wait for the sandbox to be ready")
+}
+
+func (lo *LocalOverrideCreate) Validate() error {
+	if lo.Sandbox == "" {
+		return errors.New("--sandbox is required")
+	}
+
+	if lo.To == "" {
+		return errors.New("--to is required")
+	}
+
+	if lo.Port < 0 {
+		return errors.New("--port is required")
+	}
+
+	return nil
+}
+
+type LocalOverrideDelete struct {
+	*LocalOverride
+
+	// Flags
+	Sandbox string
+}
+
+func (lod *LocalOverrideDelete) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&lod.Sandbox, "sandbox", "", "sandbox containing the override to delete")
+}
+
+type LocalOverrideList struct {
+	*LocalOverride
+
+	// Flags
+	Cluster string
+}
+
+func (lol *LocalOverrideList) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&lol.Cluster, "cluster", "", "target cluster")
+}
