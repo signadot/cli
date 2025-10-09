@@ -42,11 +42,6 @@ func runDelete(out io.Writer, cfg *config.LocalOverrideDelete, name string) erro
 		return err
 	}
 
-	// Validate required parameters
-	if cfg.Sandbox == "" {
-		return fmt.Errorf("--sandbox is required")
-	}
-
 	printOverrideProgress(out, fmt.Sprintf("Removing override %s from sandbox %s", name, cfg.Sandbox))
 
 	// Get the sandbox
@@ -55,9 +50,13 @@ func runDelete(out io.Writer, cfg *config.LocalOverrideDelete, name string) erro
 		return err
 	}
 
-	// Verify the override exists in the sandbox
-	if !overrideExistsInSandbox(sandbox, name) {
+	// Verify the override exists in the sandbox and is not attached
+	overrideDetails := getOverrideDetails(sandbox, name)
+	switch {
+	case overrideDetails == nil:
 		return fmt.Errorf("override %s not found in sandbox %s", name, cfg.Sandbox)
+	case overrideDetails.LogForward != nil && isOverrideAttachedRunning(overrideDetails):
+		return fmt.Errorf("override %s is attached", name)
 	}
 
 	// Delete the override from the sandbox
@@ -81,17 +80,21 @@ func getSandboxForDelete(cfg *config.LocalOverrideDelete) (*models.Sandbox, erro
 	return resp.Payload, nil
 }
 
-func overrideExistsInSandbox(sandbox *models.Sandbox, overrideName string) bool {
+func getOverrideDetails(sandbox *models.Sandbox, overrideName string) *builder.DetailedOverrideMiddleware {
 	if sandbox.Spec.Routing == nil || sandbox.Spec.Routing.Forwards == nil {
-		return false
+		return nil
 	}
 
-	for _, forward := range sandbox.Spec.Routing.Forwards {
-		if forward.Name == overrideName {
-			return true
+	var detailsOverride *builder.DetailedOverrideMiddleware
+	overrides := builder.GetAvailableOverrideMiddlewares(*sandbox)
+	for _, override := range overrides {
+		if override.Forward.Name == overrideName {
+			detailsOverride = override
+			break
 		}
 	}
-	return false
+
+	return detailsOverride
 }
 
 func deleteOverrideFromSandbox(cfg *config.LocalOverrideDelete, sandbox *models.Sandbox, overrideName string) error {

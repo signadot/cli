@@ -3,20 +3,32 @@ package override
 import (
 	"fmt"
 	"io"
+	"net"
 
+	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/sdtab"
-	"github.com/signadot/go-sdk/models"
 )
 
 type sandboxWithForward struct {
 	Sandbox  string
-	Forwards []*models.SandboxesForward
+	Forwards []*builder.DetailedOverrideMiddleware
 }
 
 type overrideRow struct {
 	Name    string `sdtab:"NAME"`
 	Target  string `sdtab:"TARGET"`
 	ToLocal string `sdtab:"TO"`
+	Status  string `sdtab:"STATUS"`
+}
+
+func isOverrideAttachedRunning(forward *builder.DetailedOverrideMiddleware) bool {
+	// Ping the log forward to see if it is running
+	conn, err := net.Dial("tcp", forward.LogForward.ToLocal)
+	if err != nil {
+		return false
+	}
+	defer conn.Close()
+	return true
 }
 
 // printOverrideTable prints a table of overrides
@@ -26,10 +38,25 @@ func printOverrideTable(out io.Writer, sandboxes []*sandboxWithForward) error {
 
 	for _, override := range sandboxes {
 		for _, forward := range override.Forwards {
+
+			var status string
+
+			switch {
+			case forward.LogForward != nil:
+				if isOverrideAttachedRunning(forward) {
+					status = "attached"
+				} else {
+					status = "stopped"
+				}
+			default:
+				status = "detached"
+			}
+
 			t.AddRow(overrideRow{
-				Name:    forward.Name,
+				Name:    forward.Forward.Name,
 				Target:  fmt.Sprintf("sandbox=%s", override.Sandbox),
-				ToLocal: forward.ToLocal,
+				ToLocal: forward.Forward.ToLocal,
+				Status:  status,
 			})
 		}
 	}
