@@ -88,18 +88,10 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 	var (
 		logServer   *http.Server
 		logListener net.Listener
-		logOutChan  chan override.LogEntry
 	)
 	logPort := int64(0)
 	if !cfg.Detach {
-		logOutChan = make(chan override.LogEntry)
-		logServer, logListener, logPort = createLogServer(logOutChan)
-
-		go func() {
-			for logEntry := range logOutChan {
-				printFormattedLogEntry(logEntry, cfg.Sandbox, cfg.To)
-			}
-		}()
+		logServer, logListener, logPort = createLogServer(cfg.Sandbox, cfg.To)
 	}
 
 	sandbox, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName, logPort)
@@ -148,19 +140,10 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		if logServer != nil {
 			logServer.Shutdown(ctx)
 		}
-
-		// Close log channel to stop the consumer goroutine
-		if logOutChan != nil {
-			close(logOutChan)
-		}
 	case <-ctx.Done():
 		// Context was cancelled
 		if logServer != nil {
 			logServer.Shutdown(ctx)
-		}
-		// Close log channel to stop the consumer goroutine
-		if logOutChan != nil {
-			close(logOutChan)
 		}
 	}
 
@@ -169,7 +152,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 
 // createLogServer creates an HTTP server and listener for log consumption
 // Returns the server, listener, and the actual port that was assigned
-func createLogServer(logOutChan chan override.LogEntry) (*http.Server, net.Listener, int64) {
+func createLogServer(sandboxName, localAddress string) (*http.Server, net.Listener, int64) {
 	mux := http.NewServeMux()
 
 	ln, err := net.Listen("tcp", ":0")
@@ -200,7 +183,7 @@ func createLogServer(logOutChan chan override.LogEntry) (*http.Server, net.Liste
 			return
 		}
 
-		logOutChan <- logEntry
+		printFormattedLogEntry(logEntry, sandboxName, localAddress)
 
 		w.WriteHeader(http.StatusOK)
 	})

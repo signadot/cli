@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/signadot/libconnect/config"
@@ -373,8 +374,8 @@ func (lo *LocalOverrideCreate) Validate() error {
 		return errors.New("--to is required")
 	}
 
-	if lo.Port < 0 {
-		return errors.New("--port is required")
+	if lo.Port <= 0 || lo.Port > 65535 {
+		return errors.New("--port must be a value between 1 and 65535")
 	}
 
 	if lo.PolicyDefaultFallThroughStatus != "" {
@@ -405,6 +406,10 @@ func (lo *LocalOverrideCreate) Validate() error {
 // and return the formatted string with the hostname
 func parseTo(to string) (string, error) {
 	if onlyDigitsString.MatchString(to) {
+		if port, err := strconv.Atoi(to); err != nil || port <= 0 || port > 65535 {
+			return "", fmt.Errorf("invalid port, should be a value between 1 and 65535")
+		}
+
 		return fmt.Sprintf("localhost:%s", to), nil
 	}
 
