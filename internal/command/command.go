@@ -18,6 +18,7 @@ import (
 	"github.com/signadot/cli/internal/command/routegroup"
 	"github.com/signadot/cli/internal/command/sandbox"
 	"github.com/signadot/cli/internal/command/smarttest"
+	"github.com/signadot/cli/internal/command/traffic"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -52,6 +53,7 @@ func New() *cobra.Command {
 		artifact.New(cfg),
 		logs.New(cfg),
 		smarttest.New(cfg),
+		traffic.New(cfg),
 
 		// hidden commands
 		hostedtest.New(cfg),
