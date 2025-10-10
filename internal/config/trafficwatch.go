@@ -1,6 +1,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/spf13/cobra"
 )
 
@@ -12,6 +14,7 @@ type TrafficWatch struct {
 	Sandbox     string
 	Short       bool
 	HeadersOnly bool
+	WaitTimeout time.Duration
 }
 
 func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
@@ -19,4 +22,5 @@ func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.Short, "short", false, "only watch request metadata")
 	cmd.Flags().BoolVar(&c.HeadersOnly, "headers-only", false, "do not record request and response bodies")
 	cmd.Flags().StringVar(&c.ToDir, "dir", "", "output to directory")
+	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 30*time.Second, "time to wait for intial sandbox readiness")
 }
