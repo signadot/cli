@@ -2,8 +2,12 @@ package override
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +19,7 @@ import (
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
+	"github.com/signadot/libconnect/common/override"
 	"github.com/spf13/cobra"
 )
 
@@ -22,16 +27,16 @@ func New(local *config.Local) *cobra.Command {
 	cfg := &config.LocalOverrideCreate{LocalOverride: &config.LocalOverride{Local: local}}
 
 	cmd := &cobra.Command{
-		Use:   "override --sandbox=<sandbox> --to=<target> [--detach]",
+		Use:   "override --sandbox=<sandbox> --to=<target> --port=<port> [--detach] [--workload=<workload>]",
 		Short: "Override traffic routing for sandboxes",
 		Long: `Override traffic routing allows you to route traffic from a sandbox to a local service.
 This is useful for testing local changes against a sandbox environment.
-
-Examples:
-  signadot local override --sandbox=my-sandbox --to=localhost:9999
-  signadot local override --sandbox=my-sandbox --to=localhost:9999 --detach
+`,
+		Example: `  signadot local override --sandbox=my-sandbox --to=9999 --port=8080
+  signadot local override --sandbox=my-sandbox --to=localhost:9999 --port=8080 --detach
   signadot local override list
-  signadot local override delete <name> --sandbox=<sandbox>`,
+  signadot local override delete <name> --sandbox=<sandbox>
+  signadot local override --sandbox=my-sandbox --to=localhost:9999 --port=8080 --workload=my-workload`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runOverride(cmd.OutOrStdout(), cfg)
 		},
@@ -80,7 +85,16 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	sandbox, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName)
+	var (
+		logServer   *http.Server
+		logListener net.Listener
+	)
+	logPort := int64(0)
+	if !cfg.Detach {
+		logServer, logListener, logPort = createLogServer(cfg.Sandbox, cfg.To)
+	}
+
+	sandbox, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName, logPort)
 	if err != nil {
 		return err
 	}
@@ -88,6 +102,10 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 	sandbox, err = utils.WaitForSandboxReady(cfg.API, out, cfg.Sandbox, cfg.WaitTimeout)
 	if err != nil {
 		return err
+	}
+
+	if !cfg.Detach {
+		startLogServer(logServer, logListener)
 	}
 
 	if cfg.Detach {
@@ -117,11 +135,102 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		if err := deleteMiddlewareFromSandbox(cfg, sandbox, overrideName); err != nil {
 			return err
 		}
+
+		// Shutdown log server gracefully
+		if logServer != nil {
+			logServer.Shutdown(ctx)
+		}
 	case <-ctx.Done():
 		// Context was cancelled
+		if logServer != nil {
+			logServer.Shutdown(ctx)
+		}
 	}
 
 	return nil
+}
+
+// createLogServer creates an HTTP server and listener for log consumption
+// Returns the server, listener, and the actual port that was assigned
+func createLogServer(sandboxName, localAddress string) (*http.Server, net.Listener, int64) {
+	mux := http.NewServeMux()
+
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		log.Fatalf("error listening on available port: %v", err)
+	}
+
+	// Get the actual port that was assigned
+	listeningPort := int64(ln.Addr().(*net.TCPAddr).Port)
+
+	mux.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Read the log body
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close()
+
+		var logEntry override.LogEntry
+		if err := json.Unmarshal(body, &logEntry); err != nil {
+			http.Error(w, "failed to unmarshal body", http.StatusInternalServerError)
+			return
+		}
+
+		printFormattedLogEntry(logEntry, sandboxName, localAddress)
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	server := &http.Server{
+		Handler: mux,
+	}
+
+	return server, ln, listeningPort
+}
+
+// startLogServer starts an HTTP server with the provided listener
+func startLogServer(server *http.Server, ln net.Listener) {
+	go func() {
+		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
+			log.Printf("log server error: %v", err)
+		}
+	}()
+}
+
+func printFormattedLogEntry(logEntry override.LogEntry, sandboxName string, localAddress string) {
+	var status string
+	var routing string
+
+	switch {
+	case logEntry.StatusCode >= 200 && logEntry.StatusCode < 300:
+		status = color.New(color.FgGreen).Sprintf("%d", logEntry.StatusCode)
+	case logEntry.StatusCode >= 300 && logEntry.StatusCode < 400:
+		status = color.New(color.FgYellow).Sprintf("%d", logEntry.StatusCode)
+	case logEntry.StatusCode >= 400:
+		status = color.New(color.FgRed).Sprintf("%d", logEntry.StatusCode)
+	default:
+		status = fmt.Sprintf("%d", logEntry.StatusCode)
+	}
+
+	if logEntry.Overridden {
+		routing = color.New(color.FgCyan).Sprint("(" + localAddress + ")")
+	} else {
+		routing = color.New(color.FgBlue).Sprint("(" + sandboxName + ")")
+	}
+
+	fmt.Printf("%-20s %-7s %s -> %s\n",
+		routing,
+		logEntry.Method,
+		logEntry.Path,
+		status,
+	)
 }
 
 func getSandbox(cfg *config.LocalOverrideCreate) (*models.Sandbox, error) {
@@ -198,10 +307,23 @@ func getFirstAvailableWorkloadName(sandbox *models.Sandbox) (string, error) {
 	return "", fmt.Errorf("no available workload found in sandbox %s", sandbox.Name)
 }
 
-func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadName string) (*models.Sandbox, string, error) {
+func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadName string, logHost int64) (*models.Sandbox, string, error) {
+	policy, err := builder.NewOverrideArgPolicy(cfg.PolicyDefaultFallThroughStatus, cfg.PolicyUnimplementedResponseCodes)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var log *builder.MiddlewareOverrideArg
+	if logHost > 0 {
+		log, err = builder.NewOverrideLogArg(logHost)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
 	sbBuilder := builder.
 		BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox)).
-		AddOverrideMiddleware(cfg.Port, cfg.To, workloadName).
+		AddOverrideMiddleware(cfg.Port, cfg.To, []string{workloadName}, policy, log).
 		SetMachineID()
 
 	sb, err := sbBuilder.Build()

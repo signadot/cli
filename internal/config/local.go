@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/signadot/libconnect/config"
@@ -13,6 +14,8 @@ import (
 	"github.com/spf13/viper"
 	"sigs.k8s.io/yaml"
 )
+
+var onlyDigitsString = regexp.MustCompile(`^[0-9]+$`)
 
 const (
 	DefaultVirtualIPNet = "242.242.0.1/16"
@@ -313,16 +316,28 @@ type LocalOverrideCreate struct {
 	Workload string
 	Detach   bool
 
+	// Policies
+	PolicyUnimplementedResponseCodes []int
+	PolicyDefaultFallThroughStatus   string
+
 	WaitTimeout time.Duration
 }
 
 func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "", "sandbox to override traffic for")
-	cmd.Flags().Int64Var(&lo.Port, "port", -1, "port to override traffic for")
+	cmd.Flags().Int64Var(&lo.Port, "port", 0, "port to override traffic for")
 	cmd.Flags().StringVar(&lo.To, "to", "", "target address to redirect traffic to (e.g., localhost:9999)")
 	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "", "workload to override traffic for")
 	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false, "run in detached mode, preserving changes after session termination")
 	cmd.Flags().DurationVar(&lo.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout to wait for the sandbox to be ready")
+
+	// Policies
+	cmd.Flags().IntSliceVar(&lo.PolicyUnimplementedResponseCodes, "policy-unimplemented-response-codes", []int{}, "unimplemented response codes")
+	cmd.Flags().StringVar(&lo.PolicyDefaultFallThroughStatus, "policy-default-fallthrough-status", "", "default fall through status")
+
+	cmd.MarkFlagRequired("sandbox")
+	cmd.MarkFlagRequired("port")
+	cmd.MarkFlagRequired("to")
 }
 
 func (lo *LocalOverrideCreate) Validate() error {
@@ -334,11 +349,46 @@ func (lo *LocalOverrideCreate) Validate() error {
 		return errors.New("--to is required")
 	}
 
-	if lo.Port < 0 {
-		return errors.New("--port is required")
+	if lo.Port <= 0 || lo.Port > 65535 {
+		return errors.New("--port must be a value between 1 and 65535")
 	}
 
+	if lo.PolicyDefaultFallThroughStatus != "" {
+		switch lo.PolicyDefaultFallThroughStatus {
+		case "implemented":
+		case "unimplemented":
+		default:
+			return errors.New("invalid policy default fall through status, should be 'implemented' or 'unimplemented'")
+		}
+	}
+
+	for _, code := range lo.PolicyUnimplementedResponseCodes {
+		if code < 100 || code > 599 {
+			return errors.New("invalid policy unimplemented response code, should be between 100 and 599")
+		}
+	}
+
+	to, err := parseTo(lo.To)
+	if err != nil {
+		return err
+	}
+	lo.To = to
+
 	return nil
+}
+
+// parseTo allow to receive only the numeric port without the hostname
+// and return the formatted string with the hostname
+func parseTo(to string) (string, error) {
+	if onlyDigitsString.MatchString(to) {
+		if port, err := strconv.Atoi(to); err != nil || port <= 0 || port > 65535 {
+			return "", fmt.Errorf("invalid port, should be a value between 1 and 65535")
+		}
+
+		return fmt.Sprintf("localhost:%s", to), nil
+	}
+
+	return to, nil
 }
 
 type LocalOverrideDelete struct {
@@ -350,6 +400,8 @@ type LocalOverrideDelete struct {
 
 func (lod *LocalOverrideDelete) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&lod.Sandbox, "sandbox", "", "sandbox containing the override to delete")
+
+	cmd.MarkFlagRequired("sandbox")
 }
 
 type LocalOverrideList struct {
