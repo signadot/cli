@@ -19,12 +19,10 @@ func watchMatch(cfg *config.TrafficWatch, sb *models.Sandbox, applied bool) erro
 		}
 		count++
 		wantOpts := getExpectedOpts(cfg)
-		if len(mw.Args) == 0 && wantOpts.String() == api.WatchAll().String() {
-			return nil
-		}
 		if len(mw.Args) != 1 {
 			return fmt.Errorf("sandbox %s has traffic-watch-client middleware configured differently than expected: too many args (%d)", sb.Name, len(mw.Args))
 		}
+		// NB the middleware could be configured consistently there is no way to know
 		mwa := mw.Args[0]
 		if mwa.Name != "options" {
 			return fmt.Errorf("sandbox %s has traffic-watch-client middleware configured differently than expected: unexpected arg %q", sb.Name, mwa.Name)

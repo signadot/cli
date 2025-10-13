@@ -56,10 +56,10 @@ func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
 func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
 	waitDone := setupTW(ctx, tw, log)
 	enc := json.NewEncoder(w)
+	go encodeReqDones(tw.RequestDone, log, nil, enc)
 	for meta := range tw.Meta {
 		if err := enc.Encode(meta); err != nil {
 			log.Warn("error encoding request metadata", "error", err)
-			continue
 		}
 	}
 	<-waitDone
@@ -99,6 +99,7 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	}()
 	fEnc := json.NewEncoder(metaF)
 	oEnc := json.NewEncoder(w)
+	go encodeReqDones(tw.RequestDone, log, handleDir(cfg), fEnc, oEnc)
 	for meta := range tw.Meta {
 		if err := handleMetaToDir(cfg, log, fEnc, oEnc, meta); err != nil {
 			return err

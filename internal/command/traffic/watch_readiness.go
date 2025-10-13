@@ -111,9 +111,16 @@ func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *mo
 		fmt.Fprintf(w, "adding trafficwatch-client middleware to sandbox\n")
 	}
 
+	args := []*models.SandboxesArgument{
+		&models.SandboxesArgument{
+			Name:  "options",
+			Value: getExpectedOpts(cfg).String(),
+		},
+	}
 	sb.Spec.Middleware = append(sb.Spec.Middleware,
 		&models.SandboxesMiddleware{
 			Name: "trafficwatch-client",
+			Args: args,
 			Match: []*models.SandboxesMiddlewareMatch{
 				{
 					Workload: "*",
