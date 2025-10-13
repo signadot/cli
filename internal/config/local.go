@@ -316,24 +316,36 @@ type LocalOverrideCreate struct {
 	Workload string
 	Detach   bool
 
-	// Policies
-	PolicyUnimplementedResponseCodes []int
-	PolicyDefaultFallThroughStatus   string
+	// Policy
+	ExcludedStatusCodes []int `json:"excludedStatusCodes"`
 
 	WaitTimeout time.Duration
 }
 
 func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "", "sandbox to override traffic for")
-	cmd.Flags().Int64Var(&lo.Port, "port", 0, "port to override traffic for")
-	cmd.Flags().StringVar(&lo.To, "to", "", "target address to redirect traffic to (e.g., localhost:9999)")
-	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "", "workload to override traffic for")
-	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false, "run in detached mode, preserving changes after session termination")
-	cmd.Flags().DurationVar(&lo.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout to wait for the sandbox to be ready")
+	// Flags
+	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "",
+		"name of the sandbox whose traffic will be overridden")
 
-	// Policies
-	cmd.Flags().IntSliceVar(&lo.PolicyUnimplementedResponseCodes, "policy-unimplemented-response-codes", []int{}, "unimplemented response codes")
-	cmd.Flags().StringVar(&lo.PolicyDefaultFallThroughStatus, "policy-default-fallthrough-status", "", "default fall through status")
+	cmd.Flags().Int64Var(&lo.Port, "port", 0,
+		"port on the sandbox workload to intercept and redirect traffic from")
+
+	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "",
+		"name of the workload to override traffic for")
+
+	cmd.Flags().StringVar(&lo.To, "to", "",
+		"target address of the override destination (e.g., localhost:9999) where traffic will be forwarded")
+
+	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false,
+		"run in detached mode so the override remains active after the CLI session ends")
+
+	cmd.Flags().DurationVar(&lo.WaitTimeout, "wait-timeout", 3*time.Minute,
+		"maximum time to wait for the sandbox to become ready before failing")
+
+	// Policy
+	cmd.Flags().IntSliceVar(&lo.ExcludedStatusCodes, "except-status", []int{},
+		"comma-separated list of HTTP status codes to bypass override. "+
+			"Responses with these codes will fall through to the sandboxed destination (e.g., 404,503)")
 
 	cmd.MarkFlagRequired("sandbox")
 	cmd.MarkFlagRequired("port")
@@ -353,18 +365,9 @@ func (lo *LocalOverrideCreate) Validate() error {
 		return errors.New("--port must be a value between 1 and 65535")
 	}
 
-	if lo.PolicyDefaultFallThroughStatus != "" {
-		switch lo.PolicyDefaultFallThroughStatus {
-		case "implemented":
-		case "unimplemented":
-		default:
-			return errors.New("invalid policy default fall through status, should be 'implemented' or 'unimplemented'")
-		}
-	}
-
-	for _, code := range lo.PolicyUnimplementedResponseCodes {
+	for _, code := range lo.ExcludedStatusCodes {
 		if code < 100 || code > 599 {
-			return errors.New("invalid policy unimplemented response code, should be between 100 and 599")
+			return errors.New("invalid except-status response code, should be between 100 and 599")
 		}
 	}
 

@@ -27,16 +27,33 @@ func New(local *config.Local) *cobra.Command {
 	cfg := &config.LocalOverrideCreate{LocalOverride: &config.LocalOverride{Local: local}}
 
 	cmd := &cobra.Command{
-		Use:   "override --sandbox=<sandbox> --to=<target> --port=<port> [--detach] [--workload=<workload>]",
-		Short: "Override traffic routing for sandboxes",
-		Long: `Override traffic routing allows you to route traffic from a sandbox to a local service.
-This is useful for testing local changes against a sandbox environment.
-`,
-		Example: `  signadot local override --sandbox=my-sandbox --to=9999 --port=8080
-  signadot local override --sandbox=my-sandbox --to=localhost:9999 --port=8080 --detach
+		Use:   "override --sandbox=<sandbox> [--workload=<workload>] --port=<port> --to=<target> [--except-status=...] [--detach]",
+		Short: "Override sandbox HTTP traffic using a local service",
+		Long: `The 'override' command allows you to route HTTP traffic from a sandbox environment 
+to a local service. This is useful for testing local changes in a realistic 
+sandbox without redeploying code.
+
+By default, overrides apply when the response from the target override 
+destination includes the header 'sd-override: true'.
+
+You can use the '--except-status' flag to specify HTTP response codes 
+that should not be overridden. When set, all other traffic will be overridden 
+except for the specified status codes, which will fall through to the orginal 
+sandboxed destination.`,
+		Example: `  # Override sandbox traffic from workload my-workload, port 8080 to localhost:9999
+  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999
+
+  # Bypass override when the response returns 404 and 503
+  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999 --except-status=404,503
+
+  # Keep the override active after the CLI session ends
+  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999 --detach
+
+  # List all active overrides
   signadot local override list
-  signadot local override delete <name> --sandbox=<sandbox>
-  signadot local override --sandbox=my-sandbox --to=localhost:9999 --port=8080 --workload=my-workload`,
+
+  # Delete a specific override
+  signadot local override delete <name> --sandbox=<sandbox>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runOverride(cmd.OutOrStdout(), cfg)
 		},
@@ -94,7 +111,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		logServer, logListener, logPort = createLogServer(cfg.Sandbox, cfg.To)
 	}
 
-	sandbox, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName, logPort)
+	_, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName, logPort)
 	if err != nil {
 		return err
 	}
@@ -267,7 +284,6 @@ func getOverrideWorkloadName(sandbox *models.Sandbox, targetWorkload string) (st
 
 // getWorkloadByName returns the workload name for the given name
 func getWorkloadByName(sandbox *models.Sandbox, name string) (string, error) {
-
 	for _, virtual := range sandbox.Spec.Virtual {
 		if virtual.Name == name {
 			return virtual.Name, nil
@@ -307,8 +323,9 @@ func getFirstAvailableWorkloadName(sandbox *models.Sandbox) (string, error) {
 	return "", fmt.Errorf("no available workload found in sandbox %s", sandbox.Name)
 }
 
-func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadName string, logHost int64) (*models.Sandbox, string, error) {
-	policy, err := builder.NewOverrideArgPolicy(cfg.PolicyDefaultFallThroughStatus, cfg.PolicyUnimplementedResponseCodes)
+func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox,
+	workloadName string, logHost int64) (*models.Sandbox, string, error) {
+	policyArg, err := builder.NewOverrideArgPolicy(cfg.ExcludedStatusCodes)
 	if err != nil {
 		return nil, "", err
 	}
@@ -323,7 +340,7 @@ func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *m
 
 	sbBuilder := builder.
 		BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox)).
-		AddOverrideMiddleware(cfg.Port, cfg.To, []string{workloadName}, policy, log).
+		AddOverrideMiddleware(cfg.Port, cfg.To, []string{workloadName}, policyArg, log).
 		SetMachineID()
 
 	sb, err := sbBuilder.Build()
