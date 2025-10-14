@@ -44,10 +44,7 @@ func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *mo
 		return noUneditFunc, err
 	}
 	sb.Spec.Labels[fmt.Sprintf("instrumentation.signadot.com/add-%s", trafficwatch.MiddlewareName)] = machineID
-	params := sandboxes.NewApplySandboxParams().
-		WithOrgName(cfg.Org).WithSandboxName(sb.Name).WithData(sb)
-	_, err = cfg.Client.Sandboxes.ApplySandbox(params, nil)
-	if err != nil {
+	if err := applyWithLocal(cfg, sb); err != nil {
 		return noUneditFunc, err
 	}
 	return uneditFunc(cfg, w), nil

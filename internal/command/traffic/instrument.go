@@ -4,7 +4,9 @@ import (
 	"io"
 
 	"github.com/signadot/cli/internal/config"
+	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/trafficwatch"
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 )
@@ -47,9 +49,33 @@ func uneditFunc(cfg *config.TrafficWatch, w io.Writer) func() error {
 			}
 		}
 		delete(sb.Spec.Labels, "instrumentation.signadot.com/add-trafficwatch-client")
-		applyParams := sandboxes.NewApplySandboxParams().
-			WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox).WithData(sb)
-		_, err = cfg.Client.Sandboxes.ApplySandbox(applyParams, nil)
-		return err
+		return applyWithLocal(cfg, sb)
 	}
+}
+
+func applyWithLocal(cfg *config.TrafficWatch, sb *models.Sandbox) error {
+	hasLocal := false
+	if sb.Spec.Routing != nil && len(sb.Spec.Routing.Forwards) != 0 {
+		hasLocal = true
+	}
+	if len(sb.Spec.Local) != 0 {
+		hasLocal = true
+	}
+	if hasLocal {
+		_, err := sbmgr.ValidateSandboxManager(sb.Spec.Cluster)
+		if err != nil {
+			return err
+		}
+		machineID, err := system.GetMachineID()
+		if err != nil {
+			return err
+		}
+		sb.Spec.LocalMachineID = machineID
+	}
+
+	applyParams := sandboxes.NewApplySandboxParams().
+		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox).WithData(sb)
+
+	_, err := cfg.Client.Sandboxes.ApplySandbox(applyParams, nil)
+	return err
 }
