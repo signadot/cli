@@ -35,7 +35,7 @@ func GetLocalKubeClient() (client.Client, error) {
 }
 
 func GetLocalStatus() (*sbmapi.StatusResponse, error) {
-	// Get the sigandot dir
+	// Get the signadot dir
 	signadotDir, err := system.GetSignadotDir()
 	if err != nil {
 		return nil, err

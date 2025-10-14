@@ -47,7 +47,7 @@ func waitSandboxReady(cfg *config.TrafficWatch, w io.Writer) error {
 			spin.Messagef("Not Ready: %s", sb.Status.Message)
 			return false
 		}
-		if err := watchMatch(cfg, sb, false); err != nil {
+		if _, err := watchMatch(cfg, sb, true); err != nil {
 			spin.Messagef("Error: %s", err.Error())
 			return false
 		}
@@ -94,7 +94,7 @@ func ckReady(cfg *config.TrafficWatch) (ready bool, warn, fatal error) {
 		return false, err, nil
 	}
 	sb := resp.Payload
-	if err := watchMatch(cfg, sb, true); err != nil {
+	if _, err := watchMatch(cfg, sb, true); err != nil {
 		return false, nil, err
 	}
 	if !sb.Status.Ready {
@@ -104,11 +104,15 @@ func ckReady(cfg *config.TrafficWatch) (ready bool, warn, fatal error) {
 }
 
 func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *models.Sandbox) (func() error, error) {
-	if err := watchMatch(cfg, sb, false); err != nil {
+	has, err := watchMatch(cfg, sb, false)
+	if err == nil && has {
 		return noUneditFunc, err
 	}
 	if cfg.Debug {
 		fmt.Fprintf(w, "adding trafficwatch-client middleware to sandbox\n")
+	}
+	if err != nil {
+		fmt.Fprintf(w, "WARNING: overwriting sandbox: %v\n", err)
 	}
 
 	args := []*models.SandboxesArgument{
@@ -117,6 +121,7 @@ func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *mo
 			Value: getExpectedOpts(cfg).String(),
 		},
 	}
+	removeTrafficWatch(sb)
 	sb.Spec.Middleware = append(sb.Spec.Middleware,
 		&models.SandboxesMiddleware{
 			Name: "trafficwatch-client",
@@ -156,28 +161,34 @@ func uneditFunc(cfg *config.TrafficWatch, w io.Writer) func() error {
 			return err
 		}
 		sb := resp.Payload
+		has, err := watchMatch(cfg, sb, true)
+		if err != nil {
+			return err
+		}
+		if has {
+			removeTrafficWatch(sb)
+		}
 		if x := sb.Spec.Labels["instrumentation.signadot.com/add-trafficwatch-client"]; x == "" {
-			return nil
+			if !has {
+				return nil
+			}
 		}
 		delete(sb.Spec.Labels, "instrumentation.signadot.com/add-trafficwatch-client")
-		j := 0
-		for _, sbm := range sb.Spec.Middleware {
-			if sbm.Name == "trafficwatch-client" {
-				if len(sbm.Args) == 0 {
-					if len(sbm.Match) == 1 {
-						if sbm.Match[0].Workload == "*" {
-							continue
-						}
-					}
-				}
-			}
-			sb.Spec.Middleware[j] = sbm
-			j++
-		}
-		sb.Spec.Middleware = sb.Spec.Middleware[:j]
 		applyParams := sandboxes.NewApplySandboxParams().
 			WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox).WithData(sb)
 		_, err = cfg.Client.Sandboxes.ApplySandbox(applyParams, nil)
 		return err
 	}
+}
+
+func removeTrafficWatch(sb *models.Sandbox) {
+	j := 0
+	for _, mw := range sb.Spec.Middleware {
+		if mw.Name == "trafficwatch-client" {
+			continue
+		}
+		sb.Spec.Middleware[j] = mw
+		j++
+	}
+	sb.Spec.Middleware = sb.Spec.Middleware[:j]
 }
