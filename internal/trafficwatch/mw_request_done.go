@@ -1,12 +1,12 @@
 package trafficwatch
 
 import (
-	"encoding/json"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/goccy/go-yaml"
 	"github.com/signadot/cli/internal/config"
 )
 
@@ -27,32 +27,35 @@ func encodeReqDones(rdC <-chan string, log *slog.Logger, fn func(*slog.Logger, *
 }
 
 func handleDir(cfg *config.TrafficWatch) func(log *slog.Logger, reqDone *reqDone) {
+	suffix := ".json"
+	if cfg.OutputFormat == config.OutputFormatYAML {
+		suffix = ".yaml"
+	}
 	return func(log *slog.Logger, reqDone *reqDone) {
-		reqDir := filepath.Join(cfg.To, reqDone.ID, "meta.json")
-		d, err := os.ReadFile(reqDir)
+		reqMetaPath := filepath.Join(cfg.To, reqDone.ID, "meta"+suffix)
+		d, err := os.ReadFile(reqMetaPath)
 		if err != nil {
-			log.Warn("error reading", "path", reqDir, "error", err)
+			log.Warn("error reading", "path", reqMetaPath, "error", err)
 			return
 		}
 		x := map[string]any{}
-		if err := json.Unmarshal(d, &x); err != nil {
-			log.Warn("unable to decode json", "path", reqDir, "error", err)
+		if err := yaml.Unmarshal(d, &x); err != nil {
+			log.Warn("unable to decode json", "path", reqMetaPath, "error", err)
 			return
 		}
 		x["doneAt"] = reqDone.DoneAt
-		d, err = json.MarshalIndent(x, "", "  ")
+		f, err := os.OpenFile(reqMetaPath, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Warn("unable to encode json", "path", reqDir, "error", err)
-			return
-		}
-		f, err := os.OpenFile(reqDir, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Warn("unable to open meta file", "path", reqDir, "error", err)
+			log.Warn("unable to open meta file", "path", reqMetaPath, "error", err)
 			return
 		}
 		defer f.Close()
-		if _, err := f.Write(d); err != nil {
-			log.Warn("unable to write meta file", "path", reqDir, "error", err)
+		enc := getMetaEncoder(f, cfg)
+		if enc.j != nil {
+			enc.j.SetIndent("", "  ")
+		}
+		if err := enc.Encode(x); err != nil {
+			log.Warn("unable to write meta file", "path", reqMetaPath, "error", err)
 			return
 		}
 	}

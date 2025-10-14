@@ -2,7 +2,6 @@ package trafficwatch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -84,7 +83,11 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	waitDone := setupTW(ctx, tw, log)
-	metaF, err := os.OpenFile(filepath.Join(cfg.To, "meta.jsons"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	suffix := ".jsons"
+	if cfg.OutputFormat == config.OutputFormatYAML {
+		suffix = ".yamls"
+	}
+	metaF, err := os.OpenFile(filepath.Join(cfg.To, "meta"+suffix), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -131,15 +134,21 @@ func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc metaEncode
 	if err := ensureDir(p); err != nil {
 		return err
 	}
-	metaPath := filepath.Join(p, "meta.json")
+	suffix := ".json"
+	if cfg.OutputFormat == config.OutputFormatYAML {
+		suffix = ".yaml"
+	}
+	metaPath := filepath.Join(p, "meta"+suffix)
 	metaF, err := os.OpenFile(metaPath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer metaF.Close()
 
-	metaEnc := json.NewEncoder(metaF)
-	metaEnc.SetIndent("", "  ")
+	metaEnc := getMetaEncoder(metaF, cfg)
+	if metaEnc.j != nil {
+		metaEnc.j.SetIndent("", "  ")
+	}
 	return metaEnc.Encode(meta)
 }
 

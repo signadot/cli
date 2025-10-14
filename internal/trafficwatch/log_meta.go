@@ -50,10 +50,10 @@ func (e *mEnc) Encode(v any) error {
 			return err
 		}
 	}
-	return print.RawYAML(e.yWriter, v)
+	return print.RawK8SYAML(e.yWriter, v)
 }
 
-func getMetaEncoder(w io.Writer, cfg *config.TrafficWatch) metaEncoder {
+func getMetaEncoder(w io.Writer, cfg *config.TrafficWatch) *mEnc {
 	switch cfg.OutputFormat {
 	case config.OutputFormatJSON, config.OutputFormatDefault:
 		return &mEnc{j: json.NewEncoder(w)}
