@@ -91,17 +91,19 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	defer cancel()
-	readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, func() (ready bool, warn, fatal error) {
-		return ckReady(cfg)
-	})
-	defer readiness.Stop()
-
 	var tw *twapi.TrafficWatch
 	tw, retErr = trafficwatch.GetTrafficWatch(context.Background(), cfg, log, routingKey)
 	if err != nil {
 		return err
 	}
-	go readyLoop(ctx, log, tw, readiness)
+	if !cfg.NoInstrument {
+		readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, func() (ready bool, warn, fatal error) {
+			return ckReady(cfg)
+		})
+		defer readiness.Stop()
+		go readyLoop(ctx, log, tw, readiness)
+	}
+
 	if cfg.Short {
 		retErr = trafficwatch.ConsumeShort(ctx, log, tw, w)
 	} else {
@@ -117,8 +119,20 @@ func getTerminalLogger(cfg *config.TrafficWatch, w io.Writer) *slog.Logger {
 	}
 	log := slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
 		Level: logLevel,
+		// remove timestamps
+		ReplaceAttr: func(attrs []string, a slog.Attr) slog.Attr {
+			if a.Key == "time" {
+				return slog.Attr{}
+			}
+			if a.Key == "level" {
+				if a.Value.String() == "INFO" {
+					return slog.Attr{}
+				}
+			}
+			return a
+		},
 	}))
-	return log
+	return log.With("sandbox", cfg.Sandbox)
 }
 
 func setupToDir(toDir string) error {

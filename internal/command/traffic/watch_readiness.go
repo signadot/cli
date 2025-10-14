@@ -19,7 +19,10 @@ import (
 )
 
 func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *models.Sandbox) (func() error, error) {
-	has, err := watchMatch(cfg, sb, false)
+	if cfg.NoInstrument {
+		return noUneditFunc, nil
+	}
+	has, err := watchMatch(cfg, sb, cfg.NoInstrument)
 	if err == nil && has {
 		return noUneditFunc, err
 	}
@@ -51,6 +54,9 @@ func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *mo
 }
 
 func waitSandboxReady(cfg *config.TrafficWatch, w io.Writer) error {
+	if cfg.NoInstrument {
+		return nil
+	}
 	fmt.Fprintf(w, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
 
 	params := sandboxes.NewGetSandboxParams().
@@ -127,9 +133,15 @@ func ckReady(cfg *config.TrafficWatch) (ready bool, warn, fatal error) {
 		return false, err, nil
 	}
 	sb := resp.Payload
-	if _, err := watchMatch(cfg, sb, true); err != nil {
-		return false, nil, err
+	has, err := watchMatch(cfg, sb, true)
+	if !has {
+		return sb.Status.Ready, nil, fmt.Errorf("sandbox no longer has %s middleware", trafficwatch.MiddlewareName)
 	}
+	if !cfg.NoInstrument && err != nil {
+		return sb.Status.Ready, nil, fmt.Errorf("sandbox no longer has %s middleware", trafficwatch.MiddlewareName)
+	}
+	// either middleware matches or we aren't trying to instrument and allow
+	// out of band mw edits
 	if !sb.Status.Ready {
 		return false, errors.New(sb.Status.Message), nil
 	}

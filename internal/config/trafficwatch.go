@@ -10,11 +10,12 @@ type TrafficWatch struct {
 	*Traffic
 
 	// flags
-	ToDir       string
-	Sandbox     string
-	Short       bool
-	HeadersOnly bool
-	WaitTimeout time.Duration
+	ToDir        string
+	Sandbox      string
+	Short        bool
+	HeadersOnly  bool
+	WaitTimeout  time.Duration
+	NoInstrument bool
 }
 
 func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
@@ -23,4 +24,5 @@ func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.HeadersOnly, "headers-only", false, "do not record request and response bodies")
 	cmd.Flags().StringVar(&c.ToDir, "dir", "", "output to directory")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 30*time.Second, "time to wait for intial sandbox readiness")
+	cmd.Flags().BoolVar(&c.NoInstrument, "no-instrument", false, "do not instrument sandbox")
 }

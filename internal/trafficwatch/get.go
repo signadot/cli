@@ -54,6 +54,7 @@ func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
 }
 
 func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
+	log.Info("logging to stderr for traffic watch --short")
 	waitDone := setupTW(ctx, tw, log)
 	enc := json.NewEncoder(w)
 	go encodeReqDones(tw.RequestDone, log, nil, enc)
@@ -67,6 +68,7 @@ func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.Traffi
 }
 
 func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch, w io.Writer) error {
+	log.Info("logging to stderr for traffic watch", "directory", cfg.ToDir)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	waitDone := setupTW(ctx, tw, log)
