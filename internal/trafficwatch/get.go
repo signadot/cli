@@ -126,7 +126,7 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 }
 
 func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc metaEncoder, meta *api.RequestMetadata) error {
-	log.Info("request", "activity", (*logMeta)(meta))
+	log.Info("incoming-request", "request", (*logMeta)(meta))
 	if err := fEnc.Encode(meta); err != nil {
 		return err
 	}
