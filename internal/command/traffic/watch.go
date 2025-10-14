@@ -94,8 +94,8 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	defer cancel()
 	var tw *twapi.TrafficWatch
 	tw, retErr = trafficwatch.GetTrafficWatch(context.Background(), cfg, log, routingKey)
-	if err != nil {
-		return err
+	if retErr != nil {
+		return retErr
 	}
 	if !cfg.NoInstrument {
 		readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, func() (ready bool, warn, fatal error) {
