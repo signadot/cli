@@ -44,7 +44,6 @@ func (e *mEnc) Encode(v any) error {
 	if e.j != nil {
 		return e.j.Encode(v)
 	}
-	fmt.Printf("e.n is %d\n", e.n)
 	if e.n != 0 {
 		_, err := e.yWriter.Write([]byte("---\n"))
 		if err != nil {
