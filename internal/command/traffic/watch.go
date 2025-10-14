@@ -105,8 +105,11 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	}
 
 	if cfg.Short {
+		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(),
+			"output", "stdout")
 		retErr = trafficwatch.ConsumeShort(ctx, log, tw, w)
 	} else {
+		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.ToDir, "activity-output", "stdout")
 		retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw, w)
 	}
 	return retErr

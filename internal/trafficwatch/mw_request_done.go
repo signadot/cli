@@ -13,6 +13,7 @@ import (
 func encodeReqDones(rdC <-chan string, log *slog.Logger, fn func(*slog.Logger, *reqDone), encs ...*json.Encoder) {
 	for id := range rdC {
 		rd := newReqDone(id)
+		log.Info("request-done", "activity", rd)
 		for _, enc := range encs {
 			err := enc.Encode(rd)
 			if err == nil {
@@ -61,6 +62,13 @@ func handleDir(cfg *config.TrafficWatch) func(log *slog.Logger, reqDone *reqDone
 type reqDone struct {
 	ID     string `json:"middlewareRequestID"`
 	DoneAt string `json:"doneAt"`
+}
+
+func (rd *reqDone) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("id", rd.ID),
+		slog.String("doneAt", rd.DoneAt),
+	)
 }
 
 func newReqDone(id string) *reqDone {

@@ -54,21 +54,16 @@ func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
 }
 
 func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
-	log.Info("logging to stderr for traffic watch --short")
 	waitDone := setupTW(ctx, tw, log)
-	enc := json.NewEncoder(w)
-	go encodeReqDones(tw.RequestDone, log, nil, enc)
+	go encodeReqDones(tw.RequestDone, log, nil)
 	for meta := range tw.Meta {
-		if err := enc.Encode(meta); err != nil {
-			log.Warn("error encoding request metadata", "error", err)
-		}
+		log.Info("request", "activity", (*logMeta)(meta))
 	}
 	<-waitDone
 	return nil
 }
 
 func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch, w io.Writer) error {
-	log.Info("logging to stderr for traffic watch", "directory", cfg.ToDir)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	waitDone := setupTW(ctx, tw, log)
@@ -101,7 +96,7 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	}()
 	fEnc := json.NewEncoder(metaF)
 	oEnc := json.NewEncoder(w)
-	go encodeReqDones(tw.RequestDone, log, handleDir(cfg), fEnc, oEnc)
+	go encodeReqDones(tw.RequestDone, log, handleDir(cfg), fEnc)
 	for meta := range tw.Meta {
 		if err := handleMetaToDir(cfg, log, fEnc, oEnc, meta); err != nil {
 			return err
@@ -112,9 +107,7 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 }
 
 func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc, oEnc *json.Encoder, meta *api.RequestMetadata) error {
-	if err := oEnc.Encode(meta); err != nil {
-		return err
-	}
+	log.Info("request", "activity", (*logMeta)(meta))
 	if err := fEnc.Encode(meta); err != nil {
 		return err
 	}
