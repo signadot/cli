@@ -327,11 +327,11 @@ func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "",
 		"name of the sandbox whose traffic will be overridden")
 
-	cmd.Flags().Int64Var(&lo.Port, "port", 0,
-		"port on the sandbox workload to intercept and redirect traffic from")
-
 	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "",
 		"name of the workload to override traffic for")
+
+	cmd.Flags().Int64Var(&lo.Port, "port", 0,
+		"port on the sandbox workload to intercept traffic from")
 
 	cmd.Flags().StringVar(&lo.To, "to", "",
 		"target address of the override destination (e.g., localhost:9999) where traffic will be forwarded")
@@ -348,6 +348,7 @@ func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
 			"Responses with these codes will fall through to the sandboxed destination (e.g., 404,503)")
 
 	cmd.MarkFlagRequired("sandbox")
+	cmd.MarkFlagRequired("workload")
 	cmd.MarkFlagRequired("port")
 	cmd.MarkFlagRequired("to")
 }
@@ -357,12 +358,16 @@ func (lo *LocalOverrideCreate) Validate() error {
 		return errors.New("--sandbox is required")
 	}
 
-	if lo.To == "" {
-		return errors.New("--to is required")
+	if lo.Workload == "" {
+		return errors.New("--workload is required")
 	}
 
 	if lo.Port <= 0 || lo.Port > 65535 {
 		return errors.New("--port must be a value between 1 and 65535")
+	}
+
+	if lo.To == "" {
+		return errors.New("--to is required")
 	}
 
 	for _, code := range lo.ExcludedStatusCodes {
@@ -409,11 +414,4 @@ func (lod *LocalOverrideDelete) AddFlags(cmd *cobra.Command) {
 
 type LocalOverrideList struct {
 	*LocalOverride
-
-	// Flags
-	Cluster string
-}
-
-func (lol *LocalOverrideList) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&lol.Cluster, "cluster", "", "target cluster")
 }

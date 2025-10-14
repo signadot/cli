@@ -92,8 +92,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	workloadName, err := getOverrideWorkloadName(sandbox, cfg.Workload)
-	if err != nil {
+	if err := validateWorkload(sandbox, cfg.Workload); err != nil {
 		return err
 	}
 
@@ -111,7 +110,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		logServer, logListener, logPort = createLogServer(cfg.Sandbox, cfg.To)
 	}
 
-	_, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName, logPort)
+	_, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, cfg.Workload, logPort)
 	if err != nil {
 		return err
 	}
@@ -126,7 +125,8 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 	}
 
 	if cfg.Detach {
-		fmt.Fprintf(out, "Overriding traffic from sandbox '%s' workload '%s' to %s\n", cfg.Sandbox, workloadName, cfg.To)
+		fmt.Fprintf(out, "Overriding traffic from sandbox %q, workload %q, port %d to %s\n",
+			cfg.Sandbox, cfg.Workload, cfg.Port, cfg.To)
 
 		fmt.Fprintf(out, "Traffic override will persist after this session ends\n")
 
@@ -148,7 +148,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 	select {
 	case <-sigChan:
 		fmt.Fprintf(out, "\nSession terminated\n")
-		printOverrideProgress(out, fmt.Sprintf("Removing redirect in %s", cfg.Sandbox))
+		printOverrideProgress(out, fmt.Sprintf("Removing override in %s", cfg.Sandbox))
 		if err := deleteMiddlewareFromSandbox(cfg, sandbox, overrideName); err != nil {
 			return err
 		}
@@ -200,7 +200,7 @@ func createLogServer(sandboxName, localAddress string) (*http.Server, net.Listen
 			return
 		}
 
-		printFormattedLogEntry(logEntry, sandboxName, localAddress)
+		printFormattedLogEntry(&logEntry, sandboxName, localAddress)
 
 		w.WriteHeader(http.StatusOK)
 	})
@@ -221,7 +221,7 @@ func startLogServer(server *http.Server, ln net.Listener) {
 	}()
 }
 
-func printFormattedLogEntry(logEntry override.LogEntry, sandboxName string, localAddress string) {
+func printFormattedLogEntry(logEntry *override.LogEntry, sandboxName string, localAddress string) {
 	var status string
 	var routing string
 
@@ -261,66 +261,26 @@ func getSandbox(cfg *config.LocalOverrideCreate) (*models.Sandbox, error) {
 	return resp.Payload, nil
 }
 
-// getOverrideWorkloadName returns the workload name for the given target workload. If no target workload is provided, the first available workload name is returned.
-// If a target workload is provided, but not found, an error is returned.
-func getOverrideWorkloadName(sandbox *models.Sandbox, targetWorkload string) (string, error) {
-	if targetWorkload == "" {
-		workloadName, err := getFirstAvailableWorkloadName(sandbox)
-		if err != nil {
-			return "", err
-		}
-
-		return workloadName, nil
-
-	}
-
-	workloadName, err := getWorkloadByName(sandbox, targetWorkload)
-	if err != nil {
-		return "", err
-	}
-
-	return workloadName, nil
-}
-
-// getWorkloadByName returns the workload name for the given name
-func getWorkloadByName(sandbox *models.Sandbox, name string) (string, error) {
+func validateWorkload(sandbox *models.Sandbox, workload string) error {
 	for _, virtual := range sandbox.Spec.Virtual {
-		if virtual.Name == name {
-			return virtual.Name, nil
+		if virtual.Name == workload {
+			return nil
 		}
 	}
 
 	for _, fork := range sandbox.Spec.Forks {
-		if fork.Name == name {
-			return fork.Name, nil
+		if fork.Name == workload {
+			return nil
 		}
 	}
 
 	for _, local := range sandbox.Spec.Local {
-		if local.Name == name {
-			return local.Name, nil
+		if local.Name == workload {
+			return nil
 		}
 	}
 
-	return "", fmt.Errorf("workload %s not found in sandbox %s", name, sandbox.Name)
-}
-
-// getFirstAvailableWorkloadName returns the first available workload name for the given sandbox
-// The order is virtual, forks and local
-func getFirstAvailableWorkloadName(sandbox *models.Sandbox) (string, error) {
-	if len(sandbox.Spec.Virtual) > 0 {
-		return sandbox.Spec.Virtual[0].Name, nil
-	}
-
-	if len(sandbox.Spec.Forks) > 0 {
-		return sandbox.Spec.Forks[0].Name, nil
-	}
-
-	if len(sandbox.Spec.Local) > 0 {
-		return sandbox.Spec.Local[0].Name, nil
-	}
-
-	return "", fmt.Errorf("no available workload found in sandbox %s", sandbox.Name)
+	return fmt.Errorf("workload %s not found in sandbox %s", workload, sandbox.Name)
 }
 
 func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox,

@@ -144,7 +144,8 @@ func NewOverrideLogArg(logListenerPort int64) (*MiddlewareOverrideArg, error) {
 	}, nil
 }
 
-func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, workloadNames []string, args ...*MiddlewareOverrideArg) *SandboxBuilder {
+func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string,
+	workloadNames []string, args ...*MiddlewareOverrideArg) *SandboxBuilder {
 	if sb.checkError() {
 		return sb
 	}
@@ -273,7 +274,7 @@ func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*DetailedOverride
 				}
 
 				logForwardName := getLogForwardName(forwardName)
-				logForward, exists := forwardMap[logForwardName]
+				logForward := forwardMap[logForwardName]
 
 				overrides = append(overrides, &DetailedOverrideMiddleware{
 					Forward:    forward,

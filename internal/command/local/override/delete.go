@@ -18,7 +18,6 @@ func newDelete(cfg *config.LocalOverride) *cobra.Command {
 		Use:   "delete <name>",
 		Short: "Delete a traffic override",
 		Long: `Delete an existing traffic override by name and sandbox.
-This will remove the redirect and altflow middleware from the sandbox.
 
 Example:
   signadot local override delete my-override --sandbox=my-sandbox`,
