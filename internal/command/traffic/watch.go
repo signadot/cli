@@ -25,22 +25,23 @@ func newWatch(cfg *config.Traffic) *cobra.Command {
 		Use:   "watch --sandbox SANDBOX [ --short | --headers-only  ]",
 		Short: `watches sandbox traffic`,
 		Long: `watch
-Provide a sandbox with --sandbox and watch its traffic.  Console logging
-is directed to stderr and a json stream (or yaml sequence of documents) describing 
-requests received by the sandbox is directed to stdout.
+Provide a sandbox with --sandbox and watch its traffic. 
 
-With --short, watch only outputs the request descriptions.
+With --short, watch only reports request activity. If --output
+specifies a file, request activity is sent in a json (or yaml) stream
+to it.  Otherwise, no stream is recorded.
 
-Without --short, an output directory should be specified.  That directory
-will be populated with subdirectories named middleware request id.  Each
-subdirectory will contain the files
+Without --short, watch produces output in a directory will be populated with a
+meta.jsons (or .yamls) file and subdirectories named by middleware request ids.
+Each subdirectory will contain the files
 
 - meta.json (or .yaml)
 - request
 - response
 
-The request contains either the request protocol line and headers, or also in
-addition the body.  Run watch with --headers-only to skip the bodies.
+The request (and response) contains either the request protocol line and
+headers, or also in addition the body.  Run watch with --headers-only to skip
+the bodies.
 `,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,7 +56,7 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	if cfg.ToDir == "" && !cfg.Short {
+	if cfg.To == "" && !cfg.Short {
 		return fmt.Errorf("must specify output directory when running without --short")
 	}
 	if cfg.Sandbox == "" {
@@ -83,9 +84,9 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 		return retErr
 	}
 	routingKey := resp.Payload.RoutingKey
-	log := getTerminalLogger(cfg, wErr)
+	log := getTerminalLogger(cfg, w)
 	if !cfg.Short {
-		if retErr = setupToDir(cfg.ToDir); retErr != nil {
+		if retErr = setupToDir(cfg.To); retErr != nil {
 			return retErr
 		}
 	}
@@ -105,12 +106,15 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	}
 
 	if cfg.Short {
-		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(),
-			"output", "stdout")
-		retErr = trafficwatch.ConsumeShort(ctx, log, tw, w)
+		out := "<none>"
+		if cfg.To != "" {
+			out = cfg.To
+		}
+		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(), "output", out)
+		retErr = trafficwatch.ConsumeShort(ctx, log, cfg, tw)
 	} else {
-		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.ToDir, "activity-output", "stdout")
-		retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw, w)
+		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.To)
+		retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw)
 	}
 	return retErr
 }
@@ -124,10 +128,10 @@ func getTerminalLogger(cfg *config.TrafficWatch, w io.Writer) *slog.Logger {
 		Level: logLevel,
 		// remove timestamps
 		ReplaceAttr: func(attrs []string, a slog.Attr) slog.Attr {
-			if a.Key == "time" {
+			if a.Key == slog.TimeKey {
 				return slog.Attr{}
 			}
-			if a.Key == "level" {
+			if a.Key == slog.LevelKey {
 				if a.Value.String() == "INFO" {
 					return slog.Attr{}
 				}

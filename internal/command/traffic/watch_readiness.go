@@ -68,7 +68,8 @@ func waitSandboxReady(cfg *config.TrafficWatch, w io.Writer) error {
 
 	retry := poll.
 		NewPoll().
-		WithTimeout(cfg.WaitTimeout)
+		WithTimeout(cfg.WaitTimeout).
+		WithDelay(200 * time.Millisecond)
 	var failedErr error
 	err := retry.Until(func() bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)

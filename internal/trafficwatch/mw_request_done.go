@@ -10,16 +10,15 @@ import (
 	"github.com/signadot/cli/internal/config"
 )
 
-func encodeReqDones(rdC <-chan string, log *slog.Logger, fn func(*slog.Logger, *reqDone), encs ...*json.Encoder) {
+func encodeReqDones(rdC <-chan string, log *slog.Logger, fn func(*slog.Logger, *reqDone), enc metaEncoder) {
 	for id := range rdC {
 		rd := newReqDone(id)
-		log.Info("request-done", "activity", rd)
-		for _, enc := range encs {
+		log.Info("request-done", "request", rd)
+		if enc != nil {
 			err := enc.Encode(rd)
-			if err == nil {
-				continue
+			if err != nil {
+				log.Warn("error encoding request metadata", "error", err)
 			}
-			log.Warn("error encoding request metadata", "error", err)
 		}
 		if fn != nil {
 			fn(log, rd)
@@ -29,7 +28,7 @@ func encodeReqDones(rdC <-chan string, log *slog.Logger, fn func(*slog.Logger, *
 
 func handleDir(cfg *config.TrafficWatch) func(log *slog.Logger, reqDone *reqDone) {
 	return func(log *slog.Logger, reqDone *reqDone) {
-		reqDir := filepath.Join(cfg.ToDir, reqDone.ID, "meta.json")
+		reqDir := filepath.Join(cfg.To, reqDone.ID, "meta.json")
 		d, err := os.ReadFile(reqDir)
 		if err != nil {
 			log.Warn("error reading", "path", reqDir, "error", err)
