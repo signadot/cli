@@ -13,6 +13,7 @@ import (
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/trafficwatch"
 	"github.com/signadot/go-sdk/client/sandboxes"
+	twapi "github.com/signadot/libconnect/common/trafficwatch"
 	"github.com/spf13/cobra"
 )
 
@@ -84,8 +85,8 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	routingKey := resp.Payload.RoutingKey
 	log := getTerminalLogger(cfg, wErr)
 	if !cfg.Short {
-		if err := setupToDir(cfg.ToDir); err != nil {
-			return err
+		if retErr = setupToDir(cfg.ToDir); retErr != nil {
+			return retErr
 		}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
@@ -95,15 +96,18 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	})
 	defer readiness.Stop()
 
-	tw, err := trafficwatch.GetTrafficWatch(context.Background(), cfg, log, routingKey)
+	var tw *twapi.TrafficWatch
+	tw, retErr = trafficwatch.GetTrafficWatch(context.Background(), cfg, log, routingKey)
 	if err != nil {
 		return err
 	}
 	go readyLoop(ctx, log, tw, readiness)
 	if cfg.Short {
-		return trafficwatch.ConsumeShort(ctx, log, tw, w)
+		retErr = trafficwatch.ConsumeShort(ctx, log, tw, w)
+	} else {
+		retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw, w)
 	}
-	return trafficwatch.ConsumeToDir(ctx, log, cfg, tw, w)
+	return retErr
 }
 
 func getTerminalLogger(cfg *config.TrafficWatch, w io.Writer) *slog.Logger {
