@@ -25,8 +25,9 @@ func newRecord(cfg *config.Traffic) *cobra.Command {
 	}
 	defaultDir := filepath.Join(system.GetSignadotDirGeneric(), trafficwatch.DefaultDirRelative)
 	cmd := &cobra.Command{
-		Use:   "record --sandbox SANDBOX [ --short | --headers-only  ]",
-		Short: `records sandbox traffic`,
+		Use:     "record --sandbox SANDBOX [ --short | --headers-only  ]",
+		Aliases: []string{"r"},
+		Short:   `records sandbox traffic`,
 		Long: fmt.Sprintf(`record
 Provide a sandbox with --sandbox and record its (incoming) traffic. 
 
