@@ -73,7 +73,7 @@ func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args 
 	if cfg.Short && cfg.HeadersOnly {
 		return fmt.Errorf("only one of --short or --headers-only can be provided")
 	}
-	if !cfg.Short && cfg.To == "" {
+	if !cfg.Short && cfg.OutputDir == "" {
 		signadotDir, err := system.GetSignadotDir()
 		if err != nil {
 			return err
@@ -83,13 +83,13 @@ func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args 
 			dirSuffix = "-" + dirSuffix[1:]
 		}
 		relDir := trafficwatch.DefaultDirRelative + dirSuffix
-		cfg.To = filepath.Join(signadotDir, relDir)
+		cfg.OutputDir = filepath.Join(signadotDir, relDir)
 		if cfg.Clean {
-			if err := os.RemoveAll(cfg.To); err != nil {
-				return fmt.Errorf("unable to clean up %s: %w", cfg.To)
+			if err := os.RemoveAll(cfg.OutputDir); err != nil {
+				return fmt.Errorf("unable to clean up %s: %w", cfg.OutputDir)
 			}
 		}
-		fmt.Fprintf(w, "Traffic will be written to %s.\n", cfg.To)
+		fmt.Fprintf(w, "Traffic will be written to %s.\n", cfg.OutputDir)
 	}
 	params := sandboxes.NewGetSandboxParams().
 		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
@@ -112,7 +112,7 @@ func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args 
 	routingKey := resp.Payload.RoutingKey
 	log := getTerminalLogger(cfg, w)
 	if !cfg.Short {
-		if retErr = setupToDir(cfg.To); retErr != nil {
+		if retErr = setupToDir(cfg.OutputDir); retErr != nil {
 			return retErr
 		}
 	}
@@ -133,13 +133,13 @@ func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args 
 
 	if cfg.Short {
 		out := "<none>"
-		if cfg.To != "" {
-			out = cfg.To
+		if cfg.OutputDir != "" {
+			out = cfg.OutputDir
 		}
 		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(), "output", out)
 		retErr = trafficwatch.ConsumeShort(ctx, log, cfg, tw)
 	} else {
-		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.To)
+		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.OutputDir)
 		retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw)
 	}
 	return retErr
