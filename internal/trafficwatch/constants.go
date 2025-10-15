@@ -1,3 +1,19 @@
 package trafficwatch
 
-const MiddlewareName = "trafficwatch-client"
+import "github.com/signadot/cli/internal/config"
+
+const (
+	MiddlewareName     = "trafficwatch-client"
+	DefaultDirRelative = "traffic/watch"
+)
+
+func FormatSuffix(cfg *config.TrafficWatch) string {
+	if cfg.OutputFormat == config.OutputFormatYAML {
+		return ".yaml"
+	}
+	return ".json"
+}
+
+func StreamFormatSuffix(cfg *config.TrafficWatch) string {
+	return FormatSuffix(cfg) + "s"
+}

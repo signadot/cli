@@ -28,6 +28,7 @@ func (lm *logMeta) LogValue() slog.Value {
 
 type metaEncoder interface {
 	Encode(v any) error
+	metaEncoder()
 }
 
 type mEnc struct {
@@ -36,6 +37,8 @@ type mEnc struct {
 	n       int
 	yWriter io.Writer
 }
+
+func (e *mEnc) metaEncoder() {}
 
 func (e *mEnc) Encode(v any) error {
 	e.Lock()

@@ -7,11 +7,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/trafficwatch"
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	twapi "github.com/signadot/libconnect/common/trafficwatch"
 	"github.com/spf13/cobra"
@@ -21,49 +23,63 @@ func newWatch(cfg *config.Traffic) *cobra.Command {
 	twCfg := &config.TrafficWatch{
 		Traffic: cfg,
 	}
+	defaultDir := filepath.Join(system.GetSignadotDirGeneric(), trafficwatch.DefaultDirRelative)
 	cmd := &cobra.Command{
 		Use:   "watch --sandbox SANDBOX [ --short | --headers-only  ]",
 		Short: `watches sandbox traffic`,
-		Long: `watch
+		Long: fmt.Sprintf(`watch
 Provide a sandbox with --sandbox and watch its traffic. 
 
-With --short, watch only reports request activity. If --output
-specifies a file, request activity is sent in a json (or yaml) stream
-to it.  Otherwise, no stream is recorded.
+With --short, watch only reports request activity. If --to specifies a file,
+request activity is sent in a json (or yaml) stream to it.  Otherwise, no
+stream is recorded.
 
 Without --short, watch produces output in a directory will be populated with a
 meta.jsons (or .yamls) file and subdirectories named by middleware request ids.
-Each subdirectory will contain the files
+
+By default, this directory is either %s.json 
+or %s.yaml, depending on the output format.
+
+Each subdirectory in turn will contain the files
 
 - meta.json (or .yaml)
 - request
 - response
 
-The request (and response) contains either the request protocol line and
-headers, or also in addition the body.  Run watch with --headers-only to skip
-the bodies.
-`,
+The request (and response) contains the wire format
+
+- the protocol line which is terminated with '\r\n'.
+- the headers each terminated  by '\r\n'
+- the separator '\r\n'
+- the body, unless run with --headers-only
+`, defaultDir, defaultDir),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return watch(twCfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return watch(twCfg, defaultDir, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 	twCfg.AddFlags(cmd)
 	return cmd
 }
 
-func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
+func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
-	}
-	if cfg.To == "" && !cfg.Short {
-		return fmt.Errorf("must specify output directory when running without --short")
 	}
 	if cfg.Sandbox == "" {
 		return fmt.Errorf("must specify sandbox")
 	}
 	if cfg.Short && cfg.HeadersOnly {
 		return fmt.Errorf("only one of --short or --headers-only can be provided")
+	}
+	if !cfg.Short && cfg.To == "" {
+		signadotDir, err := system.GetSignadotDir()
+		if err != nil {
+			return err
+		}
+		relDir := trafficwatch.DefaultDirRelative + trafficwatch.FormatSuffix(cfg)
+		cfg.To = filepath.Join(signadotDir, relDir)
+		fmt.Fprintf(w, "Traffic will be written to %s.\n", cfg.To)
 	}
 	params := sandboxes.NewGetSandboxParams().
 		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
@@ -148,7 +164,7 @@ func setupToDir(toDir string) error {
 		return err
 	}
 	if err != nil {
-		return os.Mkdir(toDir, 0755)
+		return os.MkdirAll(toDir, 0755)
 	}
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
@@ -83,10 +84,7 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	waitDone := setupTW(ctx, tw, log)
-	suffix := ".jsons"
-	if cfg.OutputFormat == config.OutputFormatYAML {
-		suffix = ".yamls"
-	}
+	suffix := StreamFormatSuffix(cfg)
 	metaF, err := os.OpenFile(filepath.Join(cfg.To, "meta"+suffix), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
@@ -176,7 +174,7 @@ func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC
 
 func setupTW(ctx context.Context, tw *trafficwatch.TrafficWatch, log *slog.Logger) <-chan struct{} {
 	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, os.Interrupt)
+	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	res := make(chan struct{})
 	go func() {
 		select {
