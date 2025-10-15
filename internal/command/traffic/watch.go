@@ -19,22 +19,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newWatch(cfg *config.Traffic) *cobra.Command {
+func newRecord(cfg *config.Traffic) *cobra.Command {
 	twCfg := &config.TrafficWatch{
 		Traffic: cfg,
 	}
 	defaultDir := filepath.Join(system.GetSignadotDirGeneric(), trafficwatch.DefaultDirRelative)
 	cmd := &cobra.Command{
-		Use:   "watch --sandbox SANDBOX [ --short | --headers-only  ]",
-		Short: `watches sandbox traffic`,
-		Long: fmt.Sprintf(`watch
-Provide a sandbox with --sandbox and watch its traffic. 
+		Use:   "record --sandbox SANDBOX [ --short | --headers-only  ]",
+		Short: `records sandbox traffic`,
+		Long: fmt.Sprintf(`record
+Provide a sandbox with --sandbox and record its (incoming) traffic. 
 
-With --short, watch only reports request activity. If --to specifies a file,
-request activity is sent in a json (or yaml) stream to it.  Otherwise, no
-stream is recorded.
+With --short, record only reports request activity. If --output-file is
+specified request activity is sent in a json (or yaml) stream to it.
+Otherwise, no stream is recorded.
 
-Without --short, watch produces output in a directory that will be populated
+Without --short, record produces output in a directory that will be populated
 with a meta.jsons (or .yamls) file and subdirectories named by middleware
 request ids.
 
@@ -56,14 +56,14 @@ The request (and response) contains the wire format
 `, defaultDir, defaultDir),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return watch(twCfg, defaultDir, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return record(twCfg, defaultDir, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 	twCfg.AddFlags(cmd)
 	return cmd
 }
 
-func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args []string) error {
+func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -133,8 +133,8 @@ func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args 
 
 	if cfg.Short {
 		out := "<none>"
-		if cfg.OutputDir != "" {
-			out = cfg.OutputDir
+		if cfg.OutputFile != "" {
+			out = cfg.OutputFile
 		}
 		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(), "output", out)
 		retErr = trafficwatch.ConsumeShort(ctx, log, cfg, tw)

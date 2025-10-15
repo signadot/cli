@@ -16,7 +16,7 @@ func New(api *config.API) *cobra.Command {
 
 	// Subcommands
 	cmd.AddCommand(
-		newWatch(cfg),
+		newRecord(cfg),
 	)
 
 	return cmd
