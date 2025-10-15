@@ -34,8 +34,9 @@ With --short, watch only reports request activity. If --to specifies a file,
 request activity is sent in a json (or yaml) stream to it.  Otherwise, no
 stream is recorded.
 
-Without --short, watch produces output in a directory will be populated with a
-meta.jsons (or .yamls) file and subdirectories named by middleware request ids.
+Without --short, watch produces output in a directory that will be populated
+with a meta.jsons (or .yamls) file and subdirectories named by middleware
+request ids.
 
 By default, this directory is either %s.json 
 or %s.yaml, depending on the output format.
