@@ -3,7 +3,7 @@ package trafficwatch
 import "github.com/signadot/cli/internal/config"
 
 const (
-	MiddlewareName     = "trafficwatch-client"
+	MiddlewareName     = "trafficwatch"
 	DefaultDirRelative = "traffic/watch"
 	InstrumentationKey = "instrumentation.signadot.com/add-" + MiddlewareName
 )
