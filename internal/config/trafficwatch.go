@@ -16,6 +16,7 @@ type TrafficWatch struct {
 	HeadersOnly  bool
 	WaitTimeout  time.Duration
 	NoInstrument bool
+	Clean        bool
 }
 
 func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
@@ -25,4 +26,5 @@ func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.To, "to", "", "output to specified file or directory as needed")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 30*time.Second, "time to wait for intial sandbox readiness")
 	cmd.Flags().BoolVar(&c.NoInstrument, "no-instrument", false, "do not instrument sandbox")
+	cmd.Flags().BoolVar(&c.Clean, "clean", false, "remove old data from output directory first, unless --short")
 }

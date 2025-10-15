@@ -79,6 +79,11 @@ func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args 
 		}
 		relDir := trafficwatch.DefaultDirRelative + trafficwatch.FormatSuffix(cfg)
 		cfg.To = filepath.Join(signadotDir, relDir)
+		if cfg.Clean {
+			if err := os.RemoveAll(cfg.To); err != nil {
+				return fmt.Errorf("unable to clean up %s: %w", cfg.To)
+			}
+		}
 		fmt.Fprintf(w, "Traffic will be written to %s.\n", cfg.To)
 	}
 	params := sandboxes.NewGetSandboxParams().
