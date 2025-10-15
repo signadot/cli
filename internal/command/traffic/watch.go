@@ -38,8 +38,8 @@ Without --short, watch produces output in a directory that will be populated
 with a meta.jsons (or .yamls) file and subdirectories named by middleware
 request ids.
 
-By default, this directory is either %s.json 
-or %s.yaml, depending on the output format.
+By default, this directory is either %s-json 
+or %s-yaml, depending on the output format.
 
 Each subdirectory in turn will contain the files
 
@@ -78,7 +78,11 @@ func watch(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args 
 		if err != nil {
 			return err
 		}
-		relDir := trafficwatch.DefaultDirRelative + trafficwatch.FormatSuffix(cfg)
+		dirSuffix := trafficwatch.FormatSuffix(cfg)
+		if dirSuffix != "" {
+			dirSuffix = "-" + dirSuffix[1:]
+		}
+		relDir := trafficwatch.DefaultDirRelative + dirSuffix
 		cfg.To = filepath.Join(signadotDir, relDir)
 		if cfg.Clean {
 			if err := os.RemoveAll(cfg.To); err != nil {
