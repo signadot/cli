@@ -5,6 +5,7 @@ import "github.com/signadot/cli/internal/config"
 const (
 	MiddlewareName     = "trafficwatch-client"
 	DefaultDirRelative = "traffic/watch"
+	InstrumentationKey = "instrumentation.signadot.com/add-" + MiddlewareName
 )
 
 func FormatSuffix(cfg *config.TrafficWatch) string {

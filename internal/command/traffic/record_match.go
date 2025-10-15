@@ -12,21 +12,21 @@ import (
 func watchMatch(cfg *config.TrafficWatch, sb *models.Sandbox, applied bool) (bool, error) {
 	count := 0
 	for _, mw := range sb.Spec.Middleware {
-		if mw.Name != "trafficwatch-client" {
+		if mw.Name != trafficwatch.MiddlewareName {
 			continue
 		}
 		if count > 0 {
-			return false, fmt.Errorf("sandbox %s has multiple traffic-watch-client middlewares", sb.Name)
+			return false, fmt.Errorf("sandbox %s has multiple %s middlewares", sb.Name, trafficwatch.MiddlewareName)
 		}
 		count++
 		wantOpts := getExpectedOpts(cfg)
 		if len(mw.Args) != 1 {
-			return false, fmt.Errorf("sandbox %s has traffic-watch-client middleware configured differently than expected: too many args (%d)", sb.Name, len(mw.Args))
+			return false, fmt.Errorf("sandbox %s has %s middleware configured differently than expected: too many args (%d)", sb.Name, trafficwatch.MiddlewareName, len(mw.Args))
 		}
 		// NB the middleware could be configured consistently there is no way to know
 		mwa := mw.Args[0]
 		if mwa.Name != "options" {
-			return false, fmt.Errorf("sandbox %s has traffic-watch-client middleware configured differently than expected: unexpected arg %q", sb.Name, mwa.Name)
+			return false, fmt.Errorf("sandbox %s has %s middleware configured differently than expected: unexpected arg %q", sb.Name, trafficwatch.MiddlewareName, mwa.Name)
 		}
 		if mwa.Value != wantOpts.String() {
 			return false, fmt.Errorf("sandbox %s has %s middleware configured differently than expected: wanted options %s got %s", sb.Name, trafficwatch.MiddlewareName, wantOpts, mwa.Value)
@@ -43,7 +43,7 @@ func watchMatch(cfg *config.TrafficWatch, sb *models.Sandbox, applied bool) (boo
 		return true, nil
 	}
 	if applied {
-		return false, fmt.Errorf("sandbox %s no longer has traffic-watch-client middleware", sb.Name)
+		return false, fmt.Errorf("sandbox %s no longer has %s middleware", sb.Name, trafficwatch.MiddlewareName)
 	}
 	return false, nil
 }
