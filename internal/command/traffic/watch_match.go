@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/trafficwatch"
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
@@ -28,7 +29,14 @@ func watchMatch(cfg *config.TrafficWatch, sb *models.Sandbox, applied bool) (boo
 			return false, fmt.Errorf("sandbox %s has traffic-watch-client middleware configured differently than expected: unexpected arg %q", sb.Name, mwa.Name)
 		}
 		if mwa.Value != wantOpts.String() {
-			return false, fmt.Errorf("sandbox %s has traffic-watch-client middleware configured differently than expected: wanted options %s got %s", sb.Name, wantOpts, mwa.Value)
+			return false, fmt.Errorf("sandbox %s has %s middleware configured differently than expected: wanted options %s got %s", sb.Name, trafficwatch.MiddlewareName, wantOpts, mwa.Value)
+		}
+		if len(mw.Match) != 1 {
+			return false, fmt.Errorf("sandbox %s has %s middleware configured differently than expected: match differs", sb.Name, trafficwatch.MiddlewareName)
+		}
+		mwMatch := mw.Match[0]
+		if mwMatch == nil || mwMatch.Workload != "*" {
+			return false, fmt.Errorf("sandbox %s has %s middleware configured differently than expected: match differs", sb.Name, trafficwatch.MiddlewareName)
 		}
 	}
 	if count == 1 {
