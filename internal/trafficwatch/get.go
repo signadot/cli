@@ -2,13 +2,13 @@ package trafficwatch
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
@@ -53,24 +53,39 @@ func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
 	return api.WatchAll()
 }
 
-func ConsumeShort(ctx context.Context, log *slog.Logger, tw *trafficwatch.TrafficWatch, w io.Writer) error {
+func ConsumeShort(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch) error {
 	waitDone := setupTW(ctx, tw, log)
-	enc := json.NewEncoder(w)
+	var enc metaEncoder
+	if cfg.OutputFile != "" {
+		f, err := os.OpenFile(cfg.OutputFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		enc = getMetaEncoder(f, cfg)
+	}
+
+	go encodeReqDones(tw.RequestDone, log, nil, enc)
 	for meta := range tw.Meta {
-		if err := enc.Encode(meta); err != nil {
-			log.Warn("error encoding request metadata", "error", err)
+		log.Info("incoming-request", "request", (*logMeta)(meta))
+		if enc == nil {
 			continue
+		}
+		err := enc.Encode(meta)
+		if err != nil {
+			log.Warn("error encoding request", "id", meta.MiddlewareRequestID, "error", err)
 		}
 	}
 	<-waitDone
 	return nil
 }
 
-func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch, w io.Writer) error {
+func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	waitDone := setupTW(ctx, tw, log)
-	metaF, err := os.OpenFile(filepath.Join(cfg.ToDir, "meta.jsons"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	suffix := StreamFormatSuffix(cfg)
+	metaF, err := os.OpenFile(filepath.Join(cfg.OutputDir, "meta"+suffix), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -97,10 +112,10 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 		cancel()
 
 	}()
-	fEnc := json.NewEncoder(metaF)
-	oEnc := json.NewEncoder(w)
+	fEnc := getMetaEncoder(metaF, cfg)
+	go encodeReqDones(tw.RequestDone, log, handleDir(cfg), fEnc)
 	for meta := range tw.Meta {
-		if err := handleMetaToDir(cfg, log, fEnc, oEnc, meta); err != nil {
+		if err := handleMetaToDir(cfg, log, fEnc, meta); err != nil {
 			return err
 		}
 	}
@@ -108,32 +123,36 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	return retErr
 }
 
-func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc, oEnc *json.Encoder, meta *api.RequestMetadata) error {
-	if err := oEnc.Encode(meta); err != nil {
-		return err
-	}
+func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc metaEncoder, meta *api.RequestMetadata) error {
+	log.Info("incoming-request", "request", (*logMeta)(meta))
 	if err := fEnc.Encode(meta); err != nil {
 		return err
 	}
-	p := filepath.Join(cfg.ToDir, meta.MiddlewareRequestID)
+	p := filepath.Join(cfg.OutputDir, meta.MiddlewareRequestID)
 	if err := ensureDir(p); err != nil {
 		return err
 	}
-	metaPath := filepath.Join(p, "meta.json")
+	suffix := ".json"
+	if cfg.OutputFormat == config.OutputFormatYAML {
+		suffix = ".yaml"
+	}
+	metaPath := filepath.Join(p, "meta"+suffix)
 	metaF, err := os.OpenFile(metaPath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer metaF.Close()
 
-	metaEnc := json.NewEncoder(metaF)
-	metaEnc.SetIndent("", "  ")
+	metaEnc := getMetaEncoder(metaF, cfg)
+	if metaEnc.j != nil {
+		metaEnc.j.SetIndent("", "  ")
+	}
 	return metaEnc.Encode(meta)
 }
 
 func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC chan error, what string) {
 	defer s.R.Close()
-	p := filepath.Join(cfg.ToDir, s.MiddlewareRequestID)
+	p := filepath.Join(cfg.OutputDir, s.MiddlewareRequestID)
 	if err := ensureDir(p); err != nil {
 		errC <- err
 		return
@@ -155,7 +174,7 @@ func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC
 
 func setupTW(ctx context.Context, tw *trafficwatch.TrafficWatch, log *slog.Logger) <-chan struct{} {
 	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, os.Interrupt)
+	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	res := make(chan struct{})
 	go func() {
 		select {
