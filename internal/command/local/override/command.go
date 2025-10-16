@@ -9,10 +9,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -144,7 +146,9 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 	defer cancel()
 
 	startLogServer(ctx, logServer, logListener)
-	go monitorSandbox(ctx, cfg, sandbox, overrideName)
+	readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, ckMatch(cfg, sandbox, overrideName))
+	defer readiness.Stop()
+	go readyLoop(ctx, cancel, readiness, errOut)
 
 	// Channel to listen for interrupt signal
 	sigChan := make(chan os.Signal, 1)

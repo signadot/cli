@@ -3,6 +3,7 @@ package override
 import (
 	"context"
 	"fmt"
+	"io"
 	"reflect"
 	"time"
 
@@ -11,31 +12,53 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
-func monitorSandbox(ctx context.Context, cfg *config.LocalOverrideCreate,
-	sandbox *models.Sandbox, overrideName string) {
-	poll.NewPoll().Readiness(ctx, 5*time.Second, func() (bool, error, error) {
-		return ckMatch(cfg, sandbox, overrideName)
-	})
+func readyLoop(ctx context.Context, cancel func(), readiness poll.Readiness, w io.Writer) {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	ready := true
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := readiness.Fatal(); err != nil {
+				fmt.Fprintf(w, "exiting due to problem with sandbox: %v\n", err)
+				cancel()
+				return
+			}
+			if !readiness.Ready() {
+				fmt.Fprintf(w, "sandbox not ready...\n")
+			} else if !ready {
+				ready = true
+				fmt.Fprintf(w, "sandbox ready.\n")
+
+			}
+			for err := readiness.Warn(); err != nil; err = readiness.Warn() {
+				fmt.Fprintf(w, "warning: %v\n", err)
+			}
+		}
+	}
 }
 
-func ckMatch(cfg *config.LocalOverrideCreate, sb *models.Sandbox, override string) (bool, error, error) {
-	obs, err := getSandbox(cfg)
-	if err != nil {
-		return false, nil, err
-	}
-	ready := obs.Status.Ready
-	if err := ckAllMiddleware(sb.Spec.Middleware, obs.Spec.Middleware, sb.Name, override); err != nil {
-		return ready, nil, err
-	}
-	if err := ckForwards(sb.Spec.Routing, obs.Spec.Routing, sb.Name, override); err != nil {
-		return ready, nil, err
-	}
+func ckMatch(cfg *config.LocalOverrideCreate, sb *models.Sandbox, override string) func() (bool, error, error) {
+	return func() (bool, error, error) {
+		obs, err := getSandbox(cfg)
+		if err != nil {
+			return false, nil, err
+		}
+		ready := obs.Status.Ready
+		if err := ckAllMiddleware(sb.Spec.Middleware, obs.Spec.Middleware, sb.Name, override); err != nil {
+			return ready, nil, err
+		}
+		if err := ckForwards(sb.Spec.Routing, obs.Spec.Routing, sb.Name, override); err != nil {
+			return ready, nil, err
+		}
 
-	if !ready {
-		return false, fmt.Errorf("sandbox %s is not ready to accept requests", sb.Name), nil
+		if !ready {
+			return false, fmt.Errorf("sandbox %s is not ready to accept requests", sb.Name), nil
+		}
+		return true, nil, nil
 	}
-	return true, nil, nil
-
 }
 
 func ckAllMiddleware(desMWs, obsMWs []*models.SandboxesMiddleware, sbName, oName string) error {
