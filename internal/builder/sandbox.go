@@ -214,6 +214,9 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	}
 
 	// Check if the overrideName is a valid forward name
+	if sb.internal.Spec.Routing == nil {
+		return sb.setError(ErrOverrideNotFound)
+	}
 	if !hasOverrideMiddleware(sb.internal.Spec.Middleware, sb.internal.Spec.Routing.Forwards, overrideName) {
 		return sb.setError(ErrOverrideNotFound)
 	}
