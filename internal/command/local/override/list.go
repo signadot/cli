@@ -22,7 +22,7 @@ func newList(cfg *config.LocalOverride) *cobra.Command {
 Shows the name, target sandbox, and what it's overridden by.
 
 Example:
-  signadot local override list --cluster=signadot-staging`,
+  signadot local override list`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runList(cmd.OutOrStdout(), listCfg)
 		},
@@ -78,7 +78,6 @@ func getSandboxes(cfg *config.LocalOverrideList) ([]*models.Sandbox, error) {
 func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForward, error) {
 	overrides := make([]*sandboxWithForward, 0)
 	for _, sandbox := range sandboxes {
-
 		forwards := builder.GetAvailableOverrideMiddlewares(*sandbox)
 		if len(forwards) == 0 {
 			continue
@@ -88,7 +87,6 @@ func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForwa
 			Sandbox:  sandbox.Name,
 			Forwards: forwards,
 		})
-
 	}
 
 	return overrides, nil

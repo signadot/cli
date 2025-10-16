@@ -9,6 +9,7 @@ import (
 
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/models"
+	"github.com/signadot/libconnect/common/override"
 )
 
 var (
@@ -87,18 +88,14 @@ type MiddlewareOverrideArg struct {
 	isSet    bool
 }
 
-func NewOverrideArgPolicy(defaultFallThroughStatus string, unimplementedResponseCodes []int) (*MiddlewareOverrideArg, error) {
-	policies := make(map[string]any)
-
-	if defaultFallThroughStatus != "" {
-		policies["defaultFallThroughStatus"] = defaultFallThroughStatus
+func NewOverrideArgPolicy(excludedStatusCodes []int) (*MiddlewareOverrideArg, error) {
+	policy := override.Policy{}
+	if len(excludedStatusCodes) > 0 {
+		policy.OverrideByDefault = true
+		policy.ExcludedStatusCodes = excludedStatusCodes
 	}
 
-	if len(unimplementedResponseCodes) > 0 {
-		policies["unimplementedResponseCodes"] = unimplementedResponseCodes
-	}
-
-	policy, err := json.Marshal(policies)
+	policyValue, err := json.Marshal(policy)
 	if err != nil {
 		return nil, err
 	}
@@ -106,13 +103,13 @@ func NewOverrideArgPolicy(defaultFallThroughStatus string, unimplementedResponse
 	applyInternal := func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument {
 		return &models.SandboxesArgument{
 			Name:  "policy",
-			Value: string(policy),
+			Value: string(policyValue),
 		}
 	}
 
 	return &MiddlewareOverrideArg{
 		internal: applyInternal,
-		isSet:    len(policies) > 0,
+		isSet:    true,
 	}, nil
 }
 
@@ -147,7 +144,8 @@ func NewOverrideLogArg(logListenerPort int64) (*MiddlewareOverrideArg, error) {
 	}, nil
 }
 
-func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, workloadNames []string, args ...*MiddlewareOverrideArg) *SandboxBuilder {
+func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string,
+	workloadNames []string, args ...*MiddlewareOverrideArg) *SandboxBuilder {
 	if sb.checkError() {
 		return sb
 	}
@@ -276,7 +274,7 @@ func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*DetailedOverride
 				}
 
 				logForwardName := getLogForwardName(forwardName)
-				logForward, exists := forwardMap[logForwardName]
+				logForward := forwardMap[logForwardName]
 
 				overrides = append(overrides, &DetailedOverrideMiddleware{
 					Forward:    forward,
