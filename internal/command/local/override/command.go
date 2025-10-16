@@ -21,22 +21,31 @@ import (
 )
 
 func New(local *config.Local) *cobra.Command {
-	cfg := &config.LocalOverrideCreate{LocalOverride: &config.LocalOverride{Local: local}}
+	cfg := &config.LocalOverrideCreate{
+		LocalOverride: &config.LocalOverride{Local: local},
+	}
 
 	cmd := &cobra.Command{
 		Use:   "override --sandbox=<sandbox> [--workload=<workload>] --port=<port> --to=<target> [--except-status=...] [--detach]",
 		Short: "Override sandbox HTTP traffic using a local service",
-		Long: `The 'override' command allows you to route HTTP traffic from a sandbox environment 
-to a local service. This is useful for testing local changes in a realistic 
-sandbox without redeploying code.
+		Long: `Using the 'override' command, when a request comes into the sandbox it is
+delivered to the local service. The response of the local service determines
+whether or not the request will subsequently be delivered to its original
+destination (i.e. the sandbox workload).
 
-By default, overrides apply when the response from the target override 
-destination includes the header 'sd-override: true'.
+When the request is not subsequently delivered to the original destination,
+the response from the local service is the response returned to the client.
 
-You can use the '--except-status' flag to specify HTTP response codes 
-that should not be overridden. When set, all other traffic will be overridden 
-except for the specified status codes, which will fall through to the orginal 
-sandboxed destination.`,
+When the local service is not running, requests will be delivered to the
+original destination after failing to communicate with the local service.
+
+By default, overrides apply when the response from the local service
+includes the header 'sd-override: true'.
+
+You can use the '--except-status' flag to specify HTTP response codes that
+should not be overridden. When set, all other traffic will be overridden
+except for the specified status codes, which will fall through to the
+original sandboxed destination.`,
 		Example: `  # Override sandbox traffic from workload my-workload, port 8080 to localhost:9999
   signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999
 
