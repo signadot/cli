@@ -117,7 +117,7 @@ func getLogForwardName(overrideName string) string {
 	return fmt.Sprintf("%s-log", overrideName)
 }
 
-func NewOverrideLogArg(logListenerPort int64) (*MiddlewareOverrideArg, error) {
+func NewOverrideLogArg(logListenerPort int) (*MiddlewareOverrideArg, error) {
 	arg := &models.SandboxesArgument{
 		Name: "logHost",
 		ValueFrom: &models.SandboxesArgValueFrom{
@@ -129,7 +129,7 @@ func NewOverrideLogArg(logListenerPort int64) (*MiddlewareOverrideArg, error) {
 		routing := &models.SandboxesForward{
 			Name:    getLogForwardName(overrideName),
 			Port:    7777,
-			ToLocal: "localhost:" + strconv.FormatInt(logListenerPort, 10),
+			ToLocal: "localhost:" + strconv.FormatInt(int64(logListenerPort), 10),
 		}
 
 		sb.internal.Spec.Routing.Forwards = append(sb.internal.Spec.Routing.Forwards, routing)
@@ -214,6 +214,9 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	}
 
 	// Check if the overrideName is a valid forward name
+	if sb.internal.Spec.Routing == nil {
+		return sb.setError(ErrOverrideNotFound)
+	}
 	if !hasOverrideMiddleware(sb.internal.Spec.Middleware, sb.internal.Spec.Routing.Forwards, overrideName) {
 		return sb.setError(ErrOverrideNotFound)
 	}
