@@ -130,15 +130,16 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 		return nil
 	}
 	defer unedit(errOut)
-	startLogServer(logServer, logListener)
-
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	startLogServer(ctx, logServer, logListener)
+	go monitorSandbox(ctx, cfg, sandbox, overrideName)
+
 	// Channel to listen for interrupt signal
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	// Wait for signal or context cancellation
 	select {
@@ -149,15 +150,7 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 			return err
 		}
 
-		// Shutdown log server gracefully
-		if logServer != nil {
-			logServer.Shutdown(ctx)
-		}
 	case <-ctx.Done():
-		// Context was cancelled
-		if logServer != nil {
-			logServer.Shutdown(ctx)
-		}
 	}
 
 	return nil

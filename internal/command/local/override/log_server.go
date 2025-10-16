@@ -1,6 +1,7 @@
 package override
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -56,10 +57,15 @@ func createLogServer(sandboxName, localAddress string) (*http.Server, net.Listen
 }
 
 // startLogServer starts an HTTP server with the provided listener
-func startLogServer(server *http.Server, ln net.Listener) {
+func startLogServer(ctx context.Context, server *http.Server, ln net.Listener) {
 	go func() {
 		if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Printf("log server error: %v", err)
 		}
+	}()
+	go func() {
+		<-ctx.Done()
+		server.Shutdown(context.Background())
+		ln.Close()
 	}()
 }

@@ -79,7 +79,7 @@ func deleteMiddlewareFromSandbox(cfg *config.LocalOverrideCreate, sandbox *model
 
 func mkUnedit(cfg *config.LocalOverrideCreate, overrideName string) func(io.Writer) error {
 	return func(out io.Writer) error {
-		printOverrideProgress(out, fmt.Sprintf("Removing redirect in %s", cfg.Sandbox))
+		printOverrideProgress(out, fmt.Sprintf("Removing override middleware in %s", cfg.Sandbox))
 		sandbox, err := getSandbox(cfg)
 		if err != nil {
 			return err
