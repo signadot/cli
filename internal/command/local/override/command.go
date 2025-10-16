@@ -4,36 +4,66 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
-	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
+	"github.com/signadot/libconnect/common/override"
 	"github.com/spf13/cobra"
 )
 
 func New(local *config.Local) *cobra.Command {
-	cfg := &config.LocalOverrideCreate{LocalOverride: &config.LocalOverride{Local: local}}
+	cfg := &config.LocalOverrideCreate{
+		LocalOverride: &config.LocalOverride{Local: local},
+	}
 
 	cmd := &cobra.Command{
-		Use:   "override --sandbox=<sandbox> --to=<target> [--detach]",
-		Short: "Override traffic routing for sandboxes",
-		Long: `Override traffic routing allows you to route traffic from a sandbox to a local service.
-This is useful for testing local changes against a sandbox environment.
+		Use:   "override --sandbox=<sandbox> [--workload=<workload>] --port=<port> --to=<target> [--except-status=...] [--detach]",
+		Short: "Override sandbox HTTP traffic using a local service",
+		Long: `Using the 'override' command, when a request comes into the sandbox it is
+delivered to the local service. The response of the local service determines
+whether or not the request will subsequently be delivered to its original
+destination (i.e. the sandbox workload).
 
-Examples:
-  signadot local override --sandbox=my-sandbox --to=localhost:9999
-  signadot local override --sandbox=my-sandbox --to=localhost:9999 --detach
+When the request is not subsequently delivered to the original destination,
+the response from the local service is the response returned to the client.
+
+When the local service is not running, requests will be delivered to the
+original destination after failing to communicate with the local service.
+
+By default, overrides apply when the response from the local service
+includes the header 'sd-override: true'.
+
+You can use the '--except-status' flag to specify HTTP response codes that
+should not be overridden. When set, all other traffic will be overridden
+except for the specified status codes, which will fall through to the
+original sandboxed destination.`,
+		Example: `  # Override sandbox traffic from workload my-workload, port 8080 to localhost:9999
+  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999
+
+  # Bypass override when the response returns 404 and 503
+  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999 --except-status=404,503
+
+  # Keep the override active after the CLI session ends
+  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999 --detach
+
+  # List all active overrides
   signadot local override list
+
+  # Delete a specific override
   signadot local override delete <name> --sandbox=<sandbox>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runOverride(cmd.OutOrStdout(), cfg)
+			return runOverride(cmd.OutOrStdout(), cmd.ErrOrStderr(), cfg)
 		},
 	}
 
@@ -49,7 +79,7 @@ Examples:
 	return cmd
 }
 
-func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
+func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 	yellow := color.New(color.FgHiMagenta).SprintFunc()
 
 	if err := cfg.InitLocalConfig(); err != nil {
@@ -70,8 +100,7 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	workloadName, err := getOverrideWorkloadName(sandbox, cfg.Workload)
-	if err != nil {
+	if err := validateWorkload(sandbox, cfg.Workload); err != nil {
 		return err
 	}
 
@@ -80,18 +109,29 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	sandbox, overrideName, err := createSandboxWithMiddleware(cfg, sandbox, workloadName)
+	var (
+		logServer   *http.Server
+		logListener net.Listener
+	)
+	logPort := 0
+	if !cfg.Detach {
+		logServer, logListener, logPort = createLogServer(cfg.Sandbox, cfg.To)
+	}
+
+	_, overrideName, unedit, err := createSandboxWithMiddleware(cfg, sandbox, cfg.Workload, logPort)
 	if err != nil {
 		return err
 	}
 
 	sandbox, err = utils.WaitForSandboxReady(cfg.API, out, cfg.Sandbox, cfg.WaitTimeout)
 	if err != nil {
+		unedit(errOut)
 		return err
 	}
 
 	if cfg.Detach {
-		fmt.Fprintf(out, "Overriding traffic from sandbox '%s' workload '%s' to %s\n", cfg.Sandbox, workloadName, cfg.To)
+		fmt.Fprintf(out, "Overriding traffic from sandbox %q, workload %q, port %d to %s\n",
+			cfg.Sandbox, cfg.Workload, cfg.Port, cfg.To)
 
 		fmt.Fprintf(out, "Traffic override will persist after this session ends\n")
 
@@ -100,28 +140,62 @@ func runOverride(out io.Writer, cfg *config.LocalOverrideCreate) error {
 
 		return nil
 	}
-
+	defer unedit(errOut)
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	startLogServer(ctx, logServer, logListener)
+	readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, ckMatch(cfg, sandbox, overrideName))
+	defer readiness.Stop()
+	go readyLoop(ctx, cancel, readiness, errOut)
+
 	// Channel to listen for interrupt signal
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	// Wait for signal or context cancellation
 	select {
 	case <-sigChan:
 		fmt.Fprintf(out, "\nSession terminated\n")
-		printOverrideProgress(out, fmt.Sprintf("Removing redirect in %s", cfg.Sandbox))
+		printOverrideProgress(out, fmt.Sprintf("Removing override in %s", cfg.Sandbox))
 		if err := deleteMiddlewareFromSandbox(cfg, sandbox, overrideName); err != nil {
 			return err
 		}
+
 	case <-ctx.Done():
-		// Context was cancelled
 	}
 
 	return nil
+}
+
+func printFormattedLogEntry(logEntry *override.LogEntry, sandboxName string, localAddress string) {
+	var status string
+	var routing string
+
+	switch {
+	case logEntry.StatusCode >= 200 && logEntry.StatusCode < 300:
+		status = color.New(color.FgGreen).Sprintf("%d", logEntry.StatusCode)
+	case logEntry.StatusCode >= 300 && logEntry.StatusCode < 400:
+		status = color.New(color.FgYellow).Sprintf("%d", logEntry.StatusCode)
+	case logEntry.StatusCode >= 400:
+		status = color.New(color.FgRed).Sprintf("%d", logEntry.StatusCode)
+	default:
+		status = fmt.Sprintf("%d", logEntry.StatusCode)
+	}
+
+	if logEntry.Overridden {
+		routing = color.New(color.FgCyan).Sprint("(" + localAddress + ")")
+	} else {
+		routing = color.New(color.FgBlue).Sprint("(" + sandboxName + ")")
+	}
+
+	fmt.Printf("%-20s %-7s %s -> %s\n",
+		routing,
+		logEntry.Method,
+		logEntry.Path,
+		status,
+	)
 }
 
 func getSandbox(cfg *config.LocalOverrideCreate) (*models.Sandbox, error) {
@@ -135,117 +209,24 @@ func getSandbox(cfg *config.LocalOverrideCreate) (*models.Sandbox, error) {
 	return resp.Payload, nil
 }
 
-// getOverrideWorkloadName returns the workload name for the given target workload. If no target workload is provided, the first available workload name is returned.
-// If a target workload is provided, but not found, an error is returned.
-func getOverrideWorkloadName(sandbox *models.Sandbox, targetWorkload string) (string, error) {
-	if targetWorkload == "" {
-		workloadName, err := getFirstAvailableWorkloadName(sandbox)
-		if err != nil {
-			return "", err
-		}
-
-		return workloadName, nil
-
-	}
-
-	workloadName, err := getWorkloadByName(sandbox, targetWorkload)
-	if err != nil {
-		return "", err
-	}
-
-	return workloadName, nil
-}
-
-// getWorkloadByName returns the workload name for the given name
-func getWorkloadByName(sandbox *models.Sandbox, name string) (string, error) {
-
+func validateWorkload(sandbox *models.Sandbox, workload string) error {
 	for _, virtual := range sandbox.Spec.Virtual {
-		if virtual.Name == name {
-			return virtual.Name, nil
+		if virtual.Name == workload {
+			return nil
 		}
 	}
 
 	for _, fork := range sandbox.Spec.Forks {
-		if fork.Name == name {
-			return fork.Name, nil
+		if fork.Name == workload {
+			return nil
 		}
 	}
 
 	for _, local := range sandbox.Spec.Local {
-		if local.Name == name {
-			return local.Name, nil
+		if local.Name == workload {
+			return nil
 		}
 	}
 
-	return "", fmt.Errorf("workload %s not found in sandbox %s", name, sandbox.Name)
-}
-
-// getFirstAvailableWorkloadName returns the first available workload name for the given sandbox
-// The order is virtual, forks and local
-func getFirstAvailableWorkloadName(sandbox *models.Sandbox) (string, error) {
-	if len(sandbox.Spec.Virtual) > 0 {
-		return sandbox.Spec.Virtual[0].Name, nil
-	}
-
-	if len(sandbox.Spec.Forks) > 0 {
-		return sandbox.Spec.Forks[0].Name, nil
-	}
-
-	if len(sandbox.Spec.Local) > 0 {
-		return sandbox.Spec.Local[0].Name, nil
-	}
-
-	return "", fmt.Errorf("no available workload found in sandbox %s", sandbox.Name)
-}
-
-func createSandboxWithMiddleware(cfg *config.LocalOverrideCreate, baseSandbox *models.Sandbox, workloadName string) (*models.Sandbox, string, error) {
-	sbBuilder := builder.
-		BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox)).
-		AddOverrideMiddleware(cfg.Port, cfg.To, workloadName).
-		SetMachineID()
-
-	sb, err := sbBuilder.Build()
-	if err != nil {
-		return nil, "", err
-	}
-
-	sbParams := sandboxes.
-		NewApplySandboxParams().
-		WithOrgName(cfg.Org).
-		WithSandboxName(cfg.Sandbox).
-		WithData(&sb)
-
-	resp, err := cfg.Client.Sandboxes.ApplySandbox(sbParams, nil)
-	if err != nil {
-		return nil, "", err
-	}
-
-	overrideName := sbBuilder.GetLastAddedOverrideName()
-
-	return resp.Payload, *overrideName, nil
-}
-
-func deleteMiddlewareFromSandbox(cfg *config.LocalOverrideCreate, sandbox *models.Sandbox, overrideName string) error {
-	sbBuilder := builder.
-		BuildSandbox(cfg.Sandbox, builder.WithData(*sandbox)).
-		SetMachineID().
-		DeleteOverrideMiddleware(overrideName)
-
-	sb, err := sbBuilder.Build()
-	if err != nil {
-		return err
-	}
-
-	if err := cfg.API.RefreshAPIConfig(); err != nil {
-		return err
-	}
-
-	sbParams := sandboxes.
-		NewApplySandboxParams().
-		WithOrgName(cfg.Org).
-		WithSandboxName(cfg.Sandbox).
-		WithData(&sb)
-
-	_, err = cfg.Client.Sandboxes.ApplySandbox(sbParams, nil)
-	return err
+	return fmt.Errorf("workload %s not found in sandbox %s", workload, sandbox.Name)
 }

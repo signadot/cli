@@ -76,7 +76,7 @@ func unstructuredToTest(un any) (*models.Test, error) {
 	}
 	t := &models.Test{Name: name}
 	if err := jsonexact.Unmarshal(d, &t.Spec); err != nil {
-		return nil, fmt.Errorf("couldn't parse YAML sandbox definition - %s",
+		return nil, fmt.Errorf("couldn't parse YAML hosted test definition - %s",
 			strings.TrimPrefix(err.Error(), "json: "))
 	}
 	return t, nil

@@ -1,12 +1,15 @@
 package builder
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/models"
+	"github.com/signadot/libconnect/common/override"
 )
 
 var (
@@ -80,7 +83,69 @@ const (
 	OverrideMiddleware MiddlewareName = "override"
 )
 
-func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string, workloadNames ...string) *SandboxBuilder {
+type MiddlewareOverrideArg struct {
+	internal func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument
+	isSet    bool
+}
+
+func NewOverrideArgPolicy(excludedStatusCodes []int) (*MiddlewareOverrideArg, error) {
+	policy := override.Policy{}
+	if len(excludedStatusCodes) > 0 {
+		policy.OverrideByDefault = true
+		policy.ExcludedStatusCodes = excludedStatusCodes
+	}
+
+	policyValue, err := json.Marshal(policy)
+	if err != nil {
+		return nil, err
+	}
+
+	applyInternal := func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument {
+		return &models.SandboxesArgument{
+			Name:  "policy",
+			Value: string(policyValue),
+		}
+	}
+
+	return &MiddlewareOverrideArg{
+		internal: applyInternal,
+		isSet:    true,
+	}, nil
+}
+
+func getLogForwardName(overrideName string) string {
+	return fmt.Sprintf("%s-log", overrideName)
+}
+
+func NewOverrideLogArg(logListenerPort int) (*MiddlewareOverrideArg, error) {
+	arg := &models.SandboxesArgument{
+		Name: "logHost",
+		ValueFrom: &models.SandboxesArgValueFrom{
+			Forward: "logHost",
+		},
+	}
+
+	applyInternal := func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument {
+		routing := &models.SandboxesForward{
+			Name:    getLogForwardName(overrideName),
+			Port:    7777,
+			ToLocal: "localhost:" + strconv.FormatInt(int64(logListenerPort), 10),
+		}
+
+		sb.internal.Spec.Routing.Forwards = append(sb.internal.Spec.Routing.Forwards, routing)
+		arg.ValueFrom.Forward = routing.Name
+
+		return arg
+	}
+
+	return &MiddlewareOverrideArg{
+		internal: applyInternal,
+		isSet:    true,
+	}, nil
+}
+
+func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal string,
+	workloadNames []string, args ...*MiddlewareOverrideArg) *SandboxBuilder {
 	if sb.checkError() {
 		return sb
 	}
@@ -107,6 +172,12 @@ func (sb *SandboxBuilder) AddOverrideMiddleware(worklaodPort int64, toLocal stri
 		Name:  string(OverrideMiddleware),
 		Match: make([]*models.SandboxesMiddlewareMatch, 0, len(workloadNames)),
 		Args:  []*models.SandboxesArgument{hostArg},
+	}
+
+	for _, arg := range args {
+		if arg != nil && arg.isSet && arg.internal != nil {
+			mw.Args = append(mw.Args, arg.internal(sb, forwardName))
+		}
 	}
 
 	for _, workloadName := range workloadNames {
@@ -143,6 +214,9 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	}
 
 	// Check if the overrideName is a valid forward name
+	if sb.internal.Spec.Routing == nil {
+		return sb.setError(ErrOverrideNotFound)
+	}
 	if !hasOverrideMiddleware(sb.internal.Spec.Middleware, sb.internal.Spec.Routing.Forwards, overrideName) {
 		return sb.setError(ErrOverrideNotFound)
 	}
@@ -155,6 +229,7 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	}
 
 	spec.Routing.Forwards = removeForwardByName(spec.Routing.Forwards, overrideName)
+	spec.Routing.Forwards = removeForwardByName(spec.Routing.Forwards, getLogForwardName(overrideName))
 
 	// Delete match in the middleware when the args.altHost is the same as the overrideName
 	if spec.Middleware == nil {
@@ -166,9 +241,14 @@ func (sb *SandboxBuilder) DeleteOverrideMiddleware(overrideName string) *Sandbox
 	return sb
 }
 
+type DetailedOverrideMiddleware struct {
+	Forward    *models.SandboxesForward
+	LogForward *models.SandboxesForward
+}
+
 // GetAvailableOverrideMiddlewares returns all available override forwards from a sandbox
-func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*models.SandboxesForward {
-	var overrides []*models.SandboxesForward
+func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*DetailedOverrideMiddleware {
+	var overrides []*DetailedOverrideMiddleware
 
 	// Check if sandbox has middleware and routing
 	if sandbox.Spec.Middleware == nil || sandbox.Spec.Routing == nil || sandbox.Spec.Routing.Forwards == nil {
@@ -191,9 +271,18 @@ func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*models.Sandboxes
 		for _, arg := range middleware.Args {
 			if arg.Name == "overrideHost" && arg.ValueFrom != nil && arg.ValueFrom.Forward != "" {
 				forwardName := arg.ValueFrom.Forward
-				if forward, exists := forwardMap[forwardName]; exists {
-					overrides = append(overrides, forward)
+				forward, exists := forwardMap[forwardName]
+				if !exists {
+					continue
 				}
+
+				logForwardName := getLogForwardName(forwardName)
+				logForward := forwardMap[logForwardName]
+
+				overrides = append(overrides, &DetailedOverrideMiddleware{
+					Forward:    forward,
+					LogForward: logForward,
+				})
 			}
 		}
 	}
@@ -205,7 +294,7 @@ func GetAvailableOverrideMiddlewares(sandbox models.Sandbox) []*models.Sandboxes
 func HasOverrideMiddleware(sandbox models.Sandbox, overrideName string) bool {
 	overrides := GetAvailableOverrideMiddlewares(sandbox)
 	for _, override := range overrides {
-		if override.Name == overrideName {
+		if override.Forward.Name == overrideName {
 			return true
 		}
 	}

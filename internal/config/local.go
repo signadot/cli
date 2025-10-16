@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/signadot/libconnect/config"
@@ -13,6 +14,8 @@ import (
 	"github.com/spf13/viper"
 	"sigs.k8s.io/yaml"
 )
+
+var onlyDigitsString = regexp.MustCompile(`^[0-9]+$`)
 
 const (
 	DefaultVirtualIPNet = "242.242.0.1/16"
@@ -313,16 +316,41 @@ type LocalOverrideCreate struct {
 	Workload string
 	Detach   bool
 
+	// Policy
+	ExcludedStatusCodes []int `json:"excludedStatusCodes"`
+
 	WaitTimeout time.Duration
 }
 
 func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "", "sandbox to override traffic for")
-	cmd.Flags().Int64Var(&lo.Port, "port", -1, "port to override traffic for")
-	cmd.Flags().StringVar(&lo.To, "to", "", "target address to redirect traffic to (e.g., localhost:9999)")
-	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "", "workload to override traffic for")
-	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false, "run in detached mode, preserving changes after session termination")
-	cmd.Flags().DurationVar(&lo.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout to wait for the sandbox to be ready")
+	// Flags
+	cmd.Flags().StringVar(&lo.Sandbox, "sandbox", "",
+		"name of the sandbox whose traffic will be overridden")
+
+	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "",
+		"name of the workload to override traffic for")
+
+	cmd.Flags().Int64Var(&lo.Port, "port", 0,
+		"port on the sandbox workload to intercept traffic from")
+
+	cmd.Flags().StringVar(&lo.To, "to", "",
+		"target address of the override destination (e.g., localhost:9999) where traffic will be forwarded")
+
+	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false,
+		"run in detached mode so the override remains active after the CLI session ends")
+
+	cmd.Flags().DurationVar(&lo.WaitTimeout, "wait-timeout", 3*time.Minute,
+		"maximum time to wait for the sandbox to become ready before failing")
+
+	// Policy
+	cmd.Flags().IntSliceVar(&lo.ExcludedStatusCodes, "except-status", []int{},
+		"comma-separated list of HTTP status codes to bypass override. "+
+			"Responses with these codes will fall through to the sandboxed destination (e.g., 404,503)")
+
+	cmd.MarkFlagRequired("sandbox")
+	cmd.MarkFlagRequired("workload")
+	cmd.MarkFlagRequired("port")
+	cmd.MarkFlagRequired("to")
 }
 
 func (lo *LocalOverrideCreate) Validate() error {
@@ -330,15 +358,45 @@ func (lo *LocalOverrideCreate) Validate() error {
 		return errors.New("--sandbox is required")
 	}
 
+	if lo.Workload == "" {
+		return errors.New("--workload is required")
+	}
+
+	if lo.Port <= 0 || lo.Port > 65535 {
+		return errors.New("--port must be a value between 1 and 65535")
+	}
+
 	if lo.To == "" {
 		return errors.New("--to is required")
 	}
 
-	if lo.Port < 0 {
-		return errors.New("--port is required")
+	for _, code := range lo.ExcludedStatusCodes {
+		if code < 100 || code > 599 {
+			return errors.New("invalid except-status response code, should be between 100 and 599")
+		}
 	}
 
+	to, err := parseTo(lo.To)
+	if err != nil {
+		return err
+	}
+	lo.To = to
+
 	return nil
+}
+
+// parseTo allow to receive only the numeric port without the hostname
+// and return the formatted string with the hostname
+func parseTo(to string) (string, error) {
+	if onlyDigitsString.MatchString(to) {
+		if port, err := strconv.Atoi(to); err != nil || port <= 0 || port > 65535 {
+			return "", fmt.Errorf("invalid port, should be a value between 1 and 65535")
+		}
+
+		return fmt.Sprintf("localhost:%s", to), nil
+	}
+
+	return to, nil
 }
 
 type LocalOverrideDelete struct {
@@ -350,15 +408,10 @@ type LocalOverrideDelete struct {
 
 func (lod *LocalOverrideDelete) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&lod.Sandbox, "sandbox", "", "sandbox containing the override to delete")
+
+	cmd.MarkFlagRequired("sandbox")
 }
 
 type LocalOverrideList struct {
 	*LocalOverride
-
-	// Flags
-	Cluster string
-}
-
-func (lol *LocalOverrideList) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&lol.Cluster, "cluster", "", "target cluster")
 }

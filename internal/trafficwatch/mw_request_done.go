@@ -13,7 +13,7 @@ import (
 func waitLogged(logged, done <-chan string) chan string {
 	res := make(chan string)
 	go func() {
-		d := map[string]bool{}
+		logMap, doneMap := map[string]bool{}, map[string]bool{}
 		for {
 			select {
 			case id, ok := <-logged:
@@ -23,7 +23,12 @@ func waitLogged(logged, done <-chan string) chan string {
 					}
 					logged = nil
 				} else {
-					d[id] = true
+					if doneMap[id] {
+						res <- id
+						delete(doneMap, id)
+					} else {
+						logMap[id] = true
+					}
 				}
 			case id, ok := <-done:
 				if !ok {
@@ -32,8 +37,12 @@ func waitLogged(logged, done <-chan string) chan string {
 					}
 					done = nil
 				} else {
-					res <- id
-					delete(d, id)
+					if logMap[id] {
+						res <- id
+						delete(logMap, id)
+					} else {
+						doneMap[id] = true
+					}
 				}
 			}
 		}
