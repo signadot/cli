@@ -65,16 +65,21 @@ func ConsumeShort(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 		enc = getMetaEncoder(f, cfg)
 	}
 
-	go encodeReqDones(tw.RequestDone, log, nil, enc)
+	logged := make(chan string)
+	defer close(logged)
+
+	go encodeReqDones(waitLogged(logged, tw.RequestDone), log, nil, enc)
 	for meta := range tw.Meta {
 		log.Info("incoming-request", "request", (*logMeta)(meta))
 		if enc == nil {
+			logged <- meta.MiddlewareRequestID
 			continue
 		}
 		err := enc.Encode(meta)
 		if err != nil {
 			log.Warn("error encoding request", "id", meta.MiddlewareRequestID, "error", err)
 		}
+		logged <- meta.MiddlewareRequestID
 	}
 	<-waitDone
 	return nil
@@ -113,9 +118,11 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 
 	}()
 	fEnc := getMetaEncoder(metaF, cfg)
-	go encodeReqDones(tw.RequestDone, log, handleDir(cfg), fEnc)
+	logged := make(chan string)
+	defer close(logged)
+	go encodeReqDones(waitLogged(logged, tw.RequestDone), log, handleDir(cfg), fEnc)
 	for meta := range tw.Meta {
-		if err := handleMetaToDir(cfg, log, fEnc, meta); err != nil {
+		if err := handleMetaToDir(cfg, log, fEnc, meta, logged); err != nil {
 			return err
 		}
 	}
@@ -123,7 +130,8 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	return retErr
 }
 
-func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc metaEncoder, meta *api.RequestMetadata) error {
+func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc metaEncoder, meta *api.RequestMetadata, logged chan string) error {
+	defer func() { logged <- meta.MiddlewareRequestID }()
 	log.Info("incoming-request", "request", (*logMeta)(meta))
 	if err := fEnc.Encode(meta); err != nil {
 		return err
