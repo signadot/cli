@@ -22,6 +22,10 @@ func GetSignadotDir() (string, error) {
 	return filepath.Join(homeDir, ".signadot"), nil
 }
 
+func GetSignadotDirGeneric() string {
+	return filepath.Join("$HOME", ".signadot")
+}
+
 // Create directory if not exist
 func CreateDirIfNotExist(dir string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {

@@ -32,7 +32,7 @@ func handleDir(cfg *config.TrafficWatch) func(log *slog.Logger, reqDone *reqDone
 		suffix = ".yaml"
 	}
 	return func(log *slog.Logger, reqDone *reqDone) {
-		reqMetaPath := filepath.Join(cfg.To, reqDone.ID, "meta"+suffix)
+		reqMetaPath := filepath.Join(cfg.OutputDir, reqDone.ID, "meta"+suffix)
 		d, err := os.ReadFile(reqMetaPath)
 		if err != nil {
 			log.Warn("error reading", "path", reqMetaPath, "error", err)

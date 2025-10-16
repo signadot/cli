@@ -7,63 +7,90 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/trafficwatch"
+	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	twapi "github.com/signadot/libconnect/common/trafficwatch"
 	"github.com/spf13/cobra"
 )
 
-func newWatch(cfg *config.Traffic) *cobra.Command {
+func newRecord(cfg *config.Traffic) *cobra.Command {
 	twCfg := &config.TrafficWatch{
 		Traffic: cfg,
 	}
+	defaultDir := filepath.Join(system.GetSignadotDirGeneric(), trafficwatch.DefaultDirRelative)
 	cmd := &cobra.Command{
-		Use:   "watch --sandbox SANDBOX [ --short | --headers-only  ]",
-		Short: `watches sandbox traffic`,
-		Long: `watch
-Provide a sandbox with --sandbox and watch its traffic. 
+		Use:     "record --sandbox SANDBOX [ --short | --headers-only  ]",
+		Aliases: []string{"r"},
+		Short:   `records sandbox traffic`,
+		Long: fmt.Sprintf(`record
+Provide a sandbox with --sandbox and record its (incoming) traffic. 
 
-With --short, watch only reports request activity. If --output
-specifies a file, request activity is sent in a json (or yaml) stream
-to it.  Otherwise, no stream is recorded.
+With --short, record only reports request activity. If --output-file is
+specified request activity is sent in a json (or yaml) stream to it.
+Otherwise, no stream is recorded.
 
-Without --short, watch produces output in a directory will be populated with a
-meta.jsons (or .yamls) file and subdirectories named by middleware request ids.
-Each subdirectory will contain the files
+Without --short, record produces output in a directory that will be populated
+with a meta.jsons (or .yamls) file and subdirectories named by middleware
+request ids.
+
+By default, this directory is either %s-json 
+or %s-yaml, depending on the output format.
+
+Each subdirectory in turn will contain the files
 
 - meta.json (or .yaml)
 - request
 - response
 
-The request (and response) contains either the request protocol line and
-headers, or also in addition the body.  Run watch with --headers-only to skip
-the bodies.
-`,
+The request (and response) contains the wire format
+
+- the protocol line which is terminated with '\r\n'.
+- the headers each terminated  by '\r\n'
+- the separator '\r\n'
+- the body, unless run with --headers-only
+`, defaultDir, defaultDir),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return watch(twCfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return record(twCfg, defaultDir, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 	twCfg.AddFlags(cmd)
 	return cmd
 }
 
-func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
+func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
-	}
-	if cfg.To == "" && !cfg.Short {
-		return fmt.Errorf("must specify output directory when running without --short")
 	}
 	if cfg.Sandbox == "" {
 		return fmt.Errorf("must specify sandbox")
 	}
 	if cfg.Short && cfg.HeadersOnly {
 		return fmt.Errorf("only one of --short or --headers-only can be provided")
+	}
+	if !cfg.Short && cfg.OutputDir == "" {
+		signadotDir, err := system.GetSignadotDir()
+		if err != nil {
+			return err
+		}
+		dirSuffix := trafficwatch.FormatSuffix(cfg)
+		if dirSuffix != "" {
+			dirSuffix = "-" + dirSuffix[1:]
+		}
+		relDir := trafficwatch.DefaultDirRelative + dirSuffix
+		cfg.OutputDir = filepath.Join(signadotDir, relDir)
+		if cfg.Clean {
+			if err := os.RemoveAll(cfg.OutputDir); err != nil {
+				return fmt.Errorf("unable to clean up %s: %w", cfg.OutputDir)
+			}
+		}
+		fmt.Fprintf(w, "Traffic will be written to %s.\n", cfg.OutputDir)
 	}
 	params := sandboxes.NewGetSandboxParams().
 		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
@@ -86,7 +113,7 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 	routingKey := resp.Payload.RoutingKey
 	log := getTerminalLogger(cfg, w)
 	if !cfg.Short {
-		if retErr = setupToDir(cfg.To); retErr != nil {
+		if retErr = setupToDir(cfg.OutputDir); retErr != nil {
 			return retErr
 		}
 	}
@@ -107,13 +134,13 @@ func watch(cfg *config.TrafficWatch, w, wErr io.Writer, args []string) error {
 
 	if cfg.Short {
 		out := "<none>"
-		if cfg.To != "" {
-			out = cfg.To
+		if cfg.OutputFile != "" {
+			out = cfg.OutputFile
 		}
 		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(), "output", out)
 		retErr = trafficwatch.ConsumeShort(ctx, log, cfg, tw)
 	} else {
-		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.To)
+		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.OutputDir)
 		retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw)
 	}
 	return retErr
@@ -148,7 +175,7 @@ func setupToDir(toDir string) error {
 		return err
 	}
 	if err != nil {
-		return os.Mkdir(toDir, 0755)
+		return os.MkdirAll(toDir, 0755)
 	}
 	return nil
 }

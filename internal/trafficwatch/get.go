@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
@@ -55,8 +56,8 @@ func getWatchOpts(cfg *config.TrafficWatch) *api.WatchOptions {
 func ConsumeShort(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatch, tw *trafficwatch.TrafficWatch) error {
 	waitDone := setupTW(ctx, tw, log)
 	var enc metaEncoder
-	if cfg.To != "" {
-		f, err := os.OpenFile(cfg.To, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if cfg.OutputFile != "" {
+		f, err := os.OpenFile(cfg.OutputFile, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
@@ -83,11 +84,8 @@ func ConsumeToDir(ctx context.Context, log *slog.Logger, cfg *config.TrafficWatc
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	waitDone := setupTW(ctx, tw, log)
-	suffix := ".jsons"
-	if cfg.OutputFormat == config.OutputFormatYAML {
-		suffix = ".yamls"
-	}
-	metaF, err := os.OpenFile(filepath.Join(cfg.To, "meta"+suffix), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	suffix := StreamFormatSuffix(cfg)
+	metaF, err := os.OpenFile(filepath.Join(cfg.OutputDir, "meta"+suffix), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
@@ -130,7 +128,7 @@ func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc metaEncode
 	if err := fEnc.Encode(meta); err != nil {
 		return err
 	}
-	p := filepath.Join(cfg.To, meta.MiddlewareRequestID)
+	p := filepath.Join(cfg.OutputDir, meta.MiddlewareRequestID)
 	if err := ensureDir(p); err != nil {
 		return err
 	}
@@ -154,7 +152,7 @@ func handleMetaToDir(cfg *config.TrafficWatch, log *slog.Logger, fEnc metaEncode
 
 func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC chan error, what string) {
 	defer s.R.Close()
-	p := filepath.Join(cfg.To, s.MiddlewareRequestID)
+	p := filepath.Join(cfg.OutputDir, s.MiddlewareRequestID)
 	if err := ensureDir(p); err != nil {
 		errC <- err
 		return
@@ -176,7 +174,7 @@ func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC
 
 func setupTW(ctx context.Context, tw *trafficwatch.TrafficWatch, log *slog.Logger) <-chan struct{} {
 	sigC := make(chan os.Signal, 1)
-	signal.Notify(sigC, os.Interrupt)
+	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	res := make(chan struct{})
 	go func() {
 		select {

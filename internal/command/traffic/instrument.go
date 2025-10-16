@@ -43,12 +43,12 @@ func uneditFunc(cfg *config.TrafficWatch, w io.Writer) func() error {
 		if has {
 			removeTrafficWatch(sb)
 		}
-		if x := sb.Spec.Labels["instrumentation.signadot.com/add-trafficwatch-client"]; x == "" {
+		if x := sb.Spec.Labels[trafficwatch.InstrumentationKey]; x == "" {
 			if !has {
 				return nil
 			}
 		}
-		delete(sb.Spec.Labels, "instrumentation.signadot.com/add-trafficwatch-client")
+		delete(sb.Spec.Labels, trafficwatch.InstrumentationKey)
 		return applyWithLocal(cfg, sb)
 	}
 }
