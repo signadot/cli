@@ -10,6 +10,46 @@ import (
 	"github.com/signadot/cli/internal/config"
 )
 
+func waitLogged(logged, done <-chan string) chan string {
+	res := make(chan string)
+	go func() {
+		logMap, doneMap := map[string]bool{}, map[string]bool{}
+		for {
+			select {
+			case id, ok := <-logged:
+				if !ok {
+					if done == nil {
+						return
+					}
+					logged = nil
+				} else {
+					if doneMap[id] {
+						res <- id
+						delete(doneMap, id)
+					} else {
+						logMap[id] = true
+					}
+				}
+			case id, ok := <-done:
+				if !ok {
+					if logged == nil {
+						return
+					}
+					done = nil
+				} else {
+					if logMap[id] {
+						res <- id
+						delete(logMap, id)
+					} else {
+						doneMap[id] = true
+					}
+				}
+			}
+		}
+	}()
+	return res
+}
+
 func encodeReqDones(rdC <-chan string, log *slog.Logger, fn func(*slog.Logger, *reqDone), enc metaEncoder) {
 	for id := range rdC {
 		rd := newReqDone(id)
