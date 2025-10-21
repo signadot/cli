@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/poll"
 	"github.com/spf13/cobra"
 )
 
@@ -15,13 +16,18 @@ func newInspect(cfg *config.Traffic) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "inspect --directory DIRECTORY",
+		Use:   "inspect --directory DIRECTORY [--wait]",
 		Short: "Inspect traffic data from a directory",
 		Long: `Inspect traffic data from a directory containing recorded traffic.
 
 This command validates that the specified directory contains valid traffic data
-by checking for the presence of meta.json files. If the directory doesn't contain
-meta.json files, it will return an error indicating it's not a valid traffic directory.`,
+by checking for the presence of meta files (meta.json, meta.yaml, meta.jsons, or meta.yamls).
+If the directory doesn't contain any of these meta files, it will return an error 
+indicating it's not a valid traffic directory.
+
+When the --wait flag is used, the command will wait for the directory to contain
+valid traffic data if it's initially empty, checking every second until meta files
+are found.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return inspectTraffic(inspectCfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
@@ -34,7 +40,6 @@ meta.json files, it will return an error indicating it's not a valid traffic dir
 
 func inspectTraffic(cfg *config.TrafficInspect, w, wErr io.Writer) error {
 	// Check if directory exists
-
 	directoryInfo, err := os.Stat(cfg.Directory)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -53,7 +58,11 @@ func inspectTraffic(cfg *config.TrafficInspect, w, wErr io.Writer) error {
 	}
 
 	if !hasMetaFile {
-		return fmt.Errorf("directory is not a valid traffic directory: %s (no meta files found)", cfg.Directory)
+		if cfg.Wait {
+			fmt.Fprintf(w, "Directory %s is empty, waiting for traffic data...\n", cfg.Directory)
+			return waitForMetaFile(cfg.Directory, w)
+		}
+		return fmt.Errorf("Directory %s is empty", cfg.Directory)
 	}
 
 	fmt.Fprintf(w, "Directory %s contains valid traffic data\n", cfg.Directory)
@@ -70,10 +79,28 @@ func hasMetaFile(dir string) (bool, error) {
 		if entry.IsDir() {
 			continue
 		}
-		if entry.Name() == "meta.jsons" || entry.Name() == "meta.yamls" {
+		name := entry.Name()
+		if name == "meta.json" || name == "meta.yaml" ||
+			name == "meta.jsons" || name == "meta.yamls" {
 			return true, nil
 		}
 	}
 
 	return false, nil
+}
+
+func waitForMetaFile(dir string, w io.Writer) error {
+	p := poll.NewPoll()
+
+	return p.UntilWithError(func() (bool, error) {
+		hasMetaFile, err := hasMetaFile(dir)
+		if err != nil {
+			return false, fmt.Errorf("error checking for meta files: %w", err)
+		}
+		if hasMetaFile {
+			fmt.Fprintf(w, "Directory %s now contains valid traffic data\n", dir)
+			return true, nil
+		}
+		return false, nil
+	})
 }
