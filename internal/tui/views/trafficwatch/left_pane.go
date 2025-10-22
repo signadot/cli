@@ -21,7 +21,7 @@ type LeftPane struct {
 func NewLeftPane(requests []models.HTTPRequest) *LeftPane {
 	return &LeftPane{
 		requests: requests,
-		selected: 0,
+		selected: -1, // No element selected by default
 		width:    50,
 		height:   20,
 	}
@@ -36,7 +36,7 @@ func (l *LeftPane) SetSize(width, height int) {
 // SetRequests updates the requests list
 func (l *LeftPane) SetRequests(requests []models.HTTPRequest) {
 	l.requests = requests
-	if l.selected >= len(requests) {
+	if l.selected >= len(requests) && l.selected != -1 {
 		l.selected = 0
 	}
 }
@@ -53,13 +53,23 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "up", "k":
 			if l.selected > 0 {
+				// If an item is selected, move up
 				l.selected--
+				return l, l.sendSelection()
+			} else if l.selected == -1 && len(l.requests) > 0 {
+				// If nothing is selected, go to the last item
+				l.selected = len(l.requests) - 1
 				return l, l.sendSelection()
 			}
 			return l, nil
 		case "down", "j":
 			if l.selected < len(l.requests)-1 {
+				// If an item is selected, move down
 				l.selected++
+				return l, l.sendSelection()
+			} else if l.selected == -1 && len(l.requests) > 0 {
+				// If nothing is selected, go to the first item
+				l.selected = 0
 				return l, l.sendSelection()
 			}
 			return l, nil
