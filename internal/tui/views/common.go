@@ -10,6 +10,10 @@ type CommonViewModel struct {
 	quitting bool
 }
 
+type GoToViewMsg struct {
+	View string
+}
+
 func NewCommonViewModel() *CommonViewModel {
 	return &CommonViewModel{}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
 	"github.com/signadot/cli/internal/tui/models"
+	"github.com/signadot/cli/internal/tui/views"
 )
 
 // MainViewState represents the current state of the main view
@@ -149,13 +150,23 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LogsLoadedMsg:
 		m.logsView.logs = msg.Logs
 		return m, nil
+
+	case views.GoToViewMsg:
+		switch msg.View {
+		case "main":
+			m.state = StateWithData
+			return m, nil
+		}
 	}
 
 	// Update focused pane
 	var cmd tea.Cmd
 	if m.focus == "left" {
 		_, cmd = m.leftPane.Update(msg)
-	} else if m.state == StateLogs {
+		return m, cmd
+	}
+
+	if m.state == StateLogs {
 		_, cmd = m.logsView.Update(msg)
 	} else {
 		_, cmd = m.rightPane.Update(msg)

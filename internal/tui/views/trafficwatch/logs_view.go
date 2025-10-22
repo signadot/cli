@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
+	"github.com/signadot/cli/internal/tui/views"
 )
 
 // LogsView represents the logs view
@@ -31,6 +32,12 @@ func NewLogsView() *LogsView {
 		width:      80,
 		height:     20,
 		lastUpdate: time.Now(),
+	}
+}
+
+func (l *LogsView) Back() tea.Cmd {
+	return func() tea.Msg {
+		return views.GoToViewMsg{View: "main"}
 	}
 }
 
@@ -56,6 +63,8 @@ func (l *LogsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "esc":
+			return l, l.Back()
 		case "up", "k":
 			if l.scrollPos > 0 {
 				l.scrollPos--

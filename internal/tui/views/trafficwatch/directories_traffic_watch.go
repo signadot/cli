@@ -14,8 +14,7 @@ type DirectoriesTrafficWatchViewModel struct {
 	commonViewModel *views.CommonViewModel
 
 	// panes
-	leftPaneViewModel  *DirectoriesPaneViewModel
-	rightPaneViewModel *detailRecordPaneViewModel
+	leftPaneViewModel *DirectoriesPaneViewModel
 }
 
 func NewDirectoriesTrafficWatchViewModel(recordDir string) tea.Model {
@@ -111,29 +110,5 @@ func (m *DirectoriesPaneViewModel) Init() tea.Cmd {
 
 	m.listModel = list.New(elements, m.itemsDelegate, 0, 0)
 
-	return nil
-}
-
-type detailRecordPaneViewModel struct {
-	baseDir   string
-	requestID string
-}
-
-func newDetailRecordPaneViewModel(baseDir, requestID string) *detailRecordPaneViewModel {
-	return &detailRecordPaneViewModel{
-		baseDir:   baseDir,
-		requestID: requestID,
-	}
-}
-
-func (m *detailRecordPaneViewModel) View() string {
-	return ""
-}
-
-func (m *detailRecordPaneViewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	return m, nil
-}
-
-func (m *detailRecordPaneViewModel) Init() tea.Cmd {
 	return nil
 }
