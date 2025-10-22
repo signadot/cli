@@ -75,6 +75,10 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return l, nil
 		case "enter":
 			return l, l.sendSelection()
+		case "right":
+			// Right arrow should move focus to right pane
+			// This will be handled by the main view
+			return l, nil
 		}
 	}
 	return l, nil

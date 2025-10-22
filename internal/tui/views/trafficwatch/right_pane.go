@@ -48,6 +48,11 @@ func (r *RightPane) SetRequest(request *models.HTTPRequest) {
 	r.request = request
 }
 
+// GetActiveTab returns the currently active tab
+func (r *RightPane) GetActiveTab() RightPaneTab {
+	return r.activeTab
+}
+
 // Init initializes the right pane
 func (r *RightPane) Init() tea.Cmd {
 	return nil
@@ -61,6 +66,9 @@ func (r *RightPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "left", "h":
 			if r.activeTab > TabMeta {
 				r.activeTab--
+			} else {
+				// If at first tab, left arrow should move focus back to left pane
+				// This will be handled by the main view
 			}
 		case "right", "l":
 			if r.activeTab < TabResponse {

@@ -63,7 +63,8 @@ func NewMainView() *MainView {
 		AddShortcut("l", "Switch to logs view").
 		AddShortcut("h", "Toggle this help").
 		AddShortcut("r", "Refresh data").
-		AddShortcut("Tab", "Switch focus between panes")
+		AddShortcut("Tab", "Switch focus between panes").
+		AddShortcut("←/→", "Navigate between panes and tabs")
 
 	state := StateWithData
 	if len(requests) == 0 {
@@ -107,12 +108,24 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logsView.SetSize(msg.Width, contentHeight)
 
 	case tea.KeyMsg:
+
+		// Ignore if we're in help state
+		// TOODO: Need to make sure help has it's own key handling
+		if m.state == StateHelp {
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "l":
-			m.state = StateLogs
-			return m, nil
+			if m.state == StateLogs {
+				m.state = StateWithData
+				return m, nil
+			} else {
+				m.state = StateLogs
+				return m, nil
+			}
 		case "h":
 			if m.state == StateHelp {
 				m.state = StateWithData
@@ -140,6 +153,33 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 			}
 			return m, nil
+		case "right":
+			// Move focus from left pane to right pane, or navigate within right pane
+			if m.focus == "left" {
+				m.focus = "right"
+				m.statusComponent = components.NewStatusComponent(
+					components.StatusSuccess,
+					fmt.Sprintf("Loaded %d requests | Focus: Right Pane", len(m.requests)),
+				)
+				return m, nil
+			}
+			// If already on right pane, let the right pane handle tab navigation
+		case "left":
+			// Move focus from right pane to left pane, or navigate within left pane
+			if m.focus == "right" {
+				// Check if we're at the first tab of right pane
+				if m.rightPane.GetActiveTab() == TabMeta {
+					// Move focus back to left pane
+					m.focus = "left"
+					m.statusComponent = components.NewStatusComponent(
+						components.StatusSuccess,
+						fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(m.requests)),
+					)
+					return m, nil
+				}
+				// Otherwise, let the right pane handle tab navigation
+			}
+			// If already on left pane, let the left pane handle its own navigation
 		}
 
 	case RequestSelectedMsg:
