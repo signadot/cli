@@ -20,14 +20,12 @@ func newInspect(cfg *config.Traffic) *cobra.Command {
 		Short: "Inspect traffic data from a directory",
 		Long: `Inspect traffic data from a directory containing recorded traffic.
 
-This command validates that the specified directory contains valid traffic data
-by checking for the presence of meta files (meta.json, meta.yaml, meta.jsons, or meta.yamls).
-If the directory doesn't contain any of these meta files, it will return an error 
-indicating it's not a valid traffic directory.
+This command validates that the specified directory contains traffic data
+produced by a signadot traffic record session. If the directory does not 
+contain valid data, the command returns an error.
 
-When the --wait flag is used, the command will wait for the directory to contain
-valid traffic data if it's initially empty, checking every second until meta files
-are found.`,
+When the --wait flag is provided, the command will wait until valid traffic data
+becomes available in the specified directory.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return inspectTraffic(inspectCfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
@@ -80,8 +78,7 @@ func hasMetaFile(dir string) (bool, error) {
 			continue
 		}
 		name := entry.Name()
-		if name == "meta.json" || name == "meta.yaml" ||
-			name == "meta.jsons" || name == "meta.yamls" {
+		if name == "meta.jsons" || name == "meta.yamls" {
 			return true, nil
 		}
 	}
