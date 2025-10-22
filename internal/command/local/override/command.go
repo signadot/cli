@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -144,6 +145,19 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	green := color.New(color.FgGreen).SprintFunc()
+	fmt.Fprintf(out, "%s Override created port %d to %s\n", green("✓"), cfg.Port, cfg.To)
+
+	// Add policy message
+	policyMessage := fmt.Sprintf("Policy: HTTP/gRPC responses containing the 'sd-override: true' header will be intercepted by the local process for sandbox <%s>", cfg.Sandbox)
+	fmt.Fprintf(out, "%s\n", policyMessage)
+
+	if len(cfg.ExcludedStatusCodes) > 0 {
+		codes := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(cfg.ExcludedStatusCodes)), ","), "[]")
+		excludedStatusCodesMessage := fmt.Sprintf("Override will not apply to responses with status codes: %s", codes)
+		fmt.Fprintf(out, "%s\n", excludedStatusCodesMessage)
+	}
 
 	startLogServer(ctx, logServer, logListener)
 	readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, ckMatch(cfg, sandbox, overrideName))
