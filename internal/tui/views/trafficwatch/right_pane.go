@@ -163,22 +163,32 @@ func (r *RightPane) renderMetaTab() string {
 	content.WriteString("\n\n")
 
 	info := map[string]string{
-		"ID":          r.request.ID,
-		"Method":      r.request.Method,
-		"URL":         r.request.URL,
-		"Path":        r.request.Path,
-		"Status Code": fmt.Sprintf("%d", r.request.StatusCode),
-		"Duration":    r.request.FormatDuration(),
-		"Timestamp":   r.request.Timestamp.Format(time.RFC3339),
-		"Client IP":   r.request.ClientIP,
-		"User Agent":  r.request.UserAgent,
+		"ID":                   r.request.ID,
+		"Middleware Request":   r.request.MiddlewareRequestID,
+		"Method":               r.request.Method,
+		"Request URI":          r.request.RequestURI,
+		"Routing Key":          r.request.RoutingKey,
+		"Norm Host":            r.request.NormHost,
+		"Dest Workload":        r.request.DestWorkload,
+		"Protocol":             r.request.Proto,
+		"Watch Options":        r.request.WatchOptions,
+		"When":                 r.request.When.Format(time.RFC3339),
+		"Status Code":          fmt.Sprintf("%d", r.request.StatusCode),
+		"Duration":             r.request.FormatDuration(),
+		"Timestamp":            r.request.Timestamp.Format(time.RFC3339),
+		"Client IP":            r.request.ClientIP,
+		"User Agent":           r.request.UserAgent,
+	}
+
+	if r.request.DoneAt != nil {
+		info["Done At"] = r.request.DoneAt.Format(time.RFC3339)
 	}
 
 	for key, value := range info {
 		keyStyle := lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#5D95FF")).
-			Width(12)
+			Width(18)
 		valueStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color("white"))
 
@@ -202,7 +212,7 @@ func (r *RightPane) renderMetaTab() string {
 			keyStyle := lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("green")).
-				Width(12)
+				Width(18)
 			valueStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("white"))
 

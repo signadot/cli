@@ -95,17 +95,19 @@ func (l *LeftPane) View() string {
 	header := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#5D95FF")).
-		Render(fmt.Sprintf("HTTP Requests (%d)", len(l.requests)))
+		Render(fmt.Sprintf("Traffic Watch (%d)", len(l.requests)))
 	content.WriteString(header)
 	content.WriteString("\n\n")
 	start := 0
 	end := len(l.requests)
 
-	if len(l.requests) > l.height-3 {
-		if l.selected > l.height-3 {
-			start = l.selected - (l.height - 3)
+	// Account for two lines per request (height-3)/2
+	maxVisibleRequests := (l.height - 3) / 2
+	if len(l.requests) > maxVisibleRequests {
+		if l.selected > maxVisibleRequests {
+			start = l.selected - maxVisibleRequests
 		}
-		end = start + (l.height - 3)
+		end = start + maxVisibleRequests
 		if end > len(l.requests) {
 			end = len(l.requests)
 		}
@@ -115,7 +117,9 @@ func (l *LeftPane) View() string {
 		req := l.requests[i]
 		item := l.renderRequestItem(req, i == l.selected)
 		content.WriteString(item)
-		content.WriteString("\n")
+		if i < end-1 { // Don't add newline after the last item
+			content.WriteString("\n")
+		}
 	}
 
 	return content.String()
@@ -137,9 +141,16 @@ func (l *LeftPane) renderRequestItem(req models.HTTPRequest, selected bool) stri
 		Width(4)
 	status := statusStyle.Render(fmt.Sprintf("%d", req.StatusCode))
 
-	path := req.GetShortPath()
-	if len(path) > l.width-20 {
-		path = path[:l.width-23] + "..."
+	// Show request URI instead of path
+	requestURI := req.RequestURI
+	if len(requestURI) > l.width-15 {
+		requestURI = requestURI[:l.width-18] + "..."
+	}
+
+	// Show routing key
+	routingKey := req.RoutingKey
+	if len(routingKey) > 20 {
+		routingKey = routingKey[:17] + "..."
 	}
 
 	duration := req.FormatDuration()
@@ -149,19 +160,36 @@ func (l *LeftPane) renderRequestItem(req models.HTTPRequest, selected bool) stri
 		indicator = "> "
 	}
 
-	line := fmt.Sprintf("%s%s %s %s %s", indicator, method, status, path, duration)
+	// First line: method status duration
+	line1 := fmt.Sprintf("%s%s %s %s", indicator, method, status, duration)
+	
+	// Second line: requestURI [routingKey]
+	line2 := fmt.Sprintf("  %s [%s]", requestURI, routingKey)
+
+	// Combine both lines
+	lines := []string{line1, line2}
+	
 	if selected {
-		lineStyle := lipgloss.NewStyle().
+		line1Style := lipgloss.NewStyle().
 			Background(lipgloss.Color("#2E77FF")).
 			Foreground(lipgloss.Color("white")).
 			Bold(true).
 			Padding(0, 1).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#2E77FF"))
-		line = lineStyle.Render(line)
+		
+		line2Style := lipgloss.NewStyle().
+			Background(lipgloss.Color("#2E77FF")).
+			Foreground(lipgloss.Color("white")).
+			Padding(0, 1).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#2E77FF"))
+		
+		lines[0] = line1Style.Render(line1)
+		lines[1] = line2Style.Render(line2)
 	}
 
-	return line
+	return strings.Join(lines, "\n")
 }
 
 // renderEmptyState renders the empty state
@@ -169,7 +197,7 @@ func (l *LeftPane) renderEmptyState() string {
 	return lipgloss.NewStyle().
 		Align(lipgloss.Center).
 		Foreground(lipgloss.Color("gray")).
-		Render("No requests available")
+		Render("No traffic data available")
 }
 
 // sendSelection sends a selection message

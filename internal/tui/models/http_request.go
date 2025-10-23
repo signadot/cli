@@ -6,18 +6,27 @@ import (
 
 // HTTPRequest represents a captured HTTP request
 type HTTPRequest struct {
-	ID          string            `json:"id"`
-	Method      string            `json:"method"`
-	URL         string            `json:"url"`
-	Path        string            `json:"path"`
-	Headers     map[string]string `json:"headers"`
-	Body        string            `json:"body"`
-	Timestamp   time.Time         `json:"timestamp"`
-	Duration    time.Duration     `json:"duration"`
-	StatusCode  int               `json:"status_code"`
-	Response    *HTTPResponse     `json:"response,omitempty"`
-	ClientIP    string            `json:"client_ip"`
-	UserAgent   string            `json:"user_agent"`
+	ID                  string            `json:"id"`
+	MiddlewareRequestID string            `json:"middlewareRequestID"`
+	Method              string            `json:"method"`
+	URL                 string            `json:"url"`
+	Path                string            `json:"path"`
+	RequestURI          string            `json:"requestURI"`
+	RoutingKey          string            `json:"routingKey"`
+	NormHost            string            `json:"normHost"`
+	DestWorkload        string            `json:"destWorkload"`
+	Proto               string            `json:"proto"`
+	WatchOptions        string            `json:"watchOptions"`
+	When                time.Time         `json:"when"`
+	DoneAt              *time.Time        `json:"doneAt,omitempty"`
+	Headers             map[string]string `json:"headers"`
+	Body                string            `json:"body"`
+	Timestamp           time.Time         `json:"timestamp"`
+	Duration            time.Duration     `json:"duration"`
+	StatusCode          int               `json:"status_code"`
+	Response            *HTTPResponse     `json:"response,omitempty"`
+	ClientIP            string            `json:"client_ip"`
+	UserAgent           string            `json:"user_agent"`
 }
 
 // HTTPResponse represents the response to an HTTP request
@@ -82,16 +91,25 @@ func (r *HTTPRequest) FormatDuration() string {
 
 // GetShortURL returns a shortened version of the URL for display
 func (r *HTTPRequest) GetShortURL() string {
-	if len(r.URL) > 50 {
-		return r.URL[:47] + "..."
+	url := r.URL
+	if r.RequestURI != "" {
+		url = r.RequestURI
 	}
-	return r.URL
+
+	return url
+}
+
+// GetShortRequestURI returns a shortened version of the request URI for display
+func (r *HTTPRequest) GetShortRequestURI() string {
+	return r.RequestURI
+}
+
+// GetShortRoutingKey returns a shortened version of the routing key for display
+func (r *HTTPRequest) GetShortRoutingKey() string {
+	return r.RoutingKey
 }
 
 // GetShortPath returns a shortened version of the path for display
 func (r *HTTPRequest) GetShortPath() string {
-	if len(r.Path) > 30 {
-		return r.Path[:27] + "..."
-	}
 	return r.Path
 }
