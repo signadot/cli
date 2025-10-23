@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,10 +14,14 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
-func WaitForSandboxReady(cfg *config.API, out io.Writer, sandboxName string, waitTimeout time.Duration) (*models.Sandbox, error) {
+func WaitForSandboxReady(ctx context.Context, cfg *config.API, out io.Writer,
+	sandboxName string, waitTimeout time.Duration) (*models.Sandbox, error) {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", waitTimeout)
 
-	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
+	params := sandboxes.NewGetSandboxParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithSandboxName(sandboxName)
 
 	spin := spinner.Start(out, "Sandbox status")
 	defer spin.Stop()
@@ -27,7 +32,7 @@ func WaitForSandboxReady(cfg *config.API, out io.Writer, sandboxName string, wai
 		NewPoll().
 		WithTimeout(waitTimeout)
 	var failedErr error
-	err := retry.Until(func() bool {
+	err := retry.Until(ctx, func(ctx context.Context) bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.
