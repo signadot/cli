@@ -129,9 +129,9 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle key bindings using the keyMap
 		switch {
 		case key.Matches(msg, m.keys.NextPage):
-			return m, m.leftPane.NextPage()
+			return m, m.leftPane.NextPage(false)
 		case key.Matches(msg, m.keys.PrevPage):
-			return m, m.leftPane.PrevPage()
+			return m, m.leftPane.PrevPage(false)
 		case key.Matches(msg, m.keys.Help):
 			m.state = StateHelp
 			return m, nil

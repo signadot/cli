@@ -2,6 +2,7 @@ package trafficwatch
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/paginator"
@@ -39,9 +40,11 @@ func (l *LeftPane) SetSize(width, height int) {
 	l.height = height
 
 	// Elements per page is the available height divided by the height of a single item
-	itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true))
+	itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
 	l.paginator.PerPage = height / (itemHeight)
-	l.paginator.TotalPages = len(l.requests) / l.paginator.PerPage
+
+	// Calculate the total number of pages, making sure to round up
+	l.paginator.TotalPages = int(math.Round(float64(len(l.requests)) / float64(l.paginator.PerPage)))
 
 	// Calculate the page based on the selected index
 	l.paginator.Page = l.selected / l.paginator.PerPage
@@ -64,24 +67,30 @@ func (l *LeftPane) SetRequests(requests []models.HTTPRequest) {
 
 type NextPageMsg struct {
 	Page int
+
+	AutoFirst bool // When true, the selected index will not be changed
 }
 
 type PrevPageMsg struct {
 	Page int
+
+	AutoLast bool // When true, the selected index will not be changed
 }
 
-func (l *LeftPane) NextPage() tea.Cmd {
+func (l *LeftPane) NextPage(withAuto bool) tea.Cmd {
 	return func() tea.Msg {
 		return NextPageMsg{
-			Page: l.paginator.Page + 1,
+			Page:      l.paginator.Page + 1,
+			AutoFirst: withAuto,
 		}
 	}
 }
 
-func (l *LeftPane) PrevPage() tea.Cmd {
+func (l *LeftPane) PrevPage(withAuto bool) tea.Cmd {
 	return func() tea.Msg {
 		return PrevPageMsg{
-			Page: l.paginator.Page - 1,
+			Page:     l.paginator.Page - 1,
+			AutoLast: withAuto,
 		}
 	}
 }
@@ -102,12 +111,22 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return l, nil
 			}
 
-			l.selected = l.selected + l.paginator.PerPage
+			// If auto first, keep the selected index as is
+			// If not auto first, move the selected index down by the number of items per page
+			if !msg.AutoFirst {
+				l.selected = l.selected + l.paginator.PerPage
+			}
 		}
 		return l, nil
 	case PrevPageMsg:
 		if l.paginator.Page > 0 {
-			l.selected = l.selected - l.paginator.PerPage
+
+			// If not auto last, move the selected index up by the number of items per page
+			// If auto last, keep the selected index as is
+			if !msg.AutoLast {
+				l.selected = l.selected - l.paginator.PerPage
+			}
+
 			l.paginator.Page--
 		}
 		return l, nil
@@ -135,8 +154,6 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return l, l.sendSelection()
 			}
 			return l, nil
-		case "enter":
-			return l, l.sendSelection()
 		case "right":
 			// Right arrow should move focus to right pane
 			// This will be handled by the main view
@@ -256,12 +273,25 @@ func (l *LeftPane) renderEmptyState() string {
 }
 
 func (l *LeftPane) sendSelection() tea.Cmd {
+
+	mixIndex := l.paginator.PerPage * l.paginator.Page
+	maxIndex := mixIndex + l.paginator.PerPage - 1
+
 	if l.selected < len(l.requests) {
-		return func() tea.Msg {
+
+		var cmd tea.Cmd
+		if l.selected < mixIndex {
+			cmd = l.PrevPage(true)
+		} else if l.selected > maxIndex {
+			cmd = l.NextPage(true)
+		}
+
+		return tea.Batch(cmd, func() tea.Msg {
 			return RequestSelectedMsg{
 				RequestID: l.requests[l.selected].ID,
 			}
-		}
+		})
+
 	}
 	return nil
 }
