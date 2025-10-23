@@ -18,7 +18,6 @@ func (lm *logMeta) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.String("id", lm.MiddlewareRequestID),
 		slog.String("time", lm.When),
-		slog.String("normHost", lm.NormHost),
 		slog.String("dest", lm.DestWorkload),
 		slog.String("uri", lm.RequestURI),
 		slog.String("method", lm.Method),
