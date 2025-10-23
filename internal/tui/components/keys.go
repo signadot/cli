@@ -20,12 +20,72 @@ type KeyMap struct {
 	GoBack   key.Binding
 	NextPage key.Binding
 	PrevPage key.Binding
+
+	shortHelp []key.Binding
+}
+
+type LiteralBindingName string
+
+const (
+	LiteralBindingNameUp       LiteralBindingName = "up"
+	LiteralBindingNameDown     LiteralBindingName = "down"
+	LiteralBindingNameLeft     LiteralBindingName = "left"
+	LiteralBindingNameRight    LiteralBindingName = "right"
+	LiteralBindingNameHelp     LiteralBindingName = "help"
+	LiteralBindingNameQuit     LiteralBindingName = "quit"
+	LiteralBindingNameRefresh  LiteralBindingName = "refresh"
+	LiteralBindingNameLogs     LiteralBindingName = "logs"
+	LiteralBindingNameTab      LiteralBindingName = "tab"
+	LiteralBindingNameGoBack   LiteralBindingName = "go_back"
+	LiteralBindingNameNextPage LiteralBindingName = "next_page"
+	LiteralBindingNamePrevPage LiteralBindingName = "prev_page"
+)
+
+func (k *KeyMap) GetBasicShortHelpNames() []LiteralBindingName {
+	return []LiteralBindingName{
+		LiteralBindingNameHelp,
+		LiteralBindingNameQuit,
+	}
+}
+
+// SetShortHelp sets the short help using field names from the KeyMap
+func (k *KeyMap) SetShortHelpByNames(fieldNames ...LiteralBindingName) {
+	k.shortHelp = make([]key.Binding, 0, len(fieldNames))
+
+	for _, name := range fieldNames {
+		switch name {
+		case LiteralBindingNameUp:
+			k.shortHelp = append(k.shortHelp, k.Up)
+		case LiteralBindingNameDown:
+			k.shortHelp = append(k.shortHelp, k.Down)
+		case LiteralBindingNameLeft:
+			k.shortHelp = append(k.shortHelp, k.Left)
+		case LiteralBindingNameRight:
+			k.shortHelp = append(k.shortHelp, k.Right)
+		case LiteralBindingNameHelp:
+			k.shortHelp = append(k.shortHelp, k.Help)
+		case LiteralBindingNameQuit:
+			k.shortHelp = append(k.shortHelp, k.Quit)
+		case LiteralBindingNameRefresh:
+			k.shortHelp = append(k.shortHelp, k.Refresh)
+		case LiteralBindingNameLogs:
+			k.shortHelp = append(k.shortHelp, k.Logs)
+		case LiteralBindingNameTab:
+			k.shortHelp = append(k.shortHelp, k.Tab)
+		case LiteralBindingNameGoBack:
+			k.shortHelp = append(k.shortHelp, k.GoBack)
+		case LiteralBindingNameNextPage:
+			k.shortHelp = append(k.shortHelp, k.NextPage)
+		case LiteralBindingNamePrevPage:
+			k.shortHelp = append(k.shortHelp, k.PrevPage)
+		}
+	}
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Help, k.Quit}
+	return k.shortHelp
 }
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
@@ -82,11 +142,11 @@ var Keys = KeyMap{
 	),
 	NextPage: key.NewBinding(
 		key.WithKeys("n"),
-		key.WithHelp("n", "Allow to change the page forward"),
+		key.WithHelp("n", "next page"),
 	),
 	PrevPage: key.NewBinding(
 		key.WithKeys("p"),
-		key.WithHelp("p", "Allow to change the page backward"),
+		key.WithHelp("p", "previous page"),
 	),
 }
 

@@ -44,6 +44,11 @@ type MainView struct {
 	helpComponent   *components.HelpComponent
 	help            help.Model
 	keys            components.KeyMap
+
+	// help keys for left pane
+	leftPaneHelpKeys []components.LiteralBindingName
+	// help keys for right pane
+	rightPaneHelpKeys []components.LiteralBindingName
 }
 
 // NewMainView creates a new main view
@@ -70,6 +75,9 @@ func NewMainView() *MainView {
 		state = StateNoData
 	}
 
+	leftPaneHelpKeys := getHelpKeysForLeftPane()
+	rightPaneHelpKeys := getHelpKeysForRightPane()
+
 	return &MainView{
 		state:           state,
 		dataService:     dataService,
@@ -83,11 +91,17 @@ func NewMainView() *MainView {
 		keys:            components.Keys,
 		focus:           "left",
 		showHelp:        false,
+
+		leftPaneHelpKeys:  leftPaneHelpKeys,
+		rightPaneHelpKeys: rightPaneHelpKeys,
 	}
 }
 
 // Init initializes the main view
 func (m *MainView) Init() tea.Cmd {
+
+	m.keys.SetShortHelpByNames(m.leftPaneHelpKeys...)
+
 	return tea.Batch(
 		m.leftPane.Init(),
 		m.rightPane.Init(),
@@ -101,9 +115,12 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		helpHeight := lipgloss.Height(m.help.View(m.keys))
+		statusHeight := lipgloss.Height(m.statusComponent.Render())
+
 		m.width = msg.Width
 		m.height = msg.Height
-		contentHeight := msg.Height - 3
+		contentHeight := msg.Height - helpHeight - statusHeight - 2
 		m.leftPane.SetSize(msg.Width/2, contentHeight)
 		m.rightPane.SetSize(msg.Width/2, contentHeight)
 		m.logsView.SetSize(msg.Width, contentHeight)
@@ -166,10 +183,13 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 					fmt.Sprintf("Loaded %d requests | Focus: Right Pane", len(m.requests)),
 				)
+				m.keys.SetShortHelpByNames(
+					m.rightPaneHelpKeys...,
+				)
 			} else {
 				m.focus = "left"
-				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
-					fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(m.requests)),
+				m.keys.SetShortHelpByNames(
+					m.leftPaneHelpKeys...,
 				)
 			}
 			return m, nil
@@ -180,6 +200,11 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 					fmt.Sprintf("Loaded %d requests | Focus: Right Pane", len(m.requests)),
 				)
+
+				m.keys.SetShortHelpByNames(
+					m.rightPaneHelpKeys...,
+				)
+
 				return m, nil
 			}
 			// If already on right pane, let the right pane handle tab navigation
@@ -193,8 +218,13 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 						fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(m.requests)),
 					)
+
+					m.keys.SetShortHelpByNames(
+						m.leftPaneHelpKeys...,
+					)
 					return m, nil
 				}
+
 				// Otherwise, let the right pane handle tab navigation
 			}
 			// If already on left pane, let the left pane handle its own navigation
@@ -257,7 +287,7 @@ func (m *MainView) View() string {
 
 	// Add help at the bottom if not in help state
 	if m.state != StateHelp {
-		m.statusComponent.UpdateStatusMessage(fmt.Sprintf("Loaded %d requests | Focus: %s | Help: %s", len(m.requests), m.focus, m.help.View(m.keys)))
+		m.statusComponent.UpdateStatusMessage(fmt.Sprintf("Loaded %d requests | Focus: %s\n%s", len(m.requests), m.focus, m.help.View(m.keys)))
 		content.WriteString("\n")
 		content.WriteString(m.statusComponent.Render())
 	} else {
@@ -286,14 +316,14 @@ func (m *MainView) renderWithDataState() string {
 		BorderForeground(lipgloss.Color("#5D95FF")).
 		Padding(1).
 		Width(paneWidth).
-		Height(m.height - 3)
+		Height(m.leftPane.height)
 
 	rightStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#2E77FF")).
 		Padding(1).
 		Width(paneWidth).
-		Height(m.height - 3)
+		Height(m.rightPane.height)
 	if m.focus == "left" {
 		leftStyle = leftStyle.
 			BorderForeground(lipgloss.Color("#5D95FF")).
@@ -356,4 +386,25 @@ func (m *MainView) refreshData() {
 // RequestSelectedMsg is sent when a request is selected
 type RequestSelectedMsg struct {
 	RequestID string
+}
+
+func getHelpKeysForLeftPane() []components.LiteralBindingName {
+	return []components.LiteralBindingName{
+		components.LiteralBindingNameHelp,
+		components.LiteralBindingNameQuit,
+		components.LiteralBindingNameNextPage,
+		components.LiteralBindingNamePrevPage,
+		components.LiteralBindingNameLeft,
+		components.LiteralBindingNameRight,
+	}
+}
+
+func getHelpKeysForRightPane() []components.LiteralBindingName {
+	return []components.LiteralBindingName{
+		components.LiteralBindingNameHelp,
+		components.LiteralBindingNameQuit,
+		components.LiteralBindingNameLeft,
+		components.LiteralBindingNameRight,
+		components.LiteralBindingNameTab,
+	}
 }
