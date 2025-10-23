@@ -26,6 +26,16 @@ func NewStatusComponent(status, message string) *StatusComponent {
 	}
 }
 
+func (s *StatusComponent) UpdateStatusMessage(message string) *StatusComponent {
+	s.Message = message
+	return s
+}
+
+func (s *StatusComponent) UpdateStatus(status string) *StatusComponent {
+	s.Status = status
+	return s
+}
+
 // SetStyle allows customizing the status style
 func (s *StatusComponent) SetStyle(style lipgloss.Style) *StatusComponent {
 	s.Style = style
@@ -35,9 +45,10 @@ func (s *StatusComponent) SetStyle(style lipgloss.Style) *StatusComponent {
 // Render returns the formatted status string
 func (s *StatusComponent) Render() string {
 	statusColor := lipgloss.Color("green")
-	if s.Status == "error" || s.Status == "failed" {
+	switch s.Status {
+	case "error", "failed":
 		statusColor = lipgloss.Color("red")
-	} else if s.Status == "warning" {
+	case "warning":
 		statusColor = lipgloss.Color("yellow")
 	}
 
@@ -47,7 +58,7 @@ func (s *StatusComponent) Render() string {
 		Render(strings.ToUpper(s.Status))
 
 	timestamp := s.Timestamp.Format("15:04:05")
-	
+
 	content := fmt.Sprintf("%s %s [%s]", statusText, s.Message, timestamp)
 	return s.Style.Render(content)
 }

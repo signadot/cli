@@ -26,6 +26,14 @@ func NewHelpComponent(title, description string) *HelpComponent {
 	}
 }
 
+func (h *HelpComponent) GetShortcuts() map[string]string {
+	return h.Shortcuts
+}
+
+func (h *HelpComponent) GetKeysOrder() []string {
+	return h.keysOrder
+}
+
 // AddShortcut adds a keyboard shortcut to the help
 func (h *HelpComponent) AddShortcut(key, description string) *HelpComponent {
 	h.Shortcuts[key] = description

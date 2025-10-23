@@ -148,14 +148,12 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			if m.focus == "left" {
 				m.focus = "right"
-				m.statusComponent = components.NewStatusComponent(
-					components.StatusSuccess,
+				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 					fmt.Sprintf("Loaded %d requests | Focus: Right Pane", len(m.requests)),
 				)
 			} else {
 				m.focus = "left"
-				m.statusComponent = components.NewStatusComponent(
-					components.StatusSuccess,
+				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 					fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(m.requests)),
 				)
 			}
@@ -164,8 +162,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move focus from left pane to right pane, or navigate within right pane
 			if m.focus == "left" {
 				m.focus = "right"
-				m.statusComponent = components.NewStatusComponent(
-					components.StatusSuccess,
+				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 					fmt.Sprintf("Loaded %d requests | Focus: Right Pane", len(m.requests)),
 				)
 				return m, nil
@@ -178,8 +175,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.rightPane.GetActiveTab() == TabMeta {
 					// Move focus back to left pane
 					m.focus = "left"
-					m.statusComponent = components.NewStatusComponent(
-						components.StatusSuccess,
+					m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 						fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(m.requests)),
 					)
 					return m, nil
