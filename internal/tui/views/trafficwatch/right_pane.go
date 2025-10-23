@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
@@ -30,6 +31,8 @@ type RightPane struct {
 	metadataContent string
 	requestContent  string
 	responseContent string
+
+	viewport viewport.Model
 }
 
 // NewRightPane creates a new right pane
@@ -38,6 +41,7 @@ func NewRightPane() *RightPane {
 		activeTab: TabMeta,
 		width:     50,
 		height:    20,
+		viewport:  viewport.New(40, 20),
 	}
 }
 
@@ -45,6 +49,9 @@ func NewRightPane() *RightPane {
 func (r *RightPane) SetSize(width, height int) {
 	r.width = width
 	r.height = height
+
+	r.viewport.Height = r.height - lipgloss.Height(r.renderTabBar()) - 4
+	r.viewport.YPosition = lipgloss.Height(r.renderTabBar())
 }
 
 // SetRequest sets the current request to display
@@ -71,14 +78,14 @@ func (r *RightPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "left", "h":
+		case "left":
 			if r.activeTab > TabMeta {
 				r.activeTab--
 			} else {
 				// If at first tab, left arrow should move focus back to left pane
 				// This will be handled by the main view
 			}
-		case "right", "l":
+		case "right":
 			if r.activeTab < TabResponse {
 				r.activeTab++
 			}
@@ -90,10 +97,45 @@ func (r *RightPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			r.activeTab = TabResponse
 		}
 	}
-	return r, nil
+
+	var cmd tea.Cmd
+	r.viewport, cmd = r.viewport.Update(msg)
+
+	return r, cmd
 }
 
 // View renders the right pane
+func (r *RightPane) view() string {
+
+	var content strings.Builder
+
+	switch r.activeTab {
+	case TabMeta:
+		content.WriteString(r.metadataContent)
+		content.WriteString("second line \n")
+		content.WriteString(r.metadataContent)
+		content.WriteString("third line \n")
+		content.WriteString(r.metadataContent)
+		content.WriteString("fourth line \n")
+		content.WriteString(r.metadataContent)
+		content.WriteString("sixth line \n")
+		content.WriteString(r.metadataContent)
+		content.WriteString("seventh line \n")
+		content.WriteString(r.metadataContent)
+		content.WriteString("eighth line \n")
+		content.WriteString(r.metadataContent)
+		content.WriteString("ninth line \n")
+		content.WriteString(r.metadataContent)
+		content.WriteString("tenth line \n")
+	case TabRequest:
+		content.WriteString(r.requestContent)
+	case TabResponse:
+		content.WriteString(r.responseContent)
+	}
+
+	return content.String()
+}
+
 func (r *RightPane) View() string {
 	if r.request == nil {
 		return r.renderEmptyState()
@@ -101,17 +143,14 @@ func (r *RightPane) View() string {
 
 	var content strings.Builder
 
-	content.WriteString(r.renderTabBar())
+	tabBar := r.renderTabBar()
+	content.WriteString(tabBar)
 	content.WriteString("\n\n")
-	switch r.activeTab {
-	case TabMeta:
-		content.WriteString(r.metadataContent)
-	case TabRequest:
-		content.WriteString(r.requestContent)
-	case TabResponse:
-		content.WriteString(r.responseContent)
-	}
 
+	r.viewport.SetContent(r.view())
+	r.viewport.YPosition = lipgloss.Height(tabBar)
+
+	content.WriteString(r.viewport.View())
 	return content.String()
 }
 
