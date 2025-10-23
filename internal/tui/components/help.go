@@ -1,18 +1,18 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// HelpComponent represents a reusable help component
+// HelpComponent represents a reusable help component using bubbles help
 type HelpComponent struct {
 	Title       string
 	Description string
-	Shortcuts   map[string]string
-	keysOrder   []string
+	help        help.Model
+	keys        KeyMap
 	Style       lipgloss.Style
 }
 
@@ -21,34 +21,36 @@ func NewHelpComponent(title, description string) *HelpComponent {
 	return &HelpComponent{
 		Title:       title,
 		Description: description,
-		Shortcuts:   make(map[string]string),
+		help:        NewHelpModel(),
+		keys:        Keys,
 		Style:       lipgloss.NewStyle().Padding(1, 2).Border(lipgloss.RoundedBorder()),
 	}
 }
 
-func (h *HelpComponent) GetShortcuts() map[string]string {
-	return h.Shortcuts
+// SetWidth sets the width of the help component
+func (h *HelpComponent) SetWidth(width int) {
+	h.help.Width = width
 }
 
-func (h *HelpComponent) GetKeysOrder() []string {
-	return h.keysOrder
+// ShowAll toggles the help view between short and full
+func (h *HelpComponent) ShowAll(show bool) {
+	h.help.ShowAll = show
 }
 
-// AddShortcut adds a keyboard shortcut to the help
-func (h *HelpComponent) AddShortcut(key, description string) *HelpComponent {
-	h.Shortcuts[key] = description
-	h.keysOrder = append(h.keysOrder, key)
-	return h
+// ToggleHelp toggles the help view
+func (h *HelpComponent) ToggleHelp() {
+	h.help.ShowAll = !h.help.ShowAll
 }
 
-// SetStyle allows customizing the help style
-func (h *HelpComponent) SetStyle(style lipgloss.Style) *HelpComponent {
-	h.Style = style
-	return h
+// IsShowingAll returns whether the full help is being shown
+func (h *HelpComponent) IsShowingAll() bool {
+	return h.help.ShowAll
 }
 
 // Render returns the formatted help string
 func (h *HelpComponent) Render() string {
+	h.help.ShowAll = true
+
 	var content strings.Builder
 
 	// Title
@@ -64,27 +66,16 @@ func (h *HelpComponent) Render() string {
 		content.WriteString("\n\n")
 	}
 
-	// Shortcuts
-	if len(h.Shortcuts) > 0 {
-		content.WriteString("Shortcuts:\n")
-		for _, key := range h.keysOrder {
-			desc := h.Shortcuts[key]
-			keyStyle := lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("yellow"))
-			content.WriteString(fmt.Sprintf("  %s %s\n", keyStyle.Render(key), desc))
-		}
-	}
+	// Use bubbles help to render the key bindings
+	helpView := h.help.View(h.keys)
+	content.WriteString(helpView)
 
-	return h.Style.Render(content.String())
+	view := h.Style.Render(content.String())
+	h.help.ShowAll = false
+	return view
 }
 
-// Common help shortcuts
-func (h *HelpComponent) AddCommonShortcuts() *HelpComponent {
-	h.AddShortcut("q, Ctrl+C", "Quit")
-	h.AddShortcut("↑/↓", "Navigate")
-	h.AddShortcut("Enter", "Select")
-	h.AddShortcut("Tab", "Switch focus")
-	h.AddShortcut("Esc", "Go back")
-	return h
+// GetHelpModel returns the underlying help model for direct manipulation
+func (h *HelpComponent) GetHelpModel() help.Model {
+	return h.help
 }

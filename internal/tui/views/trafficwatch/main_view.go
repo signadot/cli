@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
@@ -40,6 +42,8 @@ type MainView struct {
 
 	statusComponent *components.StatusComponent
 	helpComponent   *components.HelpComponent
+	help            help.Model
+	keys            components.KeyMap
 }
 
 // NewMainView creates a new main view
@@ -59,12 +63,7 @@ func NewMainView() *MainView {
 	helpComponent := components.NewHelpComponent(
 		"Traffic Watch",
 		"Monitor HTTP traffic in real-time",
-	).AddCommonShortcuts().
-		AddShortcut("l", "Switch to logs view").
-		AddShortcut("h", "Toggle this help").
-		AddShortcut("r", "Refresh data").
-		AddShortcut("Tab", "Switch focus between panes").
-		AddShortcut("←/→", "Navigate between panes and tabs")
+	)
 
 	state := StateWithData
 	if len(requests) == 0 {
@@ -80,6 +79,8 @@ func NewMainView() *MainView {
 		logsView:        logsView,
 		statusComponent: statusComponent,
 		helpComponent:   helpComponent,
+		help:            components.NewHelpModel(),
+		keys:            components.Keys,
 		focus:           "left",
 		showHelp:        false,
 	}
@@ -106,14 +107,17 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.leftPane.SetSize(msg.Width/2, contentHeight)
 		m.rightPane.SetSize(msg.Width/2, contentHeight)
 		m.logsView.SetSize(msg.Width, contentHeight)
+		// Set help width for proper rendering
+		m.help.Width = msg.Width
+		m.helpComponent.SetWidth(msg.Width)
 
 	case tea.KeyMsg:
 		// Handle help state keystrokes
 		if m.state == StateHelp {
-			switch msg.String() {
-			case "q", "ctrl+c":
+			switch {
+			case key.Matches(msg, m.keys.Quit):
 				return m, tea.Quit
-			case "h", "esc":
+			case key.Matches(msg, m.keys.Help), msg.String() == "esc":
 				m.state = StateWithData
 				m.showHelp = false
 				return m, nil
@@ -122,10 +126,17 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		switch msg.String() {
-		case "q", "ctrl+c":
+		// Handle key bindings using the keyMap
+		switch {
+		case key.Matches(msg, m.keys.Help):
+			m.state = StateHelp
+			return m, nil
+		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
-		case "l":
+		case key.Matches(msg, m.keys.GoBack):
+			m.state = StateWithData
+			return m, nil
+		case key.Matches(msg, m.keys.Logs):
 			if m.state == StateLogs {
 				m.state = StateWithData
 				return m, nil
@@ -133,7 +144,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = StateLogs
 				return m, nil
 			}
-		case "h":
+		case key.Matches(msg, m.keys.Help):
 			if m.state == StateHelp {
 				m.state = StateWithData
 				m.showHelp = false
@@ -142,10 +153,10 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = true
 			}
 			return m, nil
-		case "r":
+		case key.Matches(msg, m.keys.Refresh):
 			m.refreshData()
 			return m, nil
-		case "tab":
+		case key.Matches(msg, m.keys.Tab):
 			if m.focus == "left" {
 				m.focus = "right"
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
@@ -158,7 +169,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 			}
 			return m, nil
-		case "right":
+		case key.Matches(msg, m.keys.Right):
 			// Move focus from left pane to right pane, or navigate within right pane
 			if m.focus == "left" {
 				m.focus = "right"
@@ -168,7 +179,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			// If already on right pane, let the right pane handle tab navigation
-		case "left":
+		case key.Matches(msg, m.keys.Left):
 			// Move focus from right pane to left pane, or navigate within left pane
 			if m.focus == "right" {
 				// Check if we're at the first tab of right pane
@@ -240,8 +251,16 @@ func (m *MainView) View() string {
 		content.WriteString(m.renderHelpState())
 	}
 
-	content.WriteString("\n")
-	content.WriteString(m.statusComponent.Render())
+	// Add help at the bottom if not in help state
+	if m.state != StateHelp {
+		m.statusComponent.UpdateStatusMessage(fmt.Sprintf("Loaded %d requests | Focus: %s | Help: %s", len(m.requests), m.focus, m.help.View(m.keys)))
+		content.WriteString("\n")
+		content.WriteString(m.statusComponent.Render())
+	} else {
+		content.WriteString("\n")
+		m.statusComponent.UpdateStatusMessage(fmt.Sprintf("Loaded %d requests | Focus: %s", len(m.requests), m.focus))
+		content.WriteString(m.statusComponent.Render())
+	}
 
 	return content.String()
 }

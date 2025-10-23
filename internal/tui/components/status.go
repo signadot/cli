@@ -57,9 +57,7 @@ func (s *StatusComponent) Render() string {
 		Bold(true).
 		Render(strings.ToUpper(s.Status))
 
-	timestamp := s.Timestamp.Format("15:04:05")
-
-	content := fmt.Sprintf("%s %s [%s]", statusText, s.Message, timestamp)
+	content := fmt.Sprintf("%s %s", statusText, s.Message)
 	return s.Style.Render(content)
 }
 
