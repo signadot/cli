@@ -4,36 +4,57 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/models"
 )
 
-// LeftPane represents the left pane showing HTTP requests
 type LeftPane struct {
 	requests []models.HTTPRequest
 	selected int
 	width    int
 	height   int
+
+	paginator paginator.Model
 }
 
-// NewLeftPane creates a new left pane
 func NewLeftPane(requests []models.HTTPRequest) *LeftPane {
+
+	p := paginator.New()
+	p.Type = paginator.Arabic
+	p.ArabicFormat = "%d of %d"
+
 	return &LeftPane{
-		requests: requests,
-		selected: -1, // No element selected by default
-		width:    50,
-		height:   20,
+		requests:  requests,
+		selected:  -1, // No element selected by default
+		width:     50,
+		height:    20,
+		paginator: p,
 	}
 }
 
-// SetSize sets the size of the left pane
 func (l *LeftPane) SetSize(width, height int) {
 	l.width = width
 	l.height = height
+
+	// Elements per page is the available height divided by the height of a single item
+	itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true))
+	l.paginator.PerPage = height / (itemHeight)
+	l.paginator.TotalPages = len(l.requests) / l.paginator.PerPage
+
+	// Calculate the page based on the selected index
+	l.paginator.Page = l.selected / l.paginator.PerPage
+
+	if l.paginator.Page >= l.paginator.TotalPages {
+		l.paginator.Page = l.paginator.TotalPages - 1
+	}
+
+	if l.paginator.Page < 0 {
+		l.paginator.Page = 0
+	}
 }
 
-// SetRequests updates the requests list
 func (l *LeftPane) SetRequests(requests []models.HTTPRequest) {
 	l.requests = requests
 	if l.selected >= len(requests) && l.selected != -1 {
@@ -41,17 +62,58 @@ func (l *LeftPane) SetRequests(requests []models.HTTPRequest) {
 	}
 }
 
-// Init initializes the left pane
+type NextPageMsg struct {
+	Page int
+}
+
+type PrevPageMsg struct {
+	Page int
+}
+
+func (l *LeftPane) NextPage() tea.Cmd {
+	return func() tea.Msg {
+		return NextPageMsg{
+			Page: l.paginator.Page + 1,
+		}
+	}
+}
+
+func (l *LeftPane) PrevPage() tea.Cmd {
+	return func() tea.Msg {
+		return PrevPageMsg{
+			Page: l.paginator.Page - 1,
+		}
+	}
+}
+
 func (l *LeftPane) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles messages
 func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case NextPageMsg:
+		if l.paginator.Page < l.paginator.TotalPages {
+			l.paginator.Page++
+
+			if (l.paginator.Page) >= l.paginator.TotalPages {
+				l.paginator.Page--
+				return l, nil
+			}
+
+			l.selected = l.selected + l.paginator.PerPage
+		}
+		return l, nil
+	case PrevPageMsg:
+		if l.paginator.Page > 0 {
+			l.selected = l.selected - l.paginator.PerPage
+			l.paginator.Page--
+		}
+		return l, nil
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "up", "k":
+		case "up":
 			if l.selected > 0 {
 				// If an item is selected, move up
 				l.selected--
@@ -62,7 +124,7 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return l, l.sendSelection()
 			}
 			return l, nil
-		case "down", "j":
+		case "down":
 			if l.selected < len(l.requests)-1 {
 				// If an item is selected, move down
 				l.selected++
@@ -81,10 +143,12 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return l, nil
 		}
 	}
-	return l, nil
+
+	var cmd tea.Cmd
+	l.paginator, cmd = l.paginator.Update(msg)
+	return l, cmd
 }
 
-// View renders the left pane
 func (l *LeftPane) View() string {
 	if len(l.requests) == 0 {
 		return l.renderEmptyState()
@@ -101,17 +165,7 @@ func (l *LeftPane) View() string {
 	start := 0
 	end := len(l.requests)
 
-	// Account for two lines per request (height-3)/2
-	maxVisibleRequests := (l.height - 3) / 2
-	if len(l.requests) > maxVisibleRequests {
-		if l.selected > maxVisibleRequests {
-			start = l.selected - maxVisibleRequests
-		}
-		end = start + maxVisibleRequests
-		if end > len(l.requests) {
-			end = len(l.requests)
-		}
-	}
+	start, end = l.paginator.GetSliceBounds(len(l.requests))
 
 	for i := start; i < end; i++ {
 		req := l.requests[i]
@@ -121,6 +175,8 @@ func (l *LeftPane) View() string {
 			content.WriteString("\n")
 		}
 	}
+
+	content.WriteString("\n" + l.paginator.View())
 
 	return content.String()
 }
@@ -162,13 +218,13 @@ func (l *LeftPane) renderRequestItem(req models.HTTPRequest, selected bool) stri
 
 	// First line: method status duration
 	line1 := fmt.Sprintf("%s%s %s %s", indicator, method, status, duration)
-	
+
 	// Second line: requestURI [routingKey]
 	line2 := fmt.Sprintf("  %s [%s]", requestURI, routingKey)
 
 	// Combine both lines
 	lines := []string{line1, line2}
-	
+
 	if selected {
 		line1Style := lipgloss.NewStyle().
 			Background(lipgloss.Color("#2E77FF")).
@@ -177,14 +233,14 @@ func (l *LeftPane) renderRequestItem(req models.HTTPRequest, selected bool) stri
 			Padding(0, 1).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#2E77FF"))
-		
+
 		line2Style := lipgloss.NewStyle().
 			Background(lipgloss.Color("#2E77FF")).
 			Foreground(lipgloss.Color("white")).
 			Padding(0, 1).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#2E77FF"))
-		
+
 		lines[0] = line1Style.Render(line1)
 		lines[1] = line2Style.Render(line2)
 	}
@@ -192,7 +248,6 @@ func (l *LeftPane) renderRequestItem(req models.HTTPRequest, selected bool) stri
 	return strings.Join(lines, "\n")
 }
 
-// renderEmptyState renders the empty state
 func (l *LeftPane) renderEmptyState() string {
 	return lipgloss.NewStyle().
 		Align(lipgloss.Center).
@@ -200,7 +255,6 @@ func (l *LeftPane) renderEmptyState() string {
 		Render("No traffic data available")
 }
 
-// sendSelection sends a selection message
 func (l *LeftPane) sendSelection() tea.Cmd {
 	if l.selected < len(l.requests) {
 		return func() tea.Msg {

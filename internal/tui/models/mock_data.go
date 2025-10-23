@@ -51,7 +51,7 @@ func generateMockRequests() []HTTPRequest {
 			Proto:               "HTTP/1.1",
 			WatchOptions:        "+stream/+stream",
 			When:                now.Add(-5 * time.Minute),
-			DoneAt:              func() *time.Time { t := now.Add(-5*time.Minute).Add(150 * time.Millisecond); return &t }(),
+			DoneAt:              func() *time.Time { t := now.Add(-5 * time.Minute).Add(150 * time.Millisecond); return &t }(),
 			Headers:             map[string]string{"Content-Type": "application/json", "Authorization": "Bearer token123"},
 			Body:                "",
 			Timestamp:           now.Add(-5 * time.Minute),
@@ -80,7 +80,7 @@ func generateMockRequests() []HTTPRequest {
 			Proto:               "HTTP/1.1",
 			WatchOptions:        "+stream/+stream",
 			When:                now.Add(-4 * time.Minute),
-			DoneAt:              func() *time.Time { t := now.Add(-4*time.Minute).Add(300 * time.Millisecond); return &t }(),
+			DoneAt:              func() *time.Time { t := now.Add(-4 * time.Minute).Add(300 * time.Millisecond); return &t }(),
 			Headers:             map[string]string{"Content-Type": "application/json"},
 			Body:                `{"name": "Jane Smith", "email": "jane@example.com"}`,
 			Timestamp:           now.Add(-4 * time.Minute),
@@ -109,7 +109,7 @@ func generateMockRequests() []HTTPRequest {
 			Proto:               "HTTP/1.1",
 			WatchOptions:        "+stream/+stream",
 			When:                now.Add(-3 * time.Minute),
-			DoneAt:              func() *time.Time { t := now.Add(-3*time.Minute).Add(200 * time.Millisecond); return &t }(),
+			DoneAt:              func() *time.Time { t := now.Add(-3 * time.Minute).Add(200 * time.Millisecond); return &t }(),
 			Headers:             map[string]string{"Content-Type": "application/json", "Authorization": "Bearer token123"},
 			Body:                `{"name": "John Updated", "email": "john.updated@example.com"}`,
 			Timestamp:           now.Add(-3 * time.Minute),
@@ -138,7 +138,7 @@ func generateMockRequests() []HTTPRequest {
 			Proto:               "HTTP/1.1",
 			WatchOptions:        "+stream/+stream",
 			When:                now.Add(-2 * time.Minute),
-			DoneAt:              func() *time.Time { t := now.Add(-2*time.Minute).Add(100 * time.Millisecond); return &t }(),
+			DoneAt:              func() *time.Time { t := now.Add(-2 * time.Minute).Add(100 * time.Millisecond); return &t }(),
 			Headers:             map[string]string{"Authorization": "Bearer token123"},
 			Body:                "",
 			Timestamp:           now.Add(-2 * time.Minute),
@@ -167,7 +167,7 @@ func generateMockRequests() []HTTPRequest {
 			Proto:               "HTTP/1.1",
 			WatchOptions:        "+stream/+stream",
 			When:                now.Add(-1 * time.Minute),
-			DoneAt:              func() *time.Time { t := now.Add(-1*time.Minute).Add(50 * time.Millisecond); return &t }(),
+			DoneAt:              func() *time.Time { t := now.Add(-1 * time.Minute).Add(50 * time.Millisecond); return &t }(),
 			Headers:             map[string]string{"Authorization": "Bearer token123"},
 			Body:                "",
 			Timestamp:           now.Add(-1 * time.Minute),
@@ -196,7 +196,7 @@ func generateMockRequests() []HTTPRequest {
 			"http://backend.hotrod-devmesh.svc:8082/api/orders",
 			"http://auth.hotrod-devmesh.svc:8083/login",
 		}
-		
+
 		req := HTTPRequest{
 			ID:                  fmt.Sprintf("req-%03d", i+6),
 			MiddlewareRequestID: generateRandomID(),
@@ -210,16 +210,19 @@ func generateMockRequests() []HTTPRequest {
 			Proto:               "HTTP/1.1",
 			WatchOptions:        "+stream/+stream",
 			When:                now.Add(-time.Duration(rand.Intn(60)) * time.Minute),
-			DoneAt:              func() *time.Time { t := now.Add(-time.Duration(rand.Intn(60))*time.Minute).Add(time.Duration(rand.Intn(1000)) * time.Millisecond); return &t }(),
-			Headers:             map[string]string{"Content-Type": "application/json"},
-			Body:                generateRandomBody(),
-			Timestamp:           now.Add(-time.Duration(rand.Intn(60)) * time.Minute),
-			Duration:            time.Duration(rand.Intn(1000)) * time.Millisecond,
-			StatusCode:          statusCodes[rand.Intn(len(statusCodes))],
-			ClientIP:            fmt.Sprintf("192.168.1.%d", 100+rand.Intn(50)),
-			UserAgent:           "curl/8.16.0",
+			DoneAt: func() *time.Time {
+				t := now.Add(-time.Duration(rand.Intn(60)) * time.Minute).Add(time.Duration(rand.Intn(1000)) * time.Millisecond)
+				return &t
+			}(),
+			Headers:    map[string]string{"Content-Type": "application/json"},
+			Body:       generateRandomBody(),
+			Timestamp:  now.Add(-time.Duration(rand.Intn(60)) * time.Minute),
+			Duration:   time.Duration(rand.Intn(1000)) * time.Millisecond,
+			StatusCode: statusCodes[rand.Intn(len(statusCodes))],
+			ClientIP:   fmt.Sprintf("192.168.1.%d", 100+rand.Intn(50)),
+			UserAgent:  "curl/8.16.0",
 		}
-		
+
 		if req.StatusCode >= 200 && req.StatusCode < 300 {
 			req.Response = &HTTPResponse{
 				StatusCode: req.StatusCode,
@@ -229,7 +232,7 @@ func generateMockRequests() []HTTPRequest {
 				Duration:   req.Duration,
 			}
 		}
-		
+
 		requests = append(requests, req)
 	}
 

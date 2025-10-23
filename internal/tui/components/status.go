@@ -14,6 +14,8 @@ type StatusComponent struct {
 	Message   string
 	Timestamp time.Time
 	Style     lipgloss.Style
+
+	extra string
 }
 
 // NewStatusComponent creates a new status component
@@ -24,6 +26,11 @@ func NewStatusComponent(status, message string) *StatusComponent {
 		Timestamp: time.Now(),
 		Style:     lipgloss.NewStyle().Padding(0, 1),
 	}
+}
+
+func (s *StatusComponent) SetExtra(extra string) *StatusComponent {
+	s.extra = extra
+	return s
 }
 
 func (s *StatusComponent) UpdateStatusMessage(message string) *StatusComponent {
@@ -58,6 +65,12 @@ func (s *StatusComponent) Render() string {
 		Render(strings.ToUpper(s.Status))
 
 	content := fmt.Sprintf("%s %s", statusText, s.Message)
+	if s.extra != "" {
+		content += fmt.Sprintf(" %s", s.extra)
+		content = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("gray")).
+			Render(content)
+	}
 	return s.Style.Render(content)
 }
 
