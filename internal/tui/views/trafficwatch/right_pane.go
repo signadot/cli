@@ -51,6 +51,7 @@ func (r *RightPane) SetSize(width, height int) {
 	r.height = height
 
 	r.viewport.Height = r.height - lipgloss.Height(r.renderTabBar()) - 4
+	r.viewport.Width = width - 10
 	r.viewport.YPosition = lipgloss.Height(r.renderTabBar())
 }
 
