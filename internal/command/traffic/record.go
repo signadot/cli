@@ -7,14 +7,16 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/trafficwatch"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
-	"github.com/signadot/go-sdk/client/sandboxes"
 	twapi "github.com/signadot/libconnect/common/trafficwatch"
 	"github.com/spf13/cobra"
 )
@@ -65,15 +67,25 @@ The request (and response) contains the wire format
 }
 
 func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args []string) error {
+	ctx, _ := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
+	// set a timeout of 1h
+	ctx, cancel := context.WithTimeout(ctx, time.Hour)
+	defer cancel()
+
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
+
+	// validations
 	if cfg.Sandbox == "" {
 		return fmt.Errorf("must specify sandbox")
 	}
 	if cfg.Short && cfg.HeadersOnly {
 		return fmt.Errorf("only one of --short or --headers-only can be provided")
 	}
+
+	// define output dir
 	if !cfg.Short && cfg.OutputDir == "" {
 		signadotDir, err := system.GetSignadotDir()
 		if err != nil {
@@ -92,39 +104,49 @@ func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args
 		}
 		fmt.Fprintf(w, "Traffic will be written to %s.\n", cfg.OutputDir)
 	}
-	params := sandboxes.NewGetSandboxParams().
-		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
-	resp, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
+
+	// get the sandbox and ensure the trafficwatch middleware is present
+	sb, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
 	if err != nil {
 		return err
 	}
-	unedit, err := ensureHasTrafficWatchClientMW(cfg, w, resp.Payload)
+	undo, err := ensureHasTrafficWatchClientMW(ctx, cfg, w, sb)
 	if err != nil {
 		return err
 	}
+
 	// NOTE we should keep the single 'retErr' from here down
 	var retErr error
 	defer func() {
-		retErr = errors.Join(retErr, unedit())
+		retErr = errors.Join(retErr, undo())
 	}()
-	if retErr = waitSandboxReady(cfg, wErr); retErr != nil {
-		return retErr
+
+	if !cfg.NoInstrument {
+		// wait until the sandbox is ready
+		_, retErr = utils.WaitForSandboxReady(ctx, cfg.API, w, cfg.Sandbox, cfg.WaitTimeout)
+		if retErr != nil {
+			return retErr
+		}
 	}
-	routingKey := resp.Payload.RoutingKey
+
+	// setup the terminal logger
+	routingKey := sb.RoutingKey
 	log := getTerminalLogger(cfg, w)
 	if !cfg.Short {
 		if retErr = setupToDir(cfg.OutputDir); retErr != nil {
 			return retErr
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-	defer cancel()
+
+	// setup the traffic watch client
 	var tw *twapi.TrafficWatch
-	tw, retErr = trafficwatch.GetTrafficWatch(context.Background(), cfg, log, routingKey)
+	tw, retErr = trafficwatch.GetTrafficWatch(ctx, cfg, log, routingKey)
 	if retErr != nil {
 		return retErr
 	}
+
 	if !cfg.NoInstrument {
+		// run the readiness loop
 		readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, func() (ready bool, warn, fatal error) {
 			return ckReady(cfg)
 		})
@@ -132,6 +154,7 @@ func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args
 		go readyLoop(ctx, log, tw, readiness)
 	}
 
+	// consume from the traffic watch client
 	if cfg.Short {
 		out := "<none>"
 		if cfg.OutputFile != "" {

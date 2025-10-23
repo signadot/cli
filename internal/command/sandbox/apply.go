@@ -1,9 +1,13 @@
 package sandbox
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
@@ -33,6 +37,10 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 }
 
 func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
+
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -70,7 +78,10 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 
 	// Send the request to the SaaS
 	params := sandboxes.NewApplySandboxParams().
-		WithOrgName(cfg.Org).WithSandboxName(req.Name).WithData(req)
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithSandboxName(req.Name).
+		WithData(req)
 	result, err := cfg.Client.Sandboxes.ApplySandbox(params, nil)
 	if err != nil {
 		return err
@@ -91,7 +102,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
 		// store latest resp for output below
-		resp, err = utils.WaitForSandboxReady(cfg.API, log, resp.Name, cfg.WaitTimeout)
+		resp, err = utils.WaitForSandboxReady(ctx, cfg.API, log, resp.Name, cfg.WaitTimeout)
 		if err != nil {
 			writeOutput(cfg, out, resp)
 			fmt.Fprintf(log, "\nThe sandbox was applied, but it may not be ready yet. To check status, run:\n\n")

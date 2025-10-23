@@ -142,7 +142,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 	lastErrCursor := ""
 	looped := false
 
-	err := retry.Until(func() bool {
+	err := retry.Until(ctx, func(ctx context.Context) bool {
 		defer func() {
 			looped = true
 		}()

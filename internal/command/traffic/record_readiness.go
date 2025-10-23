@@ -10,7 +10,6 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
-	"github.com/signadot/cli/internal/spinner"
 	"github.com/signadot/cli/internal/trafficwatch"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
@@ -18,17 +17,17 @@ import (
 	twapi "github.com/signadot/libconnect/common/trafficwatch"
 )
 
-func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *models.Sandbox) (func() error, error) {
+func ensureHasTrafficWatchClientMW(ctx context.Context, cfg *config.TrafficWatch,
+	w io.Writer, sb *models.Sandbox) (func() error, error) {
 	if cfg.NoInstrument {
-		return noUneditFunc, nil
+		return noOpUndo, nil
 	}
 	has, err := watchMatch(cfg, sb, cfg.NoInstrument)
 	if err == nil && has {
-		return noUneditFunc, err
+		return noOpUndo, err
 	}
-	if cfg.Debug {
-		fmt.Fprintf(w, "adding %s middleware to sandbox\n", trafficwatch.MiddlewareName)
-	}
+	printTWProgress(w, fmt.Sprintf("Applying %s middleware to sandbox %s",
+		trafficwatch.MiddlewareName, cfg.Sandbox))
 	if err != nil {
 		fmt.Fprintf(w, "WARNING: overwriting sandbox: %v\n", err)
 	}
@@ -41,65 +40,13 @@ func ensureHasTrafficWatchClientMW(cfg *config.TrafficWatch, w io.Writer, sb *mo
 	}
 	machineID, err := system.GetMachineID()
 	if err != nil {
-		return noUneditFunc, err
+		return noOpUndo, err
 	}
 	sb.Spec.Labels[fmt.Sprintf("instrumentation.signadot.com/add-%s", trafficwatch.MiddlewareName)] = machineID
-	if err := applyWithLocal(cfg, sb); err != nil {
-		return noUneditFunc, err
+	if err := applyWithLocal(ctx, cfg, sb); err != nil {
+		return noOpUndo, err
 	}
-	return uneditFunc(cfg, w), nil
-}
-
-func waitSandboxReady(cfg *config.TrafficWatch, w io.Writer) error {
-	if cfg.NoInstrument {
-		return nil
-	}
-	fmt.Fprintf(w, "Waiting (up to --wait-timeout=%v) for sandbox to be ready...\n", cfg.WaitTimeout)
-
-	params := sandboxes.NewGetSandboxParams().
-		WithOrgName(cfg.Org).
-		WithSandboxName(cfg.Sandbox)
-
-	spin := spinner.Start(w, "Sandbox status")
-	defer spin.Stop()
-
-	retry := poll.
-		NewPoll().
-		WithTimeout(cfg.WaitTimeout).
-		WithDelay(200 * time.Millisecond)
-	var failedErr error
-	err := retry.Until(func() bool {
-		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
-		if err != nil {
-			// Keep retrying in case it's a transient error.
-			spin.Messagef("error: %v", err)
-			return false
-		}
-		sb := result.Payload
-		if !sb.Status.Ready {
-			if sb.Status.Reason == "ResourceFailed" {
-				failedErr = errors.New(sb.Status.Message)
-				return true
-			}
-			spin.Messagef("Not Ready: %s", sb.Status.Message)
-			return false
-		}
-		if _, err := watchMatch(cfg, sb, true); err != nil {
-			spin.Messagef("Error: %s", err.Error())
-			return false
-		}
-		spin.StopMessagef("Ready: %s", sb.Status.Message)
-		return true
-	})
-	if failedErr != nil {
-		spin.StopFail()
-		return failedErr
-	}
-	if err != nil {
-		spin.StopFail()
-		return err
-	}
-	return nil
+	return mkUndo(cfg, w), nil
 }
 
 func readyLoop(ctx context.Context, log *slog.Logger, tw *twapi.TrafficWatch, readiness poll.Readiness) {

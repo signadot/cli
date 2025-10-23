@@ -1,9 +1,13 @@
 package routegroup
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
@@ -32,6 +36,10 @@ func newApply(routegroup *config.RouteGroup) *cobra.Command {
 }
 
 func apply(cfg *config.RouteGroupApply, out, log io.Writer, args []string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
+
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -44,7 +52,10 @@ func apply(cfg *config.RouteGroupApply, out, log io.Writer, args []string) error
 	}
 
 	params := routegroups.NewApplyRoutegroupParams().
-		WithOrgName(cfg.Org).WithRoutegroupName(req.Name).WithData(req)
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithRoutegroupName(req.Name).
+		WithData(req)
 	result, err := cfg.Client.RouteGroups.ApplyRoutegroup(params, nil)
 	if err != nil {
 		return err
@@ -62,7 +73,7 @@ func apply(cfg *config.RouteGroupApply, out, log io.Writer, args []string) error
 	if cfg.Wait {
 		// Wait for the routegroup to be ready.
 		// store latest resp for output below
-		resp, err = waitForReady(cfg, log, resp)
+		resp, err = waitForReady(ctx, cfg, log, resp)
 		if err != nil {
 			writeOutput(cfg, out, resp)
 			fmt.Fprintf(log, "\nThe routegroup was applied, but it may not be ready yet. To check status, run:\n\n")
@@ -98,10 +109,14 @@ func writeOutput(cfg *config.RouteGroupApply, out io.Writer, resp *models.RouteG
 	}
 }
 
-func waitForReady(cfg *config.RouteGroupApply, out io.Writer, rg *models.RouteGroup) (*models.RouteGroup, error) {
+func waitForReady(ctx context.Context, cfg *config.RouteGroupApply,
+	out io.Writer, rg *models.RouteGroup) (*models.RouteGroup, error) {
 	fmt.Fprintf(out, "Waiting (up to --wait-timeout=%v) for route group to be ready...\n", cfg.WaitTimeout)
 
-	params := routegroups.NewGetRoutegroupParams().WithOrgName(cfg.Org).WithRoutegroupName(rg.Name)
+	params := routegroups.NewGetRoutegroupParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithRoutegroupName(rg.Name)
 
 	spin := spinner.Start(out, "Route group status")
 	defer spin.Stop()
@@ -110,7 +125,7 @@ func waitForReady(cfg *config.RouteGroupApply, out io.Writer, rg *models.RouteGr
 		NewPoll().
 		WithTimeout(cfg.WaitTimeout)
 
-	err := retry.Until(func() bool {
+	err := retry.Until(ctx, func(ctx context.Context) bool {
 		result, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			// Keep retrying in case it's a transient error.

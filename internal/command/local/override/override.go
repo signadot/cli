@@ -2,6 +2,7 @@ package override
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -16,7 +17,6 @@ import (
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/utils"
-	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 	"github.com/signadot/libconnect/common/override"
 	"github.com/spf13/cobra"
@@ -80,7 +80,9 @@ original sandboxed destination.`,
 }
 
 func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
-	yellow := color.New(color.FgHiMagenta).SprintFunc()
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
 
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
@@ -95,38 +97,52 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 		return err
 	}
 
-	sandbox, err := getSandbox(cfg)
+	// Get the sandbox and validate the workload
+	sb, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
+	if err != nil {
+		return err
+	}
+	if err := validateWorkload(sb, cfg.Workload); err != nil {
+		return err
+	}
+
+	// Make sure sandbox manager is running against the sandbox cluster
+	// (signadot local connect has been executed)
+	_, err = sbmgr.ValidateSandboxManager(sb.Spec.Cluster)
 	if err != nil {
 		return err
 	}
 
-	if err := validateWorkload(sandbox, cfg.Workload); err != nil {
-		return err
-	}
-
-	_, err = sbmgr.ValidateSandboxManager(sandbox.Spec.Cluster)
-	if err != nil {
-		return err
-	}
-
+	// Create the log server (if needed)
 	var (
 		logServer   *http.Server
 		logListener net.Listener
+		logPort     int
 	)
-	logPort := 0
 	if !cfg.Detach {
 		logServer, logListener, logPort = createLogServer(cfg.Sandbox, cfg.To)
 	}
 
-	_, overrideName, unedit, err := createSandboxWithMiddleware(cfg, sandbox, cfg.Workload, logPort)
+	// Apply the override to the sandbox
+	printOverrideProgress(out, fmt.Sprintf("Applying override to %s", cfg.Sandbox))
+	_, overrideName, undo, err := applyOverrideToSandbox(ctx, cfg, sb, cfg.Workload, logPort)
 	if err != nil {
 		return err
 	}
 
-	sandbox, err = utils.WaitForSandboxReady(cfg.API, out, cfg.Sandbox, cfg.WaitTimeout)
-	if err != nil {
-		unedit(errOut)
-		return err
+	// NOTE we should keep the single 'retErr' from here down
+	var retErr error
+	if !cfg.Detach {
+		// call the unedit function on exit
+		defer func() {
+			retErr = errors.Join(retErr, undo(errOut))
+		}()
+	}
+
+	// Wait until the sandbox is ready
+	sb, retErr = utils.WaitForSandboxReady(ctx, cfg.API, out, cfg.Sandbox, cfg.WaitTimeout)
+	if retErr != nil {
+		return retErr
 	}
 
 	if cfg.Detach {
@@ -135,38 +151,22 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 
 		fmt.Fprintf(out, "Traffic override will persist after this session ends\n")
 
+		yellow := color.New(color.FgHiMagenta).SprintFunc()
 		helperMessage := fmt.Sprintf("%s local override delete %s --sandbox=%s", os.Args[0], overrideName, cfg.Sandbox)
 		fmt.Fprintf(out, "To remove override, run:\n\t%s\n", yellow(helperMessage))
 
-		return nil
+		retErr = nil
+		return retErr
 	}
-	defer unedit(errOut)
-	// Set up signal handling for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
+	// Start the log server
 	startLogServer(ctx, logServer, logListener)
-	readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, ckMatch(cfg, sandbox, overrideName))
+
+	// Run the readiness loop (until an error or a signal is received)
+	readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, ckMatch(ctx, cfg, sb, overrideName))
 	defer readiness.Stop()
-	go readyLoop(ctx, cancel, readiness, errOut)
-
-	// Channel to listen for interrupt signal
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-
-	// Wait for signal or context cancellation
-	select {
-	case <-sigChan:
-		fmt.Fprintf(out, "\nSession terminated\n")
-		printOverrideProgress(out, fmt.Sprintf("Removing override in %s", cfg.Sandbox))
-		if err := deleteMiddlewareFromSandbox(cfg, sandbox, overrideName); err != nil {
-			return err
-		}
-
-	case <-ctx.Done():
-	}
-
-	return nil
+	retErr = readyLoop(ctx, readiness, errOut)
+	return retErr
 }
 
 func printFormattedLogEntry(logEntry *override.LogEntry, sandboxName string, localAddress string) {
@@ -196,17 +196,6 @@ func printFormattedLogEntry(logEntry *override.LogEntry, sandboxName string, loc
 		logEntry.Path,
 		status,
 	)
-}
-
-func getSandbox(cfg *config.LocalOverrideCreate) (*models.Sandbox, error) {
-	sandboxParams := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
-
-	resp, err := cfg.Client.Sandboxes.
-		GetSandbox(sandboxParams, nil)
-	if err != nil {
-		return nil, err
-	}
-	return resp.Payload, nil
 }
 
 func validateWorkload(sandbox *models.Sandbox, workload string) error {

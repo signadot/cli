@@ -1,11 +1,14 @@
 package traffic
 
 import (
+	"context"
+	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/trafficwatch"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -23,19 +26,17 @@ func removeTrafficWatch(sb *models.Sandbox) {
 	sb.Spec.Middleware = sb.Spec.Middleware[:j]
 }
 
-func noUneditFunc() error {
+func noOpUndo() error {
 	return nil
 }
 
-func uneditFunc(cfg *config.TrafficWatch, w io.Writer) func() error {
+func mkUndo(cfg *config.TrafficWatch, w io.Writer) func() error {
 	return func() error {
-		params := sandboxes.NewGetSandboxParams().
-			WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
-		resp, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
+		ctx := context.Background()
+		sb, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
 		if err != nil {
 			return err
 		}
-		sb := resp.Payload
 		has, err := watchMatch(cfg, sb, true)
 		if err != nil {
 			return err
@@ -49,11 +50,15 @@ func uneditFunc(cfg *config.TrafficWatch, w io.Writer) func() error {
 			}
 		}
 		delete(sb.Spec.Labels, trafficwatch.InstrumentationKey)
-		return applyWithLocal(cfg, sb)
+
+		printTWProgress(w, fmt.Sprintf("Removing %s middleware from sandbox %s",
+			trafficwatch.MiddlewareName, cfg.Sandbox))
+		return applyWithLocal(ctx, cfg, sb)
 	}
 }
 
-func applyWithLocal(cfg *config.TrafficWatch, sb *models.Sandbox) error {
+func applyWithLocal(ctx context.Context, cfg *config.TrafficWatch,
+	sb *models.Sandbox) error {
 	hasLocal := false
 	if sb.Spec.Routing != nil && len(sb.Spec.Routing.Forwards) != 0 {
 		hasLocal = true
@@ -74,7 +79,10 @@ func applyWithLocal(cfg *config.TrafficWatch, sb *models.Sandbox) error {
 	}
 
 	applyParams := sandboxes.NewApplySandboxParams().
-		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox).WithData(sb)
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithSandboxName(cfg.Sandbox).
+		WithData(sb)
 
 	_, err := cfg.Client.Sandboxes.ApplySandbox(applyParams, nil)
 	return err
