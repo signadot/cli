@@ -108,10 +108,17 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logsView.SetSize(msg.Width, contentHeight)
 
 	case tea.KeyMsg:
-
-		// Ignore if we're in help state
-		// TOODO: Need to make sure help has it's own key handling
+		// Handle help state keystrokes
 		if m.state == StateHelp {
+			switch msg.String() {
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			case "h", "esc":
+				m.state = StateWithData
+				m.showHelp = false
+				return m, nil
+			}
+			// Ignore other keys in help state
 			return m, nil
 		}
 

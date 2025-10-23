@@ -12,6 +12,7 @@ type HelpComponent struct {
 	Title       string
 	Description string
 	Shortcuts   map[string]string
+	keysOrder   []string
 	Style       lipgloss.Style
 }
 
@@ -28,6 +29,7 @@ func NewHelpComponent(title, description string) *HelpComponent {
 // AddShortcut adds a keyboard shortcut to the help
 func (h *HelpComponent) AddShortcut(key, description string) *HelpComponent {
 	h.Shortcuts[key] = description
+	h.keysOrder = append(h.keysOrder, key)
 	return h
 }
 
@@ -40,31 +42,32 @@ func (h *HelpComponent) SetStyle(style lipgloss.Style) *HelpComponent {
 // Render returns the formatted help string
 func (h *HelpComponent) Render() string {
 	var content strings.Builder
-	
+
 	// Title
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("blue"))
 	content.WriteString(titleStyle.Render(h.Title))
 	content.WriteString("\n\n")
-	
+
 	// Description
 	if h.Description != "" {
 		content.WriteString(h.Description)
 		content.WriteString("\n\n")
 	}
-	
+
 	// Shortcuts
 	if len(h.Shortcuts) > 0 {
 		content.WriteString("Shortcuts:\n")
-		for key, desc := range h.Shortcuts {
+		for _, key := range h.keysOrder {
+			desc := h.Shortcuts[key]
 			keyStyle := lipgloss.NewStyle().
 				Bold(true).
 				Foreground(lipgloss.Color("yellow"))
 			content.WriteString(fmt.Sprintf("  %s %s\n", keyStyle.Render(key), desc))
 		}
 	}
-	
+
 	return h.Style.Render(content.String())
 }
 

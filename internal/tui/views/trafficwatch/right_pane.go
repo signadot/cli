@@ -26,6 +26,10 @@ type RightPane struct {
 	activeTab RightPaneTab
 	width     int
 	height    int
+
+	metadataContent string
+	requestContent  string
+	responseContent string
 }
 
 // NewRightPane creates a new right pane
@@ -46,6 +50,10 @@ func (r *RightPane) SetSize(width, height int) {
 // SetRequest sets the current request to display
 func (r *RightPane) SetRequest(request *models.HTTPRequest) {
 	r.request = request
+
+	r.metadataContent = r.renderMetaTab()
+	r.requestContent = r.renderRequestTab()
+	r.responseContent = r.renderResponseTab()
 }
 
 // GetActiveTab returns the currently active tab
@@ -97,11 +105,11 @@ func (r *RightPane) View() string {
 	content.WriteString("\n\n")
 	switch r.activeTab {
 	case TabMeta:
-		content.WriteString(r.renderMetaTab())
+		content.WriteString(r.metadataContent)
 	case TabRequest:
-		content.WriteString(r.renderRequestTab())
+		content.WriteString(r.requestContent)
 	case TabResponse:
-		content.WriteString(r.renderResponseTab())
+		content.WriteString(r.responseContent)
 	}
 
 	return content.String()
