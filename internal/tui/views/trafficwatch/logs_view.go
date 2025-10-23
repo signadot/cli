@@ -167,7 +167,7 @@ func (l *LogsView) renderScrollIndicator() string {
 
 // renderEmptyState renders the empty state
 func (l *LogsView) renderEmptyState() string {
-	emptyScreen := components.NewNoLogsEmptyScreen()
+	emptyScreen := components.NewNoLogsEmptyScreen(l.width, l.height)
 	return emptyScreen.Render()
 }
 

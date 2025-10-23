@@ -147,6 +147,8 @@ func (r *RightPane) renderEmptyState() string {
 	emptyScreen := components.NewEmptyScreenComponent(
 		"No Request Selected",
 		"Select a request from the left pane to view its details.",
+		r.width,
+		r.height,
 	).SetAction("Use ↑/↓ to navigate and Enter to select")
 
 	return emptyScreen.Render()
@@ -163,21 +165,21 @@ func (r *RightPane) renderMetaTab() string {
 	content.WriteString("\n\n")
 
 	info := map[string]string{
-		"ID":                   r.request.ID,
-		"Middleware Request":   r.request.MiddlewareRequestID,
-		"Method":               r.request.Method,
-		"Request URI":          r.request.RequestURI,
-		"Routing Key":          r.request.RoutingKey,
-		"Norm Host":            r.request.NormHost,
-		"Dest Workload":        r.request.DestWorkload,
-		"Protocol":             r.request.Proto,
-		"Watch Options":        r.request.WatchOptions,
-		"When":                 r.request.When.Format(time.RFC3339),
-		"Status Code":          fmt.Sprintf("%d", r.request.StatusCode),
-		"Duration":             r.request.FormatDuration(),
-		"Timestamp":            r.request.Timestamp.Format(time.RFC3339),
-		"Client IP":            r.request.ClientIP,
-		"User Agent":           r.request.UserAgent,
+		"ID":                 r.request.ID,
+		"Middleware Request": r.request.MiddlewareRequestID,
+		"Method":             r.request.Method,
+		"Request URI":        r.request.RequestURI,
+		"Routing Key":        r.request.RoutingKey,
+		"Norm Host":          r.request.NormHost,
+		"Dest Workload":      r.request.DestWorkload,
+		"Protocol":           r.request.Proto,
+		"Watch Options":      r.request.WatchOptions,
+		"When":               r.request.When.Format(time.RFC3339),
+		"Status Code":        fmt.Sprintf("%d", r.request.StatusCode),
+		"Duration":           r.request.FormatDuration(),
+		"Timestamp":          r.request.Timestamp.Format(time.RFC3339),
+		"Client IP":          r.request.ClientIP,
+		"User Agent":         r.request.UserAgent,
 	}
 
 	if r.request.DoneAt != nil {

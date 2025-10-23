@@ -267,7 +267,7 @@ func (m *MainView) View() string {
 
 // renderNoDataState renders the view when there's no data
 func (m *MainView) renderNoDataState() string {
-	emptyScreen := components.NewNoDataEmptyScreen()
+	emptyScreen := components.NewNoDataEmptyScreen(m.width, m.height)
 	return emptyScreen.Render()
 }
 
