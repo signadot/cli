@@ -14,6 +14,40 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
+type undoFunc func(ctx context.Context, w io.Writer) error
+
+func ensureTrafficWatchMW(ctx context.Context, cfg *config.TrafficWatch,
+	w io.Writer, sb *models.Sandbox) (undoFunc, error) {
+	if cfg.NoInstrument {
+		return noOpUndo, nil
+	}
+	has, err := watchMatch(cfg, sb, cfg.NoInstrument)
+	if err == nil && has {
+		return noOpUndo, err
+	}
+	printTWProgress(w, fmt.Sprintf("Applying %s middleware to sandbox %s",
+		trafficwatch.MiddlewareName, cfg.Sandbox))
+	if err != nil {
+		fmt.Fprintf(w, "WARNING: overwriting sandbox: %v\n", err)
+	}
+
+	mw := mwSpec(cfg)
+	removeTrafficWatch(sb)
+	sb.Spec.Middleware = append(sb.Spec.Middleware, mw)
+	if sb.Spec.Labels == nil {
+		sb.Spec.Labels = map[string]string{}
+	}
+	machineID, err := system.GetMachineID()
+	if err != nil {
+		return noOpUndo, err
+	}
+	sb.Spec.Labels[fmt.Sprintf("instrumentation.signadot.com/add-%s", trafficwatch.MiddlewareName)] = machineID
+	if err := applyWithLocal(ctx, cfg, sb); err != nil {
+		return noOpUndo, err
+	}
+	return mkUndo(cfg), nil
+}
+
 func removeTrafficWatch(sb *models.Sandbox) {
 	j := 0
 	for _, mw := range sb.Spec.Middleware {
@@ -26,13 +60,12 @@ func removeTrafficWatch(sb *models.Sandbox) {
 	sb.Spec.Middleware = sb.Spec.Middleware[:j]
 }
 
-func noOpUndo() error {
+func noOpUndo(context.Context, io.Writer) error {
 	return nil
 }
 
-func mkUndo(cfg *config.TrafficWatch, w io.Writer) func() error {
-	return func() error {
-		ctx := context.Background()
+func mkUndo(cfg *config.TrafficWatch) undoFunc {
+	return func(ctx context.Context, out io.Writer) error {
 		sb, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
 		if err != nil {
 			return err
@@ -51,7 +84,7 @@ func mkUndo(cfg *config.TrafficWatch, w io.Writer) func() error {
 		}
 		delete(sb.Spec.Labels, trafficwatch.InstrumentationKey)
 
-		printTWProgress(w, fmt.Sprintf("Removing %s middleware from sandbox %s",
+		printTWProgress(out, fmt.Sprintf("Removing %s middleware from sandbox %s",
 			trafficwatch.MiddlewareName, cfg.Sandbox))
 		return applyWithLocal(ctx, cfg, sb)
 	}

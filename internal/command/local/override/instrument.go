@@ -13,7 +13,7 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
-type undoFunc func(w io.Writer) error
+type undoFunc func(ctx context.Context, w io.Writer) error
 
 func applyOverrideToSandbox(ctx context.Context, cfg *config.LocalOverrideCreate,
 	baseSandbox *models.Sandbox, workloadName string, logPort int,
@@ -91,17 +91,16 @@ func deleteOverrideFromSandbox(ctx context.Context, cfg *config.API,
 }
 
 func mkUndo(cfg *config.LocalOverrideCreate, overrideName string) undoFunc {
-	return func(out io.Writer) error {
-		ctx := context.Background()
-		printOverrideProgress(out, fmt.Sprintf("Removing override from %s", cfg.Sandbox))
+	return func(ctx context.Context, out io.Writer) error {
 		sb, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
 		if err != nil {
 			return err
 		}
+		printOverrideProgress(out, fmt.Sprintf("Removing override from %s", cfg.Sandbox))
 		return deleteOverrideFromSandbox(ctx, cfg.API, sb, overrideName)
 	}
 }
 
-func noOpUndo(io.Writer) error {
+func noOpUndo(context.Context, io.Writer) error {
 	return nil
 }

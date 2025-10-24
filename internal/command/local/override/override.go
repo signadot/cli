@@ -63,7 +63,7 @@ original sandboxed destination.`,
   # Delete a specific override
   signadot local override delete <name> --sandbox=<sandbox>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runOverride(cmd.OutOrStdout(), cmd.ErrOrStderr(), cfg)
+			return runOverride(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), cfg)
 		},
 	}
 
@@ -79,8 +79,9 @@ original sandboxed destination.`,
 	return cmd
 }
 
-func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
-	ctx, cancel := signal.NotifyContext(context.Background(),
+func runOverride(rootCtx context.Context, out, errOut io.Writer,
+	cfg *config.LocalOverrideCreate) error {
+	ctx, cancel := signal.NotifyContext(rootCtx,
 		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
 	defer cancel()
 
@@ -135,7 +136,7 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 	if !cfg.Detach {
 		// call the unedit function on exit
 		defer func() {
-			retErr = errors.Join(retErr, undo(errOut))
+			retErr = errors.Join(retErr, undo(rootCtx, errOut))
 		}()
 	}
 

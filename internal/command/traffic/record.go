@@ -59,15 +59,17 @@ The request (and response) contains the wire format
 `, defaultDir, defaultDir),
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return record(twCfg, defaultDir, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return record(cmd.Context(), twCfg, defaultDir,
+				cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 	twCfg.AddFlags(cmd)
 	return cmd
 }
 
-func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args []string) error {
-	ctx, _ := signal.NotifyContext(context.Background(),
+func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string,
+	w, wErr io.Writer, args []string) error {
+	ctx, _ := signal.NotifyContext(rootCtx,
 		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
 	// set a timeout of 1h
 	ctx, cancel := context.WithTimeout(ctx, time.Hour)
@@ -110,7 +112,7 @@ func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args
 	if err != nil {
 		return err
 	}
-	undo, err := ensureHasTrafficWatchClientMW(ctx, cfg, w, sb)
+	undo, err := ensureTrafficWatchMW(ctx, cfg, w, sb)
 	if err != nil {
 		return err
 	}
@@ -118,7 +120,7 @@ func record(cfg *config.TrafficWatch, defaultDir string, w, wErr io.Writer, args
 	// NOTE we should keep the single 'retErr' from here down
 	var retErr error
 	defer func() {
-		retErr = errors.Join(retErr, undo())
+		retErr = errors.Join(retErr, undo(rootCtx, w))
 	}()
 
 	if !cfg.NoInstrument {
