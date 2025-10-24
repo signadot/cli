@@ -3,7 +3,6 @@ package trafficwatch
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/tui/components"
 	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/views"
@@ -53,10 +53,12 @@ type MainView struct {
 	leftPaneHelpKeys []components.LiteralBindingName
 	// help keys for right pane
 	rightPaneHelpKeys []components.LiteralBindingName
+
+	config *filemanager.TrafficWatchScannerConfig
 }
 
 // NewMainView creates a new main view
-func NewMainView() *MainView {
+func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView, error) {
 	requests := []api.RequestMetadata{}
 
 	leftPane := NewLeftPane(requests)
@@ -81,7 +83,7 @@ func NewMainView() *MainView {
 	leftPaneHelpKeys := getHelpKeysForLeftPane()
 	rightPaneHelpKeys := getHelpKeysForRightPane()
 
-	return &MainView{
+	m := &MainView{
 		state:           state,
 		requests:        requests,
 		leftPane:        leftPane,
@@ -98,17 +100,28 @@ func NewMainView() *MainView {
 		leftPaneHelpKeys:  leftPaneHelpKeys,
 		rightPaneHelpKeys: rightPaneHelpKeys,
 	}
+
+	cfg, err := filemanager.NewTrafficWatchScannerConfig(
+		filemanager.WithRecordDir(recordDir),
+		filemanager.WithRecordsFormat(recordsFormat),
+		filemanager.WithOnNewLine(func(metaRequest api.RequestMetadata) {
+			m.msgChan <- trafficMsg(metaRequest)
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create traffic watch scanner config: %w", err)
+	}
+
+	m.config = cfg
+
+	return m, nil
 }
 
 // Init initializes the main view
 func (m *MainView) Init() tea.Cmd {
 
-	recordDir := filepath.Join("/home/davixcky/.signadot/traffic/watch-json/meta.jsons")
-
 	// Create traffic watcher with callback to handle parsed requests
-	watcher := filemanager.NewTrafficWatchScanner(recordDir, func(metaRequest api.RequestMetadata) {
-		m.msgChan <- trafficMsg(metaRequest)
-	})
+	watcher := filemanager.NewTrafficWatchScanner(m.config)
 
 	err := watcher.Start(context.Background())
 	if err != nil {

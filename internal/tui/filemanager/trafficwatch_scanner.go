@@ -12,21 +12,19 @@ import (
 )
 
 type TrafficWatchScanner struct {
-	path      string
-	onNewLine func(metaRequest api.RequestMetadata)
-	offset    int64
+	cfg    *TrafficWatchScannerConfig
+	offset int64
 
 	resumeCh chan struct{}
 	closeCh  chan struct{}
 }
 
-func NewTrafficWatchScanner(path string, onNewLine func(metaRequest api.RequestMetadata)) *TrafficWatchScanner {
+func NewTrafficWatchScanner(cfg *TrafficWatchScannerConfig) *TrafficWatchScanner {
 	return &TrafficWatchScanner{
-		path:      path,
-		onNewLine: onNewLine,
-		offset:    0,
-		resumeCh:  make(chan struct{}),
-		closeCh:   make(chan struct{}),
+		cfg:      cfg,
+		offset:   0,
+		resumeCh: make(chan struct{}),
+		closeCh:  make(chan struct{}),
 	}
 }
 
@@ -47,7 +45,7 @@ func (tw *TrafficWatchScanner) Close() {
 }
 
 func (tw *TrafficWatchScanner) Start(ctx context.Context) error {
-	file, err := os.Open(tw.path)
+	file, err := os.Open(tw.cfg.mainMetaPath)
 	if err != nil {
 		return err
 	}
@@ -87,7 +85,7 @@ func (tw *TrafficWatchScanner) monitorWithTicker(ctx context.Context) {
 
 func (tw *TrafficWatchScanner) checkForNewContent() {
 
-	file, err := os.Open(tw.path)
+	file, err := os.Open(tw.cfg.mainMetaPath)
 	if err != nil {
 		return
 	}
@@ -117,7 +115,7 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 			continue
 		}
 
-		tw.onNewLine(metaRequest)
+		tw.cfg.onNewLine(metaRequest)
 	}
 
 	if err := scanner.Err(); err != nil {
