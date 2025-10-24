@@ -1,15 +1,52 @@
 package traffic
 
 import (
+	"context"
+	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/trafficwatch"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 )
+
+type undoFunc func(ctx context.Context, w io.Writer) error
+
+func ensureTrafficWatchMW(ctx context.Context, cfg *config.TrafficWatch,
+	w io.Writer, sb *models.Sandbox) (undoFunc, error) {
+	if cfg.NoInstrument {
+		return noOpUndo, nil
+	}
+	has, err := watchMatch(cfg, sb, cfg.NoInstrument)
+	if err == nil && has {
+		return noOpUndo, err
+	}
+	printTWProgress(w, fmt.Sprintf("Applying %s middleware to sandbox %s",
+		trafficwatch.MiddlewareName, cfg.Sandbox))
+	if err != nil {
+		fmt.Fprintf(w, "WARNING: overwriting sandbox: %v\n", err)
+	}
+
+	mw := mwSpec(cfg)
+	removeTrafficWatch(sb)
+	sb.Spec.Middleware = append(sb.Spec.Middleware, mw)
+	if sb.Spec.Labels == nil {
+		sb.Spec.Labels = map[string]string{}
+	}
+	machineID, err := system.GetMachineID()
+	if err != nil {
+		return noOpUndo, err
+	}
+	sb.Spec.Labels[fmt.Sprintf("instrumentation.signadot.com/add-%s", trafficwatch.MiddlewareName)] = machineID
+	if err := applyWithLocal(ctx, cfg, sb); err != nil {
+		return noOpUndo, err
+	}
+	return mkUndo(cfg), nil
+}
 
 func removeTrafficWatch(sb *models.Sandbox) {
 	j := 0
@@ -23,19 +60,16 @@ func removeTrafficWatch(sb *models.Sandbox) {
 	sb.Spec.Middleware = sb.Spec.Middleware[:j]
 }
 
-func noUneditFunc() error {
+func noOpUndo(context.Context, io.Writer) error {
 	return nil
 }
 
-func uneditFunc(cfg *config.TrafficWatch, w io.Writer) func() error {
-	return func() error {
-		params := sandboxes.NewGetSandboxParams().
-			WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
-		resp, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
+func mkUndo(cfg *config.TrafficWatch) undoFunc {
+	return func(ctx context.Context, out io.Writer) error {
+		sb, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
 		if err != nil {
 			return err
 		}
-		sb := resp.Payload
 		has, err := watchMatch(cfg, sb, true)
 		if err != nil {
 			return err
@@ -49,11 +83,15 @@ func uneditFunc(cfg *config.TrafficWatch, w io.Writer) func() error {
 			}
 		}
 		delete(sb.Spec.Labels, trafficwatch.InstrumentationKey)
-		return applyWithLocal(cfg, sb)
+
+		printTWProgress(out, fmt.Sprintf("Removing %s middleware from sandbox %s",
+			trafficwatch.MiddlewareName, cfg.Sandbox))
+		return applyWithLocal(ctx, cfg, sb)
 	}
 }
 
-func applyWithLocal(cfg *config.TrafficWatch, sb *models.Sandbox) error {
+func applyWithLocal(ctx context.Context, cfg *config.TrafficWatch,
+	sb *models.Sandbox) error {
 	hasLocal := false
 	if sb.Spec.Routing != nil && len(sb.Spec.Routing.Forwards) != 0 {
 		hasLocal = true
@@ -74,7 +112,10 @@ func applyWithLocal(cfg *config.TrafficWatch, sb *models.Sandbox) error {
 	}
 
 	applyParams := sandboxes.NewApplySandboxParams().
-		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox).WithData(sb)
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithSandboxName(cfg.Sandbox).
+		WithData(sb)
 
 	_, err := cfg.Client.Sandboxes.ApplySandbox(applyParams, nil)
 	return err

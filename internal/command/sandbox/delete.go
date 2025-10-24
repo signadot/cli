@@ -1,10 +1,14 @@
 package sandbox
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
@@ -31,6 +35,10 @@ func newDelete(sandbox *config.Sandbox) *cobra.Command {
 }
 
 func sbDelete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
+
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -61,6 +69,7 @@ func sbDelete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 
 	// Delete the sandbox.
 	params := sandboxes.NewDeleteSandboxParams().
+		WithContext(ctx).
 		WithOrgName(cfg.Org).
 		WithSandboxName(name).
 		WithForce(&cfg.Force)
@@ -73,7 +82,7 @@ func sbDelete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 
 	if cfg.Wait {
 		// Wait for the API server to completely reflect deletion.
-		if err := waitForDeleted(cfg, log, name); err != nil {
+		if err := waitForDeleted(ctx, cfg, log, name); err != nil {
 			fmt.Fprintf(log, "\nDeletion was initiated, but the sandbox may still exist in a terminating state. To check status, run:\n\n")
 			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", name)
 			return err
@@ -83,10 +92,14 @@ func sbDelete(cfg *config.SandboxDelete, log io.Writer, args []string) error {
 	return nil
 }
 
-func waitForDeleted(cfg *config.SandboxDelete, log io.Writer, sandboxName string) error {
+func waitForDeleted(ctx context.Context, cfg *config.SandboxDelete,
+	log io.Writer, sandboxName string) error {
 	fmt.Fprintf(log, "Waiting (up to --wait-timeout=%v) for sandbox to finish terminating...\n", cfg.WaitTimeout)
 
-	params := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(sandboxName)
+	params := sandboxes.NewGetSandboxParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithSandboxName(sandboxName)
 
 	spin := spinner.Start(log, "Sandbox status")
 	defer spin.Stop()
@@ -95,7 +108,7 @@ func waitForDeleted(cfg *config.SandboxDelete, log io.Writer, sandboxName string
 		NewPoll().
 		WithTimeout(cfg.WaitTimeout)
 
-	err := retry.Until(func() bool {
+	err := retry.Until(ctx, func(ctx context.Context) bool {
 		result, err := cfg.Client.Sandboxes.GetSandbox(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.
