@@ -51,7 +51,7 @@ func (l *LeftPane) SetSize(width, height int) {
 	// Elements per page is the available height divided by the height of a single item
 
 	// Calculate the total number of pages, making sure to round up
-	l.paginator.TotalPages = int(math.Round(float64(len(l.requests)) / float64(l.paginator.PerPage)))
+	l.paginator.TotalPages = int(math.Ceil(float64(len(l.requests)) / float64(l.paginator.PerPage)))
 
 	// Calculate the page based on the selected index
 	l.paginator.Page = l.selected / l.paginator.PerPage
