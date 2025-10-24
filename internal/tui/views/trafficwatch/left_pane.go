@@ -13,7 +13,7 @@ import (
 
 type LeftPane struct {
 	requests []api.RequestMetadata
-	selected int
+
 	width    int
 	height   int
 
@@ -25,7 +25,6 @@ type RefreshDataMsg struct {
 }
 
 func NewLeftPane(requests []api.RequestMetadata) *LeftPane {
-
 	p := paginator.New()
 	p.Type = paginator.Arabic
 	p.ArabicFormat = "%d of %d"
@@ -45,10 +44,10 @@ func (l *LeftPane) SetSize(width, height int) {
 
 	if len(l.requests) != 0 {
 		itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
-		l.paginator.PerPage = height / (itemHeight)
+		l.paginator.PerPage = height / (itemHeight) // Elements per page is the available height divided by the height of a single item
 	}
 
-	// Elements per page is the available height divided by the height of a single item
+	
 
 	// Calculate the total number of pages, making sure to round up
 	l.paginator.TotalPages = int(math.Ceil(float64(len(l.requests)) / float64(l.paginator.PerPage)))
