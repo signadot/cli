@@ -72,6 +72,11 @@ func applyWithLocal(cfg *config.TrafficWatch, sb *models.Sandbox) error {
 		}
 		sb.Spec.LocalMachineID = machineID
 	}
+	// remove deprecated
+	sb.Spec.Endpoints = nil
+	for _, f := range sb.Spec.Forks {
+		f.Endpoints = nil
+	}
 
 	applyParams := sandboxes.NewApplySandboxParams().
 		WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox).WithData(sb)
