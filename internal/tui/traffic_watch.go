@@ -2,24 +2,30 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/tui/views/trafficwatch"
 )
 
 type TrafficWatchTUI struct {
-	RecordDir string // The directory where the recorded traffic is stored
+	recordDir     string // The directory where the recorded traffic is stored
+	recordsFormat config.OutputFormat
 }
 
-func NewTrafficWatch(recordDir string) TUI {
+func NewTrafficWatch(recordDir string, recordsFormat config.OutputFormat) TUI {
 	return &TrafficWatchTUI{
-		RecordDir: recordDir,
+		recordDir:     recordDir,
+		recordsFormat: recordsFormat,
 	}
 }
 
 func (t *TrafficWatchTUI) Run() error {
-	view := trafficwatch.NewMainView()
+	view, err := trafficwatch.NewMainView(t.recordDir, t.recordsFormat)
+	if err != nil {
+		return err
+	}
 
 	p := tea.NewProgram(view, tea.WithAltScreen())
-	_, err := p.Run()
+	_, err = p.Run()
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package trafficwatch
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,9 +9,11 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/tui/components"
-	"github.com/signadot/cli/internal/tui/models"
+	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/views"
+	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 // MainViewState represents the current state of the main view
@@ -27,9 +30,8 @@ const (
 type MainView struct {
 	state MainViewState
 
-	dataService *models.MockDataService
-	requests    []models.HTTPRequest
-	selectedID  string
+	requests   []api.RequestMetadata
+	selectedID string
 
 	leftPane  *LeftPane
 	rightPane *RightPane
@@ -44,17 +46,19 @@ type MainView struct {
 	helpComponent   *components.HelpComponent
 	help            help.Model
 	keys            components.KeyMap
+	msgChan         chan tea.Msg
 
 	// help keys for left pane
 	leftPaneHelpKeys []components.LiteralBindingName
 	// help keys for right pane
 	rightPaneHelpKeys []components.LiteralBindingName
+
+	config *filemanager.TrafficWatchScannerConfig
 }
 
 // NewMainView creates a new main view
-func NewMainView() *MainView {
-	dataService := models.NewMockDataService()
-	requests := dataService.GetRequests()
+func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView, error) {
+	requests := []api.RequestMetadata{}
 
 	leftPane := NewLeftPane(requests)
 	rightPane := NewRightPane()
@@ -78,9 +82,8 @@ func NewMainView() *MainView {
 	leftPaneHelpKeys := getHelpKeysForLeftPane()
 	rightPaneHelpKeys := getHelpKeysForRightPane()
 
-	return &MainView{
+	m := &MainView{
 		state:           state,
-		dataService:     dataService,
 		requests:        requests,
 		leftPane:        leftPane,
 		rightPane:       rightPane,
@@ -91,14 +94,38 @@ func NewMainView() *MainView {
 		keys:            components.Keys,
 		focus:           "left",
 		showHelp:        false,
+		msgChan:         make(chan tea.Msg),
 
 		leftPaneHelpKeys:  leftPaneHelpKeys,
 		rightPaneHelpKeys: rightPaneHelpKeys,
 	}
+
+	cfg, err := filemanager.NewTrafficWatchScannerConfig(
+		filemanager.WithRecordDir(recordDir),
+		filemanager.WithRecordsFormat(recordsFormat),
+		filemanager.WithOnNewLine(func(metaRequest api.RequestMetadata) {
+			m.msgChan <- trafficMsg(metaRequest)
+		}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create traffic watch scanner config: %w", err)
+	}
+
+	m.config = cfg
+
+	return m, nil
 }
 
 // Init initializes the main view
 func (m *MainView) Init() tea.Cmd {
+
+	// Create traffic watcher with callback to handle parsed requests
+	watcher := filemanager.NewTrafficWatchScanner(m.config)
+
+	err := watcher.Start(context.Background())
+	if err != nil {
+		panic(err)
+	}
 
 	m.keys.SetShortHelpByNames(m.leftPaneHelpKeys...)
 
@@ -106,7 +133,14 @@ func (m *MainView) Init() tea.Cmd {
 		m.leftPane.Init(),
 		m.rightPane.Init(),
 		m.logsView.Init(),
+		waitForTrafficMsg(m.msgChan),
 	)
+}
+
+func waitForTrafficMsg(ch chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return <-ch
+	}
 }
 
 // Update handles messages
@@ -114,6 +148,13 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case trafficMsg:
+		m.state = StateWithData
+		m.requests = append(m.requests, api.RequestMetadata(msg))
+		// Continue listening for more traffic messages
+
+		cmd := waitForTrafficMsg(m.msgChan)
+		return m, tea.Batch(cmd, m.leftPane.RefreshData(m.requests))
 	case tea.WindowSizeMsg:
 		helpHeight := lipgloss.Height(m.help.View(m.keys))
 		statusHeight := lipgloss.Height(m.statusComponent.Render())
@@ -232,7 +273,9 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RequestSelectedMsg:
 		m.selectedID = msg.RequestID
-		m.rightPane.SetRequest(m.dataService.GetRequestByID(msg.RequestID))
+		request := m.leftPane.requests[m.leftPane.selected]
+		m.rightPane.SetRequest(m.config.GetRecordDir(), &request)
+
 		return m, nil
 
 	case LogsLoadedMsg:
@@ -364,7 +407,6 @@ func (m *MainView) renderHelpState() string {
 
 // refreshData refreshes the data from the service
 func (m *MainView) refreshData() {
-	m.requests = m.dataService.GetRequests()
 	m.leftPane.SetRequests(m.requests)
 
 	if len(m.requests) == 0 {
@@ -387,6 +429,7 @@ func (m *MainView) refreshData() {
 type RequestSelectedMsg struct {
 	RequestID string
 }
+type trafficMsg api.RequestMetadata
 
 func getHelpKeysForLeftPane() []components.LiteralBindingName {
 	return []components.LiteralBindingName{
