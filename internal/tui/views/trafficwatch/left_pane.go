@@ -8,11 +8,11 @@ import (
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/signadot/cli/internal/tui/models"
+	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 type LeftPane struct {
-	requests []models.HTTPRequest
+	requests []api.RequestMetadata
 	selected int
 	width    int
 	height   int
@@ -20,7 +20,11 @@ type LeftPane struct {
 	paginator paginator.Model
 }
 
-func NewLeftPane(requests []models.HTTPRequest) *LeftPane {
+type RefreshDataMsg struct {
+	Requests []api.RequestMetadata
+}
+
+func NewLeftPane(requests []api.RequestMetadata) *LeftPane {
 
 	p := paginator.New()
 	p.Type = paginator.Arabic
@@ -39,9 +43,12 @@ func (l *LeftPane) SetSize(width, height int) {
 	l.width = width
 	l.height = height
 
+	if len(l.requests) != 0 {
+		itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
+		l.paginator.PerPage = height / (itemHeight)
+	}
+
 	// Elements per page is the available height divided by the height of a single item
-	itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
-	l.paginator.PerPage = height / (itemHeight)
 
 	// Calculate the total number of pages, making sure to round up
 	l.paginator.TotalPages = int(math.Round(float64(len(l.requests)) / float64(l.paginator.PerPage)))
@@ -58,7 +65,7 @@ func (l *LeftPane) SetSize(width, height int) {
 	}
 }
 
-func (l *LeftPane) SetRequests(requests []models.HTTPRequest) {
+func (l *LeftPane) SetRequests(requests []api.RequestMetadata) {
 	l.requests = requests
 	if l.selected >= len(requests) && l.selected != -1 {
 		l.selected = 0
@@ -95,13 +102,21 @@ func (l *LeftPane) PrevPage(withAuto bool) tea.Cmd {
 	}
 }
 
+func (l *LeftPane) RefreshData(requests []api.RequestMetadata) tea.Cmd {
+	return func() tea.Msg {
+		return RefreshDataMsg{Requests: requests}
+	}
+}
 func (l *LeftPane) Init() tea.Cmd {
 	return nil
 }
 
 func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
+	case RefreshDataMsg:
+		l.SetRequests(msg.Requests)
+		l.SetSize(l.width, l.height)
+		return l, nil
 	case NextPageMsg:
 		if l.paginator.Page < l.paginator.TotalPages {
 			l.paginator.Page++
@@ -199,20 +214,20 @@ func (l *LeftPane) View() string {
 }
 
 // renderRequestItem renders a single request item
-func (l *LeftPane) renderRequestItem(req models.HTTPRequest, selected bool) string {
-	methodColor := lipgloss.Color(req.GetMethodColor())
+func (l *LeftPane) renderRequestItem(req api.RequestMetadata, selected bool) string {
+	methodColor := lipgloss.Color("blue")
 	methodStyle := lipgloss.NewStyle().
 		Foreground(methodColor).
 		Bold(true).
 		Width(6)
 	method := methodStyle.Render(req.Method)
 
-	statusColor := lipgloss.Color(req.GetStatusColor())
+	statusColor := lipgloss.Color("green")
 	statusStyle := lipgloss.NewStyle().
 		Foreground(statusColor).
 		Bold(true).
 		Width(4)
-	status := statusStyle.Render(fmt.Sprintf("%d", req.StatusCode))
+	status := statusStyle.Render(fmt.Sprintf("%d", 200))
 
 	// Show request URI instead of path
 	requestURI := req.RequestURI
@@ -221,12 +236,12 @@ func (l *LeftPane) renderRequestItem(req models.HTTPRequest, selected bool) stri
 	}
 
 	// Show routing key
-	routingKey := req.RoutingKey
+	routingKey := req.MiddlewareRequestID
 	if len(routingKey) > 20 {
 		routingKey = routingKey[:17] + "..."
 	}
 
-	duration := req.FormatDuration()
+	duration := "100ms"
 
 	indicator := "  "
 	if selected {
@@ -288,7 +303,7 @@ func (l *LeftPane) sendSelection() tea.Cmd {
 
 		return tea.Batch(cmd, func() tea.Msg {
 			return RequestSelectedMsg{
-				RequestID: l.requests[l.selected].ID,
+				RequestID: l.requests[l.selected].MiddlewareRequestID,
 			}
 		})
 

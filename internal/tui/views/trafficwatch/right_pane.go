@@ -3,13 +3,12 @@ package trafficwatch
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
-	"github.com/signadot/cli/internal/tui/models"
+	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 // RightPaneTab represents the active tab
@@ -23,7 +22,7 @@ const (
 
 // RightPane represents the right pane showing request details
 type RightPane struct {
-	request   *models.HTTPRequest
+	request   *api.RequestMetadata
 	activeTab RightPaneTab
 	width     int
 	height    int
@@ -56,7 +55,7 @@ func (r *RightPane) SetSize(width, height int) {
 }
 
 // SetRequest sets the current request to display
-func (r *RightPane) SetRequest(request *models.HTTPRequest) {
+func (r *RightPane) SetRequest(request *api.RequestMetadata) {
 	r.request = request
 
 	r.metadataContent = r.renderMetaTab()
@@ -205,7 +204,6 @@ func (r *RightPane) renderMetaTab() string {
 	content.WriteString("\n\n")
 
 	info := map[string]string{
-		"ID":                 r.request.ID,
 		"Middleware Request": r.request.MiddlewareRequestID,
 		"Method":             r.request.Method,
 		"Request URI":        r.request.RequestURI,
@@ -213,17 +211,7 @@ func (r *RightPane) renderMetaTab() string {
 		"Norm Host":          r.request.NormHost,
 		"Dest Workload":      r.request.DestWorkload,
 		"Protocol":           r.request.Proto,
-		"Watch Options":      r.request.WatchOptions,
-		"When":               r.request.When.Format(time.RFC3339),
-		"Status Code":        fmt.Sprintf("%d", r.request.StatusCode),
-		"Duration":           r.request.FormatDuration(),
-		"Timestamp":          r.request.Timestamp.Format(time.RFC3339),
-		"Client IP":          r.request.ClientIP,
 		"User Agent":         r.request.UserAgent,
-	}
-
-	if r.request.DoneAt != nil {
-		info["Done At"] = r.request.DoneAt.Format(time.RFC3339)
 	}
 
 	for key, value := range info {
@@ -239,30 +227,30 @@ func (r *RightPane) renderMetaTab() string {
 			valueStyle.Render(value)))
 	}
 
-	if r.request.Response != nil {
-		content.WriteString("\n")
-		content.WriteString(lipgloss.NewStyle().Bold(true).Render("Response Information"))
-		content.WriteString("\n\n")
+	// if r.request.Response != nil {
+	// 	content.WriteString("\n")
+	// 	content.WriteString(lipgloss.NewStyle().Bold(true).Render("Response Information"))
+	// 	content.WriteString("\n\n")
 
-		respInfo := map[string]string{
-			"Status Code": fmt.Sprintf("%d", r.request.Response.StatusCode),
-			"Size":        fmt.Sprintf("%d bytes", r.request.Response.Size),
-			"Duration":    r.request.Response.Duration.String(),
-		}
+	// 	respInfo := map[string]string{
+	// 		"Status Code": fmt.Sprintf("%d", r.request.Response.StatusCode),
+	// 		"Size":        fmt.Sprintf("%d bytes", r.request.Response.Size),
+	// 		"Duration":    r.request.Response.Duration.String(),
+	// 	}
 
-		for key, value := range respInfo {
-			keyStyle := lipgloss.NewStyle().
-				Bold(true).
-				Foreground(lipgloss.Color("green")).
-				Width(18)
-			valueStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("white"))
+	// 	for key, value := range respInfo {
+	// 		keyStyle := lipgloss.NewStyle().
+	// 			Bold(true).
+	// 			Foreground(lipgloss.Color("green")).
+	// 			Width(18)
+	// 		valueStyle := lipgloss.NewStyle().
+	// 			Foreground(lipgloss.Color("white"))
 
-			content.WriteString(fmt.Sprintf("%s: %s\n",
-				keyStyle.Render(key),
-				valueStyle.Render(value)))
-		}
-	}
+	// 		content.WriteString(fmt.Sprintf("%s: %s\n",
+	// 			keyStyle.Render(key),
+	// 			valueStyle.Render(value)))
+	// 	}
+	// }
 
 	return content.String()
 }
@@ -277,7 +265,11 @@ func (r *RightPane) renderRequestTab() string {
 		Render("Request Headers"))
 	content.WriteString("\n\n")
 
-	for key, value := range r.request.Headers {
+	headers := map[string]string{
+		"User-Agent": "curl/8.1.2",
+		"Accept":     "application/json",
+	}
+	for key, value := range headers {
 		keyStyle := lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#2E77FF"))
@@ -289,27 +281,27 @@ func (r *RightPane) renderRequestTab() string {
 			valueStyle.Render(value)))
 	}
 
-	if r.request.Body != "" {
-		content.WriteString("\n")
-		content.WriteString(lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#2E77FF")).
-			Render("Request Body"))
-		content.WriteString("\n\n")
+	// if r.request.Body != "" {
+	// 	content.WriteString("\n")
+	// 	content.WriteString(lipgloss.NewStyle().
+	// 		Bold(true).
+	// 		Foreground(lipgloss.Color("#2E77FF")).
+	// 		Render("Request Body"))
+	// 	content.WriteString("\n\n")
 
-		bodyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("white")).
-			Background(lipgloss.Color("black")).
-			Padding(1).
-			Border(lipgloss.RoundedBorder())
+	// 	bodyStyle := lipgloss.NewStyle().
+	// 		Foreground(lipgloss.Color("white")).
+	// 		Background(lipgloss.Color("black")).
+	// 		Padding(1).
+	// 		Border(lipgloss.RoundedBorder())
 
-		body := r.request.Body
-		if len(body) > 500 {
-			body = body[:500] + "\n... (truncated)"
-		}
+	// 	body := "empty"
+	// 	if len(body) > 500 {
+	// 		body = body[:500] + "\n... (truncated)"
+	// 	}
 
-		content.WriteString(bodyStyle.Render(body))
-	}
+	// 	content.WriteString(bodyStyle.Render(body))
+	// }
 
 	return content.String()
 }
@@ -318,7 +310,7 @@ func (r *RightPane) renderRequestTab() string {
 func (r *RightPane) renderResponseTab() string {
 	var content strings.Builder
 
-	if r.request.Response == nil {
+	if true {
 		content.WriteString(lipgloss.NewStyle().
 			Foreground(lipgloss.Color("gray")).
 			Render("No response data available"))
@@ -331,7 +323,11 @@ func (r *RightPane) renderResponseTab() string {
 		Render("Response Headers"))
 	content.WriteString("\n\n")
 
-	for key, value := range r.request.Response.Headers {
+	headers := map[string]string{
+		"Content-Type":   "application/json",
+		"Content-Length": "1024",
+	}
+	for key, value := range headers {
 		keyStyle := lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#5D95FF"))
@@ -343,27 +339,27 @@ func (r *RightPane) renderResponseTab() string {
 			valueStyle.Render(value)))
 	}
 
-	if r.request.Response.Body != "" {
-		content.WriteString("\n")
-		content.WriteString(lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#5D95FF")).
-			Render("Response Body"))
-		content.WriteString("\n\n")
+	// if r.request.Response.Body != "" {
+	// 	content.WriteString("\n")
+	// 	content.WriteString(lipgloss.NewStyle().
+	// 		Bold(true).
+	// 		Foreground(lipgloss.Color("#5D95FF")).
+	// 		Render("Response Body"))
+	// 	content.WriteString("\n\n")
 
-		bodyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("white")).
-			Background(lipgloss.Color("black")).
-			Padding(1).
-			Border(lipgloss.RoundedBorder())
+	// 	bodyStyle := lipgloss.NewStyle().
+	// 		Foreground(lipgloss.Color("white")).
+	// 		Background(lipgloss.Color("black")).
+	// 		Padding(1).
+	// 		Border(lipgloss.RoundedBorder())
 
-		body := r.request.Response.Body
-		if len(body) > 500 {
-			body = body[:500] + "\n... (truncated)"
-		}
+	// 	body := r.request.Response.Body
+	// 	if len(body) > 500 {
+	// 		body = body[:500] + "\n... (truncated)"
+	// 	}
 
-		content.WriteString(bodyStyle.Render(body))
-	}
+	// 	content.WriteString(bodyStyle.Render(body))
+	// }
 
 	return content.String()
 }
