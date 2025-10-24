@@ -3,7 +3,6 @@ package trafficwatch
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -152,7 +151,6 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case trafficMsg:
 		m.state = StateWithData
 		m.requests = append(m.requests, api.RequestMetadata(msg))
-		m.statusComponent.SetExtra(strconv.Itoa(len(m.requests)))
 		// Continue listening for more traffic messages
 
 		cmd := waitForTrafficMsg(m.msgChan)

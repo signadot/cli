@@ -2,12 +2,15 @@ package filemanager
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
 	"os"
 	"time"
 
+	"github.com/goccy/go-yaml"
+	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
@@ -99,17 +102,41 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 
 	// Read new content
 	scanner := bufio.NewScanner(file)
+
+	// If the records format is YAML, use the custom split function.
+	// For JSON, use the default split function.
+	if tw.cfg.recordsFormat == config.OutputFormatYAML {
+		scanner.Split(tw.splitYAML)
+	}
+
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
 		}
-		metaRequest := api.RequestMetadata{}
-		err = json.Unmarshal(line, &metaRequest)
+
+		var metaRequest api.RequestMetadata
+
+		switch tw.cfg.recordsFormat {
+		case config.OutputFormatJSON:
+			err = json.Unmarshal(line, &metaRequest)
+			if err != nil {
+				continue
+			}
+			tw.offset += int64(len(line)) + 1 // \n
+
+		case config.OutputFormatYAML:
+			err = yaml.Unmarshal(line, &metaRequest)
+			if err != nil {
+				continue
+			}
+
+			tw.offset += int64(len(line)) + 4 // --- + \n
+		}
+
 		if err != nil {
 			continue
 		}
-		tw.offset += int64(len(line)) + 1
 
 		if metaRequest.DestWorkload == "" {
 			continue
@@ -121,4 +148,23 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 	if err := scanner.Err(); err != nil {
 		return
 	}
+}
+
+func (tw *TrafficWatchScanner) splitYAML(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	sep := []byte("---\n")
+
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.Index(data, sep); i >= 0 {
+		return i + len(sep), data[:i], nil
+	}
+
+	// At EOF: emit any remaining non-empty data
+	if atEOF {
+		return len(data), data, nil
+	}
+
+	return 0, nil, nil // request more data
 }
