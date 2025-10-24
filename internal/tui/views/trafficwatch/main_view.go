@@ -93,7 +93,7 @@ func NewMainView() *MainView {
 		keys:            components.Keys,
 		focus:           "left",
 		showHelp:        false,
-		msgChan:         make(chan tea.Msg, 1000), // Initialize the channel without buffer
+		msgChan:         make(chan tea.Msg),
 
 		leftPaneHelpKeys:  leftPaneHelpKeys,
 		rightPaneHelpKeys: rightPaneHelpKeys,
@@ -107,14 +107,7 @@ func (m *MainView) Init() tea.Cmd {
 
 	// Create traffic watcher with callback to handle parsed requests
 	watcher := filemanager.NewTrafficWatch(recordDir, func(metaRequest api.RequestMetadata) {
-		// Send the traffic message to the channel (non-blocking)
-		select {
-		case m.msgChan <- trafficMsg(metaRequest):
-			// Message sent successfully
-		default:
-			// No receiver waiting, skip this message to prevent blocking
-			// This ensures the traffic watcher doesn't get blocked
-		}
+		m.msgChan <- trafficMsg(metaRequest)
 	})
 
 	err := watcher.Start(context.Background())
@@ -132,11 +125,8 @@ func (m *MainView) Init() tea.Cmd {
 	)
 }
 
-// waitForTrafficMsg waits for traffic messages from the channel
-func waitForTrafficMsg(ch <-chan tea.Msg) tea.Cmd {
+func waitForTrafficMsg(ch chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
-		// This will block until a message is available
-		// Since we use non-blocking sends in the callback, this is safe
 		return <-ch
 	}
 }
