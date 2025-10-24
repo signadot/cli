@@ -18,6 +18,10 @@ type TrafficWatchScannerConfig struct {
 	onNewLine OnNewLineCallback
 }
 
+func (cfg *TrafficWatchScannerConfig) GetRecordDir() string {
+	return cfg.recordDir
+}
+
 func NewTrafficWatchScannerConfig(opts ...func(*TrafficWatchScannerConfig)) (*TrafficWatchScannerConfig, error) {
 	cfg := &TrafficWatchScannerConfig{}
 	for _, opt := range opts {

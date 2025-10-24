@@ -274,7 +274,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RequestSelectedMsg:
 		m.selectedID = msg.RequestID
 		request := m.leftPane.requests[m.leftPane.selected]
-		m.rightPane.SetRequest("/home/davixcky/.signadot/traffic/watch-json", &request)
+		m.rightPane.SetRequest(m.config.GetRecordDir(), &request)
 
 		return m, nil
 
