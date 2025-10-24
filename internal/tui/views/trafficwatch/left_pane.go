@@ -13,9 +13,10 @@ import (
 
 type LeftPane struct {
 	requests []api.RequestMetadata
+	selected int
 
-	width    int
-	height   int
+	width  int
+	height int
 
 	paginator paginator.Model
 }
@@ -44,10 +45,8 @@ func (l *LeftPane) SetSize(width, height int) {
 
 	if len(l.requests) != 0 {
 		itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
-		l.paginator.PerPage = height / (itemHeight) // Elements per page is the available height divided by the height of a single item
+		l.paginator.PerPage = height / (itemHeight)                             // Elements per page is the available height divided by the height of a single item
 	}
-
-	
 
 	// Calculate the total number of pages, making sure to round up
 	l.paginator.TotalPages = int(math.Ceil(float64(len(l.requests)) / float64(l.paginator.PerPage)))
