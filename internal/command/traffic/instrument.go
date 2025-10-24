@@ -110,6 +110,11 @@ func applyWithLocal(ctx context.Context, cfg *config.TrafficWatch,
 		}
 		sb.Spec.LocalMachineID = machineID
 	}
+	// remove deprecated
+	sb.Spec.Endpoints = nil
+	for _, f := range sb.Spec.Forks {
+		f.Endpoints = nil
+	}
 
 	applyParams := sandboxes.NewApplySandboxParams().
 		WithContext(ctx).
