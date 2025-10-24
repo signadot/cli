@@ -262,9 +262,9 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RequestSelectedMsg:
 		m.selectedID = msg.RequestID
-		m.rightPane.SetRequest(&api.RequestMetadata{
-			MiddlewareRequestID: msg.RequestID,
-		})
+		request := m.leftPane.requests[m.leftPane.selected]
+		m.rightPane.SetRequest("/home/davixcky/.signadot/traffic/watch-json", &request)
+
 		return m, nil
 
 	case LogsLoadedMsg:
