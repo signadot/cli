@@ -106,7 +106,7 @@ func (m *MainView) Init() tea.Cmd {
 	recordDir := filepath.Join("/home/davixcky/.signadot/traffic/watch-json/meta.jsons")
 
 	// Create traffic watcher with callback to handle parsed requests
-	watcher := filemanager.NewTrafficWatch(recordDir, func(metaRequest api.RequestMetadata) {
+	watcher := filemanager.NewTrafficWatchScanner(recordDir, func(metaRequest api.RequestMetadata) {
 		m.msgChan <- trafficMsg(metaRequest)
 	})
 

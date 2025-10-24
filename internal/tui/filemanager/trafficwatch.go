@@ -11,7 +11,7 @@ import (
 	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
-type TrafficWatch struct {
+type TrafficWatchScanner struct {
 	path      string
 	onNewLine func(metaRequest api.RequestMetadata)
 	offset    int64
@@ -20,8 +20,8 @@ type TrafficWatch struct {
 	closeCh  chan struct{}
 }
 
-func NewTrafficWatch(path string, onNewLine func(metaRequest api.RequestMetadata)) *TrafficWatch {
-	return &TrafficWatch{
+func NewTrafficWatchScanner(path string, onNewLine func(metaRequest api.RequestMetadata)) *TrafficWatchScanner {
+	return &TrafficWatchScanner{
 		path:      path,
 		onNewLine: onNewLine,
 		offset:    0,
@@ -30,14 +30,14 @@ func NewTrafficWatch(path string, onNewLine func(metaRequest api.RequestMetadata
 	}
 }
 
-func (tw *TrafficWatch) Resume() {
+func (tw *TrafficWatchScanner) Resume() {
 	select {
 	case tw.resumeCh <- struct{}{}:
 	default:
 	}
 }
 
-func (tw *TrafficWatch) Close() {
+func (tw *TrafficWatchScanner) Close() {
 	select {
 	case <-tw.closeCh:
 		return
@@ -46,7 +46,7 @@ func (tw *TrafficWatch) Close() {
 	}
 }
 
-func (tw *TrafficWatch) Start(ctx context.Context) error {
+func (tw *TrafficWatchScanner) Start(ctx context.Context) error {
 	file, err := os.Open(tw.path)
 	if err != nil {
 		return err
@@ -64,7 +64,7 @@ func (tw *TrafficWatch) Start(ctx context.Context) error {
 	return nil
 }
 
-func (tw *TrafficWatch) monitorWithTicker(ctx context.Context) {
+func (tw *TrafficWatchScanner) monitorWithTicker(ctx context.Context) {
 	// Create a ticker that checks for file changes every 500ms
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -85,7 +85,7 @@ func (tw *TrafficWatch) monitorWithTicker(ctx context.Context) {
 	}
 }
 
-func (tw *TrafficWatch) checkForNewContent() {
+func (tw *TrafficWatchScanner) checkForNewContent() {
 
 	file, err := os.Open(tw.path)
 	if err != nil {
