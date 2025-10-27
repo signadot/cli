@@ -9,6 +9,7 @@ require (
 	github.com/argoproj/argo-rollouts v1.8.3
 	github.com/chainguard-dev/git-urls v1.0.2
 	github.com/charmbracelet/bubbletea v1.3.10
+	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/docker/go-units v0.5.0
 	github.com/go-git/go-git/v5 v5.14.0
 	github.com/go-openapi/runtime v0.29.0
@@ -45,7 +46,6 @@ require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/bwmarrin/snowflake v0.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
-	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.13-0.20250311204145-2c3ea96c31dd // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect

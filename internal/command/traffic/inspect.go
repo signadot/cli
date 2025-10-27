@@ -7,6 +7,7 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
+	"github.com/signadot/cli/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +37,8 @@ becomes available in the specified directory.`,
 	return cmd
 }
 
+// TODO: Add support for YAML format
+// TODO: Fix validation for the meta file
 func inspectTraffic(cfg *config.TrafficInspect, w, wErr io.Writer) error {
 	// Check if directory exists
 	directoryInfo, err := os.Stat(cfg.Directory)
@@ -64,7 +67,7 @@ func inspectTraffic(cfg *config.TrafficInspect, w, wErr io.Writer) error {
 	}
 
 	fmt.Fprintf(w, "Directory %s contains valid traffic data\n", cfg.Directory)
-	return nil
+	return runTrafficWatchTUI(cfg.Directory)
 }
 
 func hasMetaFile(dir string) (bool, error) {
@@ -100,4 +103,13 @@ func waitForMetaFile(dir string, w io.Writer) error {
 		}
 		return false, nil
 	})
+}
+
+func runTrafficWatchTUI(dir string) error {
+	trafficWatch := tui.NewTrafficWatch(dir, config.OutputFormatJSON)
+	if err := trafficWatch.Run(); err != nil {
+		return fmt.Errorf("error running traffic watch: %w", err)
+	}
+
+	return nil
 }
