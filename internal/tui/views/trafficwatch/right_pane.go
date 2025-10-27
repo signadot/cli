@@ -1,12 +1,10 @@
 package trafficwatch
 
 import (
-	"bufio"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -14,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
+	"github.com/signadot/cli/internal/tui/utils"
 	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
@@ -325,40 +324,6 @@ func (r *RightPane) renderResponseTab(response http.Response) string {
 	return content.String()
 }
 
-func loadHttpRequest(requestPath string) (http.Request, error) {
-	request, err := os.ReadFile(requestPath)
-	if err != nil {
-		return http.Request{}, fmt.Errorf("failed to read request file: %w", err)
-	}
-
-	rawRequest := string(request)
-	bufReader := bufio.NewReader(strings.NewReader(rawRequest))
-
-	res, err := http.ReadRequest(bufReader)
-	if err != nil {
-		return http.Request{}, fmt.Errorf("failed to read request file: %w", err)
-	}
-
-	return *res, nil
-}
-
-func loadHttpResponse(responsePath string) (http.Response, error) {
-	response, err := os.ReadFile(responsePath)
-	if err != nil {
-		return http.Response{}, fmt.Errorf("failed to read response file: %w", err)
-	}
-
-	rawResponse := string(response)
-	bufReader := bufio.NewReader(strings.NewReader(rawResponse))
-
-	res, err := http.ReadResponse(bufReader, &http.Request{})
-	if err != nil {
-		return http.Response{}, fmt.Errorf("failed to read response file: %w", err)
-	}
-
-	return *res, nil
-}
-
 // SetRequest sets the current request to display
 func (r *RightPane) SetRequest(trafficDir string, request *api.RequestMetadata) {
 	r.request = request
@@ -366,11 +331,11 @@ func (r *RightPane) SetRequest(trafficDir string, request *api.RequestMetadata) 
 	r.currentTrafficDir = trafficDir
 
 	// Load the request detail from the /traffic-dir/request-id
-	requestDetail, err := loadHttpRequest(filepath.Join(trafficDir, request.MiddlewareRequestID, "request"))
+	requestDetail, err := utils.LoadHttpRequest(filepath.Join(trafficDir, request.MiddlewareRequestID, "request"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	responseDetail, err := loadHttpResponse(filepath.Join(trafficDir, request.MiddlewareRequestID, "response"))
+	responseDetail, err := utils.LoadHttpResponse(filepath.Join(trafficDir, request.MiddlewareRequestID, "response"))
 	if err != nil {
 		log.Fatal(err)
 	}
