@@ -9,17 +9,19 @@ import (
 type TrafficWatchTUI struct {
 	recordDir     string // The directory where the recorded traffic is stored
 	recordsFormat config.OutputFormat
+	logsFile      string
 }
 
-func NewTrafficWatch(recordDir string, recordsFormat config.OutputFormat) TUI {
+func NewTrafficWatch(recordDir string, recordsFormat config.OutputFormat, logsFile string) TUI {
 	return &TrafficWatchTUI{
 		recordDir:     recordDir,
 		recordsFormat: recordsFormat,
+		logsFile:      logsFile,
 	}
 }
 
 func (t *TrafficWatchTUI) Run() error {
-	view, err := trafficwatch.NewMainView(t.recordDir, t.recordsFormat)
+	view, err := trafficwatch.NewMainView(t.recordDir, t.recordsFormat, t.logsFile)
 	if err != nil {
 		return err
 	}

@@ -1,0 +1,360 @@
+package filemanager
+
+import (
+	"bufio"
+	"context"
+	"io"
+	"log/slog"
+	"os"
+	"strings"
+	"time"
+)
+
+// LogEntry represents a parsed log entry
+type LogEntry struct {
+	Timestamp time.Time
+	Level     slog.Level
+	Message   string
+	Attrs     map[string]any
+	RawLine   string
+}
+
+// LogFileScanner scans log files for new entries
+type LogFileScanner struct {
+	cfg    *LogFileScannerConfig
+	offset int64
+
+	resumeCh chan struct{}
+	closeCh  chan struct{}
+}
+
+// LogFileScannerConfig holds configuration for the log file scanner
+type LogFileScannerConfig struct {
+	logFilePath string
+	onNewLine   OnNewLogLineCallback
+}
+
+// OnNewLogLineCallback is called when a new log line is found
+type OnNewLogLineCallback func(entry LogEntry)
+
+// NewLogFileScanner creates a new log file scanner
+func NewLogFileScanner(cfg *LogFileScannerConfig) *LogFileScanner {
+	return &LogFileScanner{
+		cfg:      cfg,
+		offset:   0,
+		resumeCh: make(chan struct{}),
+		closeCh:  make(chan struct{}),
+	}
+}
+
+// Resume resumes scanning
+func (lfs *LogFileScanner) Resume() {
+	select {
+	case lfs.resumeCh <- struct{}{}:
+	default:
+	}
+}
+
+// Close closes the scanner
+func (lfs *LogFileScanner) Close() {
+	select {
+	case <-lfs.closeCh:
+		return
+	default:
+		close(lfs.closeCh)
+	}
+}
+
+// Start begins monitoring the log file
+func (lfs *LogFileScanner) Start(ctx context.Context) error {
+	file, err := os.Open(lfs.cfg.logFilePath)
+	if err != nil {
+		return err
+	}
+
+	offset, err := file.Seek(lfs.offset, io.SeekStart)
+	if err != nil {
+		return err
+	}
+	lfs.offset = offset
+
+	// Start continuous monitoring with ticker
+	go lfs.monitorWithTicker(ctx)
+
+	return nil
+}
+
+// monitorWithTicker monitors the file for changes using a ticker
+func (lfs *LogFileScanner) monitorWithTicker(ctx context.Context) {
+	// Create a ticker that checks for file changes every 500ms
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-lfs.closeCh:
+			return
+		case <-ticker.C:
+			// Check for new content every tick
+			lfs.checkForNewContent()
+		case <-lfs.resumeCh:
+			// Manual resume signal - check immediately
+			lfs.checkForNewContent()
+		}
+	}
+}
+
+// checkForNewContent checks for new log entries in the file
+func (lfs *LogFileScanner) checkForNewContent() {
+	file, err := os.Open(lfs.cfg.logFilePath)
+	if err != nil {
+		return
+	}
+	defer file.Close()
+
+	// Seek to our last known position
+	_, err = file.Seek(lfs.offset, io.SeekStart)
+	if err != nil {
+		return
+	}
+
+	// Read new content
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) == 0 {
+			continue
+		}
+
+		// Parse the log entry
+		entry := lfs.parseLogLine(line)
+
+		// Update offset
+		lfs.offset += int64(len(line)) + 1 // +1 for newline
+
+		// Call the callback if provided
+		if lfs.cfg.onNewLine != nil {
+			lfs.cfg.onNewLine(entry)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return
+	}
+}
+
+// parseLogLine parses a structured log line using slog text format
+func (lfs *LogFileScanner) parseLogLine(line string) LogEntry {
+	entry := LogEntry{
+		Timestamp: time.Now(), // Default to current time
+		Level:     slog.LevelInfo,
+		Message:   "",
+		Attrs:     make(map[string]any),
+		RawLine:   line,
+	}
+
+	// Use slog's text format parsing
+	// The format is: level=LEVEL msg="message" key1=value1 key2="quoted value"
+
+	// Split by spaces, but be careful with quoted values
+	parts := parseTextFormat(line)
+
+	for _, part := range parts {
+		if strings.Contains(part, "=") {
+			key, value := parseKeyValue(part)
+			if key != "" {
+				switch key {
+				case "level":
+					// Parse slog level
+					switch strings.ToUpper(value) {
+					case "DEBUG":
+						entry.Level = slog.LevelDebug
+					case "INFO":
+						entry.Level = slog.LevelInfo
+					case "WARN", "WARNING":
+						entry.Level = slog.LevelWarn
+					case "ERROR":
+						entry.Level = slog.LevelError
+					default:
+						entry.Level = slog.LevelInfo
+					}
+				case "msg":
+					entry.Message = value
+				case "time":
+					// Try to parse timestamp
+					if t, err := time.Parse(time.RFC3339Nano, value); err == nil {
+						entry.Timestamp = t
+					}
+				default:
+					entry.Attrs[key] = value
+				}
+			}
+		}
+	}
+
+	// If no message was found in msg field, use the whole line as message
+	if entry.Message == "" {
+		entry.Message = line
+	}
+
+	return entry
+}
+
+// parseTextFormat parses slog text format, handling quoted values
+func parseTextFormat(line string) []string {
+	var parts []string
+	var current strings.Builder
+	inQuotes := false
+	escapeNext := false
+
+	for _, r := range line {
+		if escapeNext {
+			current.WriteRune(r)
+			escapeNext = false
+			continue
+		}
+
+		if r == '\\' {
+			escapeNext = true
+			continue
+		}
+
+		if r == '"' {
+			inQuotes = !inQuotes
+			current.WriteRune(r)
+			continue
+		}
+
+		if r == ' ' && !inQuotes {
+			if current.Len() > 0 {
+				parts = append(parts, current.String())
+				current.Reset()
+			}
+			continue
+		}
+
+		current.WriteRune(r)
+	}
+
+	if current.Len() > 0 {
+		parts = append(parts, current.String())
+	}
+
+	return parts
+}
+
+// parseKeyValue parses a key=value pair, handling quoted values
+func parseKeyValue(part string) (key, value string) {
+	eqIndex := strings.Index(part, "=")
+	if eqIndex == -1 {
+		return "", ""
+	}
+
+	key = part[:eqIndex]
+	value = part[eqIndex+1:]
+
+	// Remove quotes if present
+	if len(value) >= 2 && value[0] == '"' && value[len(value)-1] == '"' {
+		value = value[1 : len(value)-1]
+	}
+
+	return key, value
+}
+
+// ParseLogLine parses a log line without needing a scanner instance
+func ParseLogLine(line string) LogEntry {
+	entry := LogEntry{
+		Timestamp: time.Now(), // Default to current time
+		Level:     slog.LevelInfo,
+		Message:   "",
+		Attrs:     make(map[string]any),
+		RawLine:   line,
+	}
+
+	// Use slog's text format parsing
+	// The format is: level=LEVEL msg="message" key1=value1 key2="quoted value"
+
+	// Split by spaces, but be careful with quoted values
+	parts := parseTextFormat(line)
+
+	for _, part := range parts {
+		if strings.Contains(part, "=") {
+			key, value := parseKeyValue(part)
+			if key != "" {
+				switch key {
+				case "level":
+					// Parse slog level
+					switch strings.ToUpper(value) {
+					case "DEBUG":
+						entry.Level = slog.LevelDebug
+					case "INFO":
+						entry.Level = slog.LevelInfo
+					case "WARN", "WARNING":
+						entry.Level = slog.LevelWarn
+					case "ERROR":
+						entry.Level = slog.LevelError
+					default:
+						entry.Level = slog.LevelInfo
+					}
+				case "msg":
+					entry.Message = value
+				case "time":
+					// Try to parse timestamp
+					if t, err := time.Parse(time.RFC3339Nano, value); err == nil {
+						entry.Timestamp = t
+					}
+				default:
+					entry.Attrs[key] = value
+				}
+			}
+		}
+	}
+
+	// If no message was found in msg field, use the whole line as message
+	if entry.Message == "" {
+		entry.Message = line
+	}
+
+	return entry
+}
+
+// NewLogFileScannerConfig creates a new log file scanner config
+func NewLogFileScannerConfig(opts ...func(*LogFileScannerConfig)) (*LogFileScannerConfig, error) {
+	cfg := &LogFileScannerConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	if cfg.logFilePath == "" {
+		return nil, &ConfigError{Field: "logFilePath", Message: "logFilePath is required"}
+	}
+
+	return cfg, nil
+}
+
+// WithLogFilePath sets the log file path
+func WithLogFilePath(logFilePath string) func(*LogFileScannerConfig) {
+	return func(config *LogFileScannerConfig) {
+		config.logFilePath = logFilePath
+	}
+}
+
+// WithOnNewLogLine sets the callback for new log lines
+func WithOnNewLogLine(onNewLine OnNewLogLineCallback) func(*LogFileScannerConfig) {
+	return func(config *LogFileScannerConfig) {
+		config.onNewLine = onNewLine
+	}
+}
+
+// ConfigError represents a configuration error
+type ConfigError struct {
+	Field   string
+	Message string
+}
+
+func (e *ConfigError) Error() string {
+	return e.Field + ": " + e.Message
+}

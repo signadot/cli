@@ -57,12 +57,12 @@ type MainView struct {
 }
 
 // NewMainView creates a new main view
-func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView, error) {
+func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile string) (*MainView, error) {
 	requests := []api.RequestMetadata{}
 
 	leftPane := NewLeftPane(requests)
 	rightPane := NewRightPane()
-	logsView := NewLogsView()
+	logsView := NewLogsView(logsFile)
 
 	statusComponent := components.NewStatusComponent(
 		components.StatusSuccess,
@@ -149,7 +149,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case trafficMsg:
-		m.state = StateWithData
+		// m.state = StateWithData
 		m.requests = append(m.requests, api.RequestMetadata(msg))
 		// Continue listening for more traffic messages
 
@@ -198,14 +198,18 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.GoBack):
 			m.state = StateWithData
 			return m, nil
-		// case key.Matches(msg, m.keys.Logs): // Disable logs view for now
-		// 	if m.state == StateLogs {
-		// 		m.state = StateWithData
-		// 		return m, nil
-		// 	} else {
-		// 		m.state = StateLogs
-		// 		return m, nil
-		// 	}
+		case key.Matches(msg, m.keys.Logs): // Disable logs view for now
+			if m.state == StateLogs {
+				if len(m.requests) == 0 {
+					m.state = StateNoData
+					return m, nil
+				}
+				m.state = StateWithData
+				return m, nil
+			} else {
+				m.state = StateLogs
+				return m, nil
+			}
 		case key.Matches(msg, m.keys.Help):
 			if m.state == StateHelp {
 				m.state = StateWithData
@@ -408,6 +412,10 @@ func (m *MainView) renderHelpState() string {
 // refreshData refreshes the data from the service
 func (m *MainView) refreshData() {
 	m.leftPane.SetRequests(m.requests)
+
+	if m.state == StateLogs {
+		return
+	}
 
 	if len(m.requests) == 0 {
 		m.state = StateNoData

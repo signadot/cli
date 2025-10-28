@@ -228,8 +228,15 @@ func (r *RightPane) renderMetaTab(request *api.RequestMetadata) string {
 }
 
 // renderRequestTab renders the request details tab
-func (r *RightPane) renderRequestTab(request *http.Request) string {
+func (r *RightPane) renderRequestTab(request *http.Request, err error) string {
 	var content strings.Builder
+
+	if err != nil {
+		content.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("red")).
+			Render(err.Error()))
+		return content.String()
+	}
 
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
@@ -272,8 +279,15 @@ func (r *RightPane) renderRequestTab(request *http.Request) string {
 }
 
 // renderResponseTab renders the response details tab
-func (r *RightPane) renderResponseTab(response *http.Response) string {
+func (r *RightPane) renderResponseTab(response *http.Response, err error) string {
 	var content strings.Builder
+
+	if err != nil {
+		content.WriteString(lipgloss.NewStyle().
+			Foreground(lipgloss.Color("red")).
+			Render(err.Error()))
+		return content.String()
+	}
 
 	if response.StatusCode == 0 {
 		content.WriteString(lipgloss.NewStyle().
@@ -332,15 +346,10 @@ func (r *RightPane) SetRequest(trafficDir string, request *api.RequestMetadata) 
 
 	// Load the request detail from the /traffic-dir/request-id
 	requestDetail, err := utils.LoadHttpRequest(filepath.Join(trafficDir, request.MiddlewareRequestID, "request"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	r.requestContent = r.renderRequestTab(requestDetail, err)
+
 	responseDetail, err := utils.LoadHttpResponse(filepath.Join(trafficDir, request.MiddlewareRequestID, "response"))
-	if err != nil {
-		log.Fatal(err)
-	}
+	r.responseContent = r.renderResponseTab(responseDetail, err)
 
 	r.metadataContent = r.renderMetaTab(request)
-	r.requestContent = r.renderRequestTab(requestDetail)
-	r.responseContent = r.renderResponseTab(responseDetail)
 }
