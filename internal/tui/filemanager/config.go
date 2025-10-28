@@ -19,7 +19,7 @@ type LineMessage struct {
 	Data        any
 }
 
-type OnNewLineCallback func(lineMessage LineMessage)
+type OnNewLineCallback func(lineMessage *LineMessage)
 type TrafficWatchScannerConfig struct {
 	recordDir     string
 	recordsFormat config.OutputFormat

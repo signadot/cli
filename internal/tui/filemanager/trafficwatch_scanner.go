@@ -78,7 +78,7 @@ func (tw *TrafficWatchScanner) monitorWithTicker(ctx context.Context) {
 func (tw *TrafficWatchScanner) checkForNewContent() {
 	file, err := os.Open(tw.cfg.mainMetaPath)
 	if err != nil {
-		tw.cfg.onNewLine(LineMessage{
+		tw.cfg.onNewLine(&LineMessage{
 			MessageType: MessageTypeStatusNoStarted,
 			Data:        err.Error(),
 		})
@@ -134,7 +134,7 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 			continue
 		}
 
-		tw.cfg.onNewLine(LineMessage{
+		tw.cfg.onNewLine(&LineMessage{
 			MessageType: MessageTypeData,
 			Data:        metaRequest,
 		})

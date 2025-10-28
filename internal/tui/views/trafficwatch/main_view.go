@@ -103,7 +103,7 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView
 	cfg, err := filemanager.NewTrafficWatchScannerConfig(
 		filemanager.WithRecordDir(recordDir),
 		filemanager.WithRecordsFormat(recordsFormat),
-		filemanager.WithOnNewLine(func(lineMessage filemanager.LineMessage) {
+		filemanager.WithOnNewLine(func(lineMessage *filemanager.LineMessage) {
 			switch lineMessage.MessageType {
 			case filemanager.MessageTypeData:
 				m.msgChan <- trafficMsg{
