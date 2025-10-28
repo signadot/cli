@@ -198,14 +198,14 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.GoBack):
 			m.state = StateWithData
 			return m, nil
-		case key.Matches(msg, m.keys.Logs):
-			if m.state == StateLogs {
-				m.state = StateWithData
-				return m, nil
-			} else {
-				m.state = StateLogs
-				return m, nil
-			}
+		// case key.Matches(msg, m.keys.Logs): // Disable logs view for now
+		// 	if m.state == StateLogs {
+		// 		m.state = StateWithData
+		// 		return m, nil
+		// 	} else {
+		// 		m.state = StateLogs
+		// 		return m, nil
+		// 	}
 		case key.Matches(msg, m.keys.Help):
 			if m.state == StateHelp {
 				m.state = StateWithData

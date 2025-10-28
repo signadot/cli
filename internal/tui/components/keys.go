@@ -94,7 +94,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.Left, k.Right}, // first column
 		{k.NextPage, k.PrevPage},        // second column
-		{k.Tab, k.Logs, k.Refresh},      // second column
+		{k.Tab, k.Refresh},              // second column
 		{k.Help, k.Quit},                // third column
 	}
 }
