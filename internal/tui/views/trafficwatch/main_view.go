@@ -149,7 +149,9 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case trafficMsg:
-		// m.state = StateWithData
+		if m.state != StateLogs {
+			m.state = StateWithData
+		}
 		m.requests = append(m.requests, api.RequestMetadata(msg))
 		// Continue listening for more traffic messages
 
@@ -412,17 +414,6 @@ func (m *MainView) renderHelpState() string {
 // refreshData refreshes the data from the service
 func (m *MainView) refreshData() {
 	m.leftPane.SetRequests(m.requests)
-
-	if m.state == StateLogs {
-		return
-	}
-
-	if len(m.requests) == 0 {
-		m.state = StateNoData
-	} else {
-		m.state = StateWithData
-	}
-
 	focusText := "Left Pane"
 	if m.focus == "right" {
 		focusText = "Right Pane"

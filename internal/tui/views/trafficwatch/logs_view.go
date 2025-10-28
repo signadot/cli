@@ -79,7 +79,27 @@ func (l *LogsView) cleanup() {
 // SetSize sets the size of the logs view
 func (l *LogsView) SetSize(width, height int) {
 	l.width = width
-	l.height = height - 10
+	l.height = height
+
+	// Initialize viewport if not ready
+	if !l.ready {
+		headerHeight := lipgloss.Height(l.headerView())
+		footerHeight := lipgloss.Height(l.footerView())
+		verticalMarginHeight := headerHeight + footerHeight
+
+		l.viewport = viewport.New(width, height-verticalMarginHeight)
+		l.viewport.YPosition = headerHeight
+		l.viewport.SetContent(l.buildContent())
+		l.ready = true
+	} else {
+		// Update existing viewport size
+		headerHeight := lipgloss.Height(l.headerView())
+		footerHeight := lipgloss.Height(l.footerView())
+		verticalMarginHeight := headerHeight + footerHeight
+
+		l.viewport.Width = width
+		l.viewport.Height = height - verticalMarginHeight
+	}
 }
 
 // SetLogFile sets the log file path
@@ -142,17 +162,12 @@ func (l *LogsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return l, l.loadLogs()
 		}
 	case tea.WindowSizeMsg:
-		headerHeight := lipgloss.Height(l.headerView())
-		footerHeight := lipgloss.Height(l.footerView())
-		verticalMarginHeight := headerHeight + footerHeight
+		// Update viewport size if already initialized
+		if l.ready {
+			headerHeight := lipgloss.Height(l.headerView())
+			footerHeight := lipgloss.Height(l.footerView())
+			verticalMarginHeight := headerHeight + footerHeight
 
-		if !l.ready {
-			// Initialize viewport with proper dimensions
-			l.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
-			l.viewport.YPosition = headerHeight
-			l.viewport.SetContent(l.buildContent())
-			l.ready = true
-		} else {
 			l.viewport.Width = msg.Width
 			l.viewport.Height = msg.Height - verticalMarginHeight
 		}
@@ -176,12 +191,15 @@ func (l *LogsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the logs view
 func (l *LogsView) View() string {
-	if !l.ready {
-		return "\n  Initializing..."
-	}
 	if len(l.logs) == 0 {
 		return l.renderEmptyState()
 	}
+
+	if !l.ready {
+		// Show a simple loading state instead of "Initializing..."
+		return fmt.Sprintf("%s\n\n%s", l.headerView(), "Loading logs...")
+	}
+
 	return fmt.Sprintf("%s\n%s\n%s", l.headerView(), l.viewport.View(), l.footerView())
 }
 
@@ -302,9 +320,7 @@ func (l *LogsView) renderLogLine(entry filemanager.LogEntry) string {
 		line.WriteString(attrStyle.Render(fmt.Sprintf("%s=%v", key, value)))
 	}
 
-	// Instead of truncating, wrap the line
-	result := line.String()
-	return result
+	return lipgloss.NewStyle().SetString(line.String()).Width(l.viewport.Width - 2).Render()
 }
 
 // renderEmptyState renders the empty state
@@ -321,8 +337,7 @@ func (l *LogsView) loadLogs() tea.Cmd {
 		if err != nil {
 			// If file doesn't exist, create some mock logs
 			return LogsLoadedMsg{
-				Logs: l.generateMockLogs(),
-				Err:  nil,
+				Err: nil,
 			}
 		}
 		defer file.Close()
@@ -330,8 +345,7 @@ func (l *LogsView) loadLogs() tea.Cmd {
 		content, err := io.ReadAll(file)
 		if err != nil {
 			return LogsLoadedMsg{
-				Logs: l.generateMockLogs(),
-				Err:  err,
+				Err: err,
 			}
 		}
 
@@ -350,107 +364,6 @@ func (l *LogsView) loadLogs() tea.Cmd {
 			Err:  nil,
 		}
 	}
-}
-
-// generateMockLogs creates some mock log entries for testing
-func (l *LogsView) generateMockLogs() []filemanager.LogEntry {
-	now := time.Now()
-	logs := []filemanager.LogEntry{
-		{
-			Timestamp: now,
-			Level:     slog.LevelInfo,
-			Message:   "Traffic watch started",
-			Attrs:     map[string]any{"component": "traffic-watch"},
-			RawLine:   fmt.Sprintf("%s INFO Traffic watch started", now.Format("2006-01-02 15:04:05")),
-		},
-		{
-			Timestamp: now.Add(-5 * time.Minute),
-			Level:     slog.LevelInfo,
-			Message:   "Monitoring HTTP traffic on port 8080",
-			Attrs:     map[string]any{"port": "8080"},
-			RawLine:   fmt.Sprintf("%s INFO Monitoring HTTP traffic on port 8080", now.Add(-5*time.Minute).Format("2006-01-02 15:04:05")),
-		},
-		{
-			Timestamp: now.Add(-4 * time.Minute),
-			Level:     slog.LevelInfo,
-			Message:   "Captured request: GET /api/users",
-			Attrs:     map[string]any{"method": "GET", "path": "/api/users"},
-			RawLine:   fmt.Sprintf("%s INFO Captured request: GET /api/users", now.Add(-4*time.Minute).Format("2006-01-02 15:04:05")),
-		},
-		{
-			Timestamp: now.Add(-3 * time.Minute),
-			Level:     slog.LevelInfo,
-			Message:   "Captured request: POST /api/users",
-			Attrs:     map[string]any{"method": "POST", "path": "/api/users"},
-			RawLine:   fmt.Sprintf("%s INFO Captured request: POST /api/users", now.Add(-3*time.Minute).Format("2006-01-02 15:04:05")),
-		},
-		{
-			Timestamp: now.Add(-2 * time.Minute),
-			Level:     slog.LevelWarn,
-			Message:   "Slow request detected: 2.5s",
-			Attrs:     map[string]any{"duration": "2.5s"},
-			RawLine:   fmt.Sprintf("%s WARN Slow request detected: 2.5s", now.Add(-2*time.Minute).Format("2006-01-02 15:04:05")),
-		},
-		{
-			Timestamp: now.Add(-1 * time.Minute),
-			Level:     slog.LevelError,
-			Message:   "Failed to capture request: connection timeout",
-			Attrs:     map[string]any{"error": "connection timeout"},
-			RawLine:   fmt.Sprintf("%s ERROR Failed to capture request: connection timeout", now.Add(-1*time.Minute).Format("2006-01-02 15:04:05")),
-		},
-	}
-
-	// Add some structured log entries similar to your example
-	logs = append(logs, []filemanager.LogEntry{
-		{
-			Timestamp: now.Add(-30 * time.Second),
-			Level:     slog.LevelInfo,
-			Message:   "watching sandbox request activity and content",
-			Attrs: map[string]any{
-				"sandbox":       "my-location-sandbox",
-				"watch-options": "+stream/+stream",
-				"output-dir":    "/home/davixcky/.signadot/traffic/watch-json",
-			},
-			RawLine: `msg="watching sandbox request activity and content" sandbox=my-location-sandbox watch-options=+stream/+stream output-dir=/home/davixcky/.signadot/traffic/watch-json`,
-		},
-		{
-			Timestamp: now.Add(-25 * time.Second),
-			Level:     slog.LevelInfo,
-			Message:   "incoming-request",
-			Attrs: map[string]any{
-				"sandbox":           "my-location-sandbox",
-				"request.id":        "fef1d0cc",
-				"request.dest":      "Deployment/hotrod-devmesh/location",
-				"request.uri":       "http://location.hotrod-devmesh:8081/locations",
-				"request.method":    "GET",
-				"request.userAgent": "curl/8.16.0",
-			},
-			RawLine: `msg=incoming-request sandbox=my-location-sandbox request.id=fef1d0cc request.dest=Deployment/hotrod-devmesh/location request.uri=http://location.hotrod-devmesh:8081/locations request.method=GET request.userAgent=curl/8.16.0`,
-		},
-		{
-			Timestamp: now.Add(-20 * time.Second),
-			Level:     slog.LevelInfo,
-			Message:   "request-done",
-			Attrs: map[string]any{
-				"sandbox":        "my-location-sandbox",
-				"request.id":     "fef1d0cc",
-				"request.doneAt": "2025-10-28T07:15:56.918720426-05:00",
-			},
-			RawLine: `msg=request-done sandbox=my-location-sandbox request.id=fef1d0cc request.doneAt=2025-10-28T07:15:56.918720426-05:00`,
-		},
-		{
-			Timestamp: now.Add(-10 * time.Second),
-			Level:     slog.LevelWarn,
-			Message:   "sandbox not ready",
-			Attrs: map[string]any{
-				"sandbox": "my-location-sandbox",
-				"error":   "can't reconcile RoutingConfig: Operation cannot be fulfilled on routingconfigs.signadot.com \"zdxbwcdpfz0sl\": the object has been modified; please apply your changes to the latest version and try again",
-			},
-			RawLine: `level=WARN msg="sandbox not ready" sandbox=my-location-sandbox error="can't reconcile RoutingConfig: Operation cannot be fulfilled on routingconfigs.signadot.com \"zdxbwcdpfz0sl\": the object has been modified; please apply your changes to the latest version and try again"`,
-		},
-	}...)
-
-	return logs
 }
 
 // LogsLoadedMsg is sent when logs are loaded
