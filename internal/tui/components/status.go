@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -15,7 +14,8 @@ type StatusComponent struct {
 	Timestamp time.Time
 	Style     lipgloss.Style
 
-	extra string
+	shortHelpMessage       string
+	alwaysOnDisplayMessage string // message that is always displayed, even if the status is success
 }
 
 // NewStatusComponent creates a new status component
@@ -28,8 +28,13 @@ func NewStatusComponent(status, message string) *StatusComponent {
 	}
 }
 
-func (s *StatusComponent) SetExtra(extra string) *StatusComponent {
-	s.extra = extra
+func (s *StatusComponent) SetShortHelpMessage(shortHelpMessage string) *StatusComponent {
+	s.shortHelpMessage = shortHelpMessage
+	return s
+}
+
+func (s *StatusComponent) SetAlwaysOnDisplayMessage(alwaysOnDisplayMessage string) *StatusComponent {
+	s.alwaysOnDisplayMessage = alwaysOnDisplayMessage
 	return s
 }
 
@@ -64,14 +69,18 @@ func (s *StatusComponent) Render() string {
 		Bold(true).
 		Render(strings.ToUpper(s.Status))
 
-	content := fmt.Sprintf("%s %s", statusText, s.Message)
-	if s.extra != "" {
-		content += fmt.Sprintf(" %s", s.extra)
-		content = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("gray")).
-			Render(content)
+	var content strings.Builder
+	content.WriteString(statusText)
+	if s.alwaysOnDisplayMessage != "" {
+		content.WriteString(" " + s.alwaysOnDisplayMessage)
+	} else {
+		content.WriteString(" " + s.Message)
 	}
-	return s.Style.Render(content)
+	if s.shortHelpMessage != "" {
+		content.WriteString("\n" + s.shortHelpMessage)
+	}
+
+	return s.Style.Render(content.String())
 }
 
 // Status types

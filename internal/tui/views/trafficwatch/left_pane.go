@@ -12,7 +12,7 @@ import (
 )
 
 type LeftPane struct {
-	requests []api.RequestMetadata
+	requests []*api.RequestMetadata
 	selected int
 
 	width  int
@@ -22,10 +22,10 @@ type LeftPane struct {
 }
 
 type RefreshDataMsg struct {
-	Requests []api.RequestMetadata
+	Requests []*api.RequestMetadata
 }
 
-func NewLeftPane(requests []api.RequestMetadata) *LeftPane {
+func NewLeftPane(requests []*api.RequestMetadata) *LeftPane {
 	p := paginator.New()
 	p.Type = paginator.Arabic
 	p.ArabicFormat = "%d of %d"
@@ -63,7 +63,7 @@ func (l *LeftPane) SetSize(width, height int) {
 	}
 }
 
-func (l *LeftPane) SetRequests(requests []api.RequestMetadata) {
+func (l *LeftPane) SetRequests(requests []*api.RequestMetadata) {
 	l.requests = requests
 	if l.selected >= len(requests) && l.selected != -1 {
 		l.selected = 0
@@ -100,7 +100,7 @@ func (l *LeftPane) PrevPage(withAuto bool) tea.Cmd {
 	}
 }
 
-func (l *LeftPane) RefreshData(requests []api.RequestMetadata) tea.Cmd {
+func (l *LeftPane) RefreshData(requests []*api.RequestMetadata) tea.Cmd {
 	return func() tea.Msg {
 		return RefreshDataMsg{Requests: requests}
 	}
@@ -212,7 +212,7 @@ func (l *LeftPane) View() string {
 }
 
 // renderRequestItem renders a single request item
-func (l *LeftPane) renderRequestItem(req api.RequestMetadata, selected bool) string {
+func (l *LeftPane) renderRequestItem(req *api.RequestMetadata, selected bool) string {
 	methodColor := lipgloss.Color("blue")
 	methodStyle := lipgloss.NewStyle().
 		Foreground(methodColor).
