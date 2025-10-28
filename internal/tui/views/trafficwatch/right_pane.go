@@ -219,7 +219,7 @@ func (r *RightPane) renderMetaTab(request *api.RequestMetadata) string {
 	content.WriteString(r.getLineRenderMeta("Routing Key", request.RoutingKey))
 	content.WriteString(r.getLineRenderMeta("Method", request.Method))
 	content.WriteString(r.getLineRenderMeta("Request URI", request.RequestURI))
-	content.WriteString(r.getLineRenderMeta("Norm Host", request.NormHost))
+	content.WriteString(r.getLineRenderMeta("Host", request.Host))
 	content.WriteString(r.getLineRenderMeta("Dest Workload", request.DestWorkload))
 	content.WriteString(r.getLineRenderMeta("Protocol", request.Proto))
 	content.WriteString(r.getLineRenderMeta("User Agent", request.UserAgent))

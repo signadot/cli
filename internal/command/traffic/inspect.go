@@ -1,6 +1,7 @@
 package traffic
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -29,7 +30,7 @@ When the --wait flag is provided, the command will wait until valid traffic data
 becomes available in the specified directory.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return inspectTraffic(inspectCfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
+			return inspectTraffic(cmd.Context(), inspectCfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 
@@ -39,7 +40,7 @@ becomes available in the specified directory.`,
 
 // TODO: Add support for YAML format
 // TODO: Fix validation for the meta file
-func inspectTraffic(cfg *config.TrafficInspect, w, wErr io.Writer) error {
+func inspectTraffic(ctx context.Context, cfg *config.TrafficInspect, w, wErr io.Writer) error {
 	// Check if directory exists
 	directoryInfo, err := os.Stat(cfg.Directory)
 	if err != nil {
@@ -61,7 +62,7 @@ func inspectTraffic(cfg *config.TrafficInspect, w, wErr io.Writer) error {
 	if !hasMetaFile {
 		if cfg.Wait {
 			fmt.Fprintf(w, "Directory %s is empty, waiting for traffic data...\n", cfg.Directory)
-			return waitForMetaFile(cfg.Directory, w)
+			return waitForMetaFile(ctx, cfg.Directory, w)
 		}
 		return fmt.Errorf("Directory %s is empty", cfg.Directory)
 	}
@@ -89,10 +90,10 @@ func hasMetaFile(dir string) (bool, error) {
 	return false, nil
 }
 
-func waitForMetaFile(dir string, w io.Writer) error {
+func waitForMetaFile(ctx context.Context, dir string, w io.Writer) error {
 	p := poll.NewPoll()
 
-	return p.UntilWithError(func() (bool, error) {
+	return p.UntilWithError(ctx, func(ctx context.Context) (bool, error) {
 		hasMetaFile, err := hasMetaFile(dir)
 		if err != nil {
 			return false, fmt.Errorf("error checking for meta files: %w", err)

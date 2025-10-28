@@ -1,10 +1,14 @@
 package routegroup
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
@@ -31,9 +35,14 @@ func newDelete(routegroup *config.RouteGroup) *cobra.Command {
 }
 
 func rgDelete(cfg *config.RouteGroupDelete, log io.Writer, args []string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
+
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
+
 	// Get the name either from a file or from the command line.
 	var name string
 	if cfg.Filename == "" {
@@ -61,31 +70,34 @@ func rgDelete(cfg *config.RouteGroupDelete, log io.Writer, args []string) error 
 
 	// Delete the routegroup.
 	params := routegroups.NewDeleteRoutegroupParams().
+		WithContext(ctx).
 		WithOrgName(cfg.Org).
 		WithRoutegroupName(name)
 	_, err := cfg.Client.RouteGroups.DeleteRoutegroup(params, nil)
 	if err != nil {
 		return err
 	}
-
 	fmt.Fprintf(log, "Deleted routegroup %q.\n\n", name)
 
 	if cfg.Wait {
 		// Wait for the API server to completely reflect deletion.
-		if err := waitForDeleted(cfg, log, name); err != nil {
+		if err := waitForDeleted(ctx, cfg, log, name); err != nil {
 			fmt.Fprintf(log, "\nDeletion was initiated, but the routegroup may still exist in a terminating state. To check status, run:\n\n")
 			fmt.Fprintf(log, "  signadot routegroup get %v\n\n", name)
 			return err
 		}
 	}
-
 	return nil
 }
 
-func waitForDeleted(cfg *config.RouteGroupDelete, log io.Writer, routegroupName string) error {
+func waitForDeleted(ctx context.Context, cfg *config.RouteGroupDelete,
+	log io.Writer, routegroupName string) error {
 	fmt.Fprintf(log, "Waiting (up to --wait-timeout=%v) for routegroup to finish terminating...\n", cfg.WaitTimeout)
 
-	params := routegroups.NewGetRoutegroupParams().WithOrgName(cfg.Org).WithRoutegroupName(routegroupName)
+	params := routegroups.NewGetRoutegroupParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithRoutegroupName(routegroupName)
 
 	spin := spinner.Start(log, "RouteGroup status")
 	defer spin.Stop()
@@ -94,7 +106,7 @@ func waitForDeleted(cfg *config.RouteGroupDelete, log io.Writer, routegroupName 
 		NewPoll().
 		WithTimeout(cfg.WaitTimeout)
 
-	err := retry.Until(func() bool {
+	err := retry.Until(ctx, func(ctx context.Context) bool {
 		result, err := cfg.Client.RouteGroups.GetRoutegroup(params, nil)
 		if err != nil {
 			// If it's a "not found" error, that's what we wanted.

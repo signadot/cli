@@ -9,40 +9,41 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
 )
 
-func readyLoop(ctx context.Context, cancel func(), readiness poll.Readiness, w io.Writer) {
+func readyLoop(ctx context.Context, readiness poll.Readiness, w io.Writer) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	ready := true
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-ticker.C:
 			if err := readiness.Fatal(); err != nil {
-				fmt.Fprintf(w, "exiting due to problem with sandbox: %v\n", err)
-				cancel()
-				return
+				fmt.Fprintf(w, "Exiting due to problem with sandbox: %v\n", err)
+				return err
 			}
 			if !readiness.Ready() {
-				fmt.Fprintf(w, "sandbox not ready...\n")
+				fmt.Fprintf(w, "Sandbox not ready...\n")
 			} else if !ready {
 				ready = true
-				fmt.Fprintf(w, "sandbox ready.\n")
+				fmt.Fprintf(w, "Sandbox ready.\n")
 
 			}
 			for err := readiness.Warn(); err != nil; err = readiness.Warn() {
-				fmt.Fprintf(w, "warning: %v\n", err)
+				fmt.Fprintf(w, "Warning: %v\n", err)
 			}
 		}
 	}
 }
 
-func ckMatch(cfg *config.LocalOverrideCreate, sb *models.Sandbox, override string) func() (bool, error, error) {
+func ckMatch(ctx context.Context, cfg *config.LocalOverrideCreate,
+	sb *models.Sandbox, override string) func() (bool, error, error) {
 	return func() (bool, error, error) {
-		obs, err := getSandbox(cfg)
+		obs, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
 		if err != nil {
 			return false, nil, err
 		}
@@ -53,7 +54,6 @@ func ckMatch(cfg *config.LocalOverrideCreate, sb *models.Sandbox, override strin
 		if err := ckForwards(sb.Spec.Routing, obs.Spec.Routing, sb.Name, override); err != nil {
 			return ready, nil, err
 		}
-
 		if !ready {
 			return false, fmt.Errorf("sandbox %s is not ready to accept requests", sb.Name), nil
 		}
