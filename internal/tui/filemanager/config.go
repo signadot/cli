@@ -8,7 +8,20 @@ import (
 	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
-type OnNewLineCallback func(metaRequest api.RequestMetadata)
+type MessageType string
+
+const (
+	MessageTypeData            MessageType = "data"
+	MessageTypeStatusNoStarted MessageType = "target_not_found"
+)
+
+type LineMessage struct {
+	MessageType MessageType
+	Data        *api.RequestMetadata
+	Error       error
+}
+
+type OnNewLineCallback func(lineMessage *LineMessage)
 type TrafficWatchScannerConfig struct {
 	recordDir     string
 	recordsFormat config.OutputFormat
