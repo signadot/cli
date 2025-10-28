@@ -228,7 +228,7 @@ func (r *RightPane) renderMetaTab(request *api.RequestMetadata) string {
 }
 
 // renderRequestTab renders the request details tab
-func (r *RightPane) renderRequestTab(request http.Request) string {
+func (r *RightPane) renderRequestTab(request *http.Request) string {
 	var content strings.Builder
 
 	content.WriteString(lipgloss.NewStyle().
@@ -272,7 +272,7 @@ func (r *RightPane) renderRequestTab(request http.Request) string {
 }
 
 // renderResponseTab renders the response details tab
-func (r *RightPane) renderResponseTab(response http.Response) string {
+func (r *RightPane) renderResponseTab(response *http.Response) string {
 	var content strings.Builder
 
 	if response.StatusCode == 0 {

@@ -8,10 +8,10 @@ import (
 	"strings"
 )
 
-func LoadHttpRequest(requestPath string) (http.Request, error) {
+func LoadHttpRequest(requestPath string) (*http.Request, error) {
 	request, err := os.ReadFile(requestPath)
 	if err != nil {
-		return http.Request{}, fmt.Errorf("failed to read request file: %w", err)
+		return nil, fmt.Errorf("failed to read request file: %w", err)
 	}
 
 	rawRequest := string(request)
@@ -19,16 +19,16 @@ func LoadHttpRequest(requestPath string) (http.Request, error) {
 
 	res, err := http.ReadRequest(bufReader)
 	if err != nil {
-		return http.Request{}, fmt.Errorf("failed to read request file: %w", err)
+		return nil, fmt.Errorf("failed to read request file: %w", err)
 	}
 
-	return *res, nil
+	return res, nil
 }
 
-func LoadHttpResponse(responsePath string) (http.Response, error) {
+func LoadHttpResponse(responsePath string) (*http.Response, error) {
 	response, err := os.ReadFile(responsePath)
 	if err != nil {
-		return http.Response{}, fmt.Errorf("failed to read response file: %w", err)
+		return nil, fmt.Errorf("failed to read response file: %w", err)
 	}
 
 	rawResponse := string(response)
@@ -36,8 +36,8 @@ func LoadHttpResponse(responsePath string) (http.Response, error) {
 
 	res, err := http.ReadResponse(bufReader, &http.Request{})
 	if err != nil {
-		return http.Response{}, fmt.Errorf("failed to read response file: %w", err)
+		return nil, fmt.Errorf("failed to read response file: %w", err)
 	}
 
-	return *res, nil
+	return res, nil
 }
