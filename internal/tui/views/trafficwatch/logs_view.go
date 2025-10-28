@@ -142,7 +142,16 @@ func (l *LogsView) renderLogLine(line string) string {
 
 	// Truncate line if too long
 	if len(line) > l.width-2 {
-		line = line[:l.width-5] + "..."
+		maxLength := l.width - 5
+		if maxLength < 0 {
+			maxLength = 0
+		}
+
+		if maxLength > len(line) {
+			maxLength = len(line)
+		}
+
+		line = line[:maxLength] + "..."
 	}
 
 	return style.Render(line)
