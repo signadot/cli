@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -73,12 +72,12 @@ func (s *StatusComponent) Render() string {
 	var content strings.Builder
 	content.WriteString(statusText)
 	if s.alwaysOnDisplayMessage != "" {
-		content.WriteString(fmt.Sprintf(" %s", s.alwaysOnDisplayMessage))
+		content.WriteString(" " + s.alwaysOnDisplayMessage)
 	} else {
-		content.WriteString(fmt.Sprintf(" %s", s.Message))
+		content.WriteString(" " + s.Message)
 	}
 	if s.shortHelpMessage != "" {
-		content.WriteString(fmt.Sprintf("\n%s", s.shortHelpMessage))
+		content.WriteString("\n" + s.shortHelpMessage)
 	}
 
 	return s.Style.Render(content.String())
