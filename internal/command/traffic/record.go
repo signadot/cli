@@ -15,6 +15,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
 	"github.com/signadot/cli/internal/trafficwatch"
+	"github.com/signadot/cli/internal/tui"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/cli/internal/utils/system"
 	twapi "github.com/signadot/libconnect/common/trafficwatch"
@@ -130,10 +131,19 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 			return retErr
 		}
 	}
-
-	// setup the terminal logger
 	routingKey := sb.RoutingKey
-	log := getTerminalLogger(cfg, w)
+
+	writer := w
+	if cfg.TuiMode {
+		f, err := os.CreateTemp("", "signadot-traffic-watch-*.log")
+		if err != nil {
+			return fmt.Errorf("error creating temp file: %w", err)
+		}
+		defer f.Close()
+		writer = f
+	}
+	log := getTerminalLogger(cfg, writer)
+
 	if !cfg.Short {
 		if retErr = setupToDir(cfg.OutputDir); retErr != nil {
 			return retErr
@@ -156,18 +166,23 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 		go readyLoop(ctx, log, tw, readiness)
 	}
 
-	// consume from the traffic watch client
-	if cfg.Short {
-		out := "<none>"
-		if cfg.OutputFile != "" {
-			out = cfg.OutputFile
+	if cfg.TuiMode {
+		go func() {
+			if err := start(cfg, log, ctx, tw); err != nil {
+				log.Error("error starting traffic watch", "error", err)
+			}
+		}()
+
+		trafficWatch := tui.NewTrafficWatch(cfg.OutputDir, config.OutputFormatJSON)
+		if err := trafficWatch.Run(); err != nil {
+			return err
 		}
-		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(), "output", out)
-		retErr = trafficwatch.ConsumeShort(ctx, log, cfg, tw)
 	} else {
-		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.OutputDir)
-		retErr = trafficwatch.ConsumeToDir(ctx, log, cfg, tw)
+		if err := start(cfg, log, ctx, tw); err != nil {
+			return err
+		}
 	}
+
 	return retErr
 }
 
@@ -203,4 +218,18 @@ func setupToDir(toDir string) error {
 		return os.MkdirAll(toDir, 0755)
 	}
 	return nil
+}
+
+func start(cfg *config.TrafficWatch, log *slog.Logger, ctx context.Context, tw *twapi.TrafficWatch) error {
+	if cfg.Short {
+		out := "<none>"
+		if cfg.OutputFile != "" {
+			out = cfg.OutputFile
+		}
+		log.Info("watching sandbox request activity", "watch-options", getExpectedOpts(cfg).String(), "output", out)
+		return trafficwatch.ConsumeShort(ctx, log, cfg, tw)
+	} else {
+		log.Info("watching sandbox request activity and content", "watch-options", getExpectedOpts(cfg).String(), "output-dir", cfg.OutputDir)
+		return trafficwatch.ConsumeToDir(ctx, log, cfg, tw)
+	}
 }
