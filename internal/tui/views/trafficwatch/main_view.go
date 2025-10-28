@@ -114,6 +114,7 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView
 				m.msgChan <- trafficMsg{
 					Request:     api.RequestMetadata{},
 					MessageType: filemanager.MessageTypeStatusNoStarted,
+					RawMessage:  lineMessage.Data,
 				}
 			}
 		}),
@@ -161,10 +162,11 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case trafficMsg:
 		if msg.MessageType == filemanager.MessageTypeStatusNoStarted {
-			m.statusComponent.SetExtra("Target not found")
+			m.statusComponent.SetAlwaysOnDisplayMessage(msg.RawMessage.(string)).UpdateStatus(components.StatusError)
 			return m, nil
 		}
 
+		m.statusComponent.SetAlwaysOnDisplayMessage("").UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests)))
 		m.state = StateWithData
 		m.requests = append(m.requests, msg.Request)
 		// Continue listening for more traffic messages
@@ -238,7 +240,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == "left" {
 				m.focus = "right"
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
-					fmt.Sprintf("Loaded %d requests | Focus: Right Pane", len(m.requests)),
+					fmt.Sprintf("Loaded %d requests", len(m.requests)),
 				)
 				m.keys.SetShortHelpByNames(
 					m.rightPaneHelpKeys...,
@@ -255,7 +257,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == "left" {
 				m.focus = "right"
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
-					fmt.Sprintf("Loaded %d requests | Focus: Right Pane", len(m.requests)),
+					fmt.Sprintf("Loaded %d requests", len(m.requests)),
 				)
 
 				m.keys.SetShortHelpByNames(
@@ -273,7 +275,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Move focus back to left pane
 					m.focus = "left"
 					m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
-						fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(m.requests)),
+						fmt.Sprintf("Loaded %d requests", len(m.requests)),
 					)
 
 					m.keys.SetShortHelpByNames(
@@ -346,12 +348,17 @@ func (m *MainView) View() string {
 
 	// Add help at the bottom if not in help state
 	if m.state != StateHelp {
-		m.statusComponent.UpdateStatusMessage(fmt.Sprintf("Loaded %d requests | Focus: %s\n%s", len(m.requests), m.focus, m.help.View(m.keys)))
+		m.statusComponent.
+			UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests))).
+			SetShortHelpMessage(m.help.View(m.keys))
+
 		content.WriteString("\n")
 		content.WriteString(m.statusComponent.Render())
 	} else {
 		content.WriteString("\n")
-		m.statusComponent.UpdateStatusMessage(fmt.Sprintf("Loaded %d requests | Focus: %s", len(m.requests), m.focus))
+		m.statusComponent.
+			UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests))).
+			SetShortHelpMessage(m.help.View(m.keys))
 		content.WriteString(m.statusComponent.Render())
 	}
 
@@ -431,13 +438,9 @@ func (m *MainView) refreshData() {
 		m.state = StateWithData
 	}
 
-	focusText := "Left Pane"
-	if m.focus == "right" {
-		focusText = "Right Pane"
-	}
 	m.statusComponent = components.NewStatusComponent(
 		components.StatusSuccess,
-		fmt.Sprintf("Refreshed %d requests | Focus: %s", len(m.requests), focusText),
+		fmt.Sprintf("Refreshed %d requests", len(m.requests)),
 	)
 }
 
@@ -448,6 +451,7 @@ type RequestSelectedMsg struct {
 type trafficMsg struct {
 	Request     api.RequestMetadata
 	MessageType filemanager.MessageType
+	RawMessage  any
 }
 
 func getHelpKeysForLeftPane() []components.LiteralBindingName {
