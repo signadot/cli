@@ -48,17 +48,6 @@ func (tw *TrafficWatchScanner) Close() {
 }
 
 func (tw *TrafficWatchScanner) Start(ctx context.Context) error {
-	file, err := os.Open(tw.cfg.mainMetaPath)
-	if err != nil {
-		return err
-	}
-
-	offset, err := file.Seek(tw.offset, io.SeekStart)
-	if err != nil {
-		return err
-	}
-	tw.offset = offset
-
 	// Start continuous monitoring with ticker
 	go tw.monitorWithTicker(ctx)
 
@@ -87,9 +76,12 @@ func (tw *TrafficWatchScanner) monitorWithTicker(ctx context.Context) {
 }
 
 func (tw *TrafficWatchScanner) checkForNewContent() {
-
 	file, err := os.Open(tw.cfg.mainMetaPath)
 	if err != nil {
+		tw.cfg.onNewLine(LineMessage{
+			MessageType: MessageTypeStatusNoStarted,
+			Data:        err.Error(),
+		})
 		return
 	}
 	defer file.Close()
@@ -142,7 +134,10 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 			continue
 		}
 
-		tw.cfg.onNewLine(metaRequest)
+		tw.cfg.onNewLine(LineMessage{
+			MessageType: MessageTypeData,
+			Data:        metaRequest,
+		})
 	}
 
 	if err := scanner.Err(); err != nil {

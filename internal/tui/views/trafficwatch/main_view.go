@@ -103,8 +103,19 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView
 	cfg, err := filemanager.NewTrafficWatchScannerConfig(
 		filemanager.WithRecordDir(recordDir),
 		filemanager.WithRecordsFormat(recordsFormat),
-		filemanager.WithOnNewLine(func(metaRequest api.RequestMetadata) {
-			m.msgChan <- trafficMsg(metaRequest)
+		filemanager.WithOnNewLine(func(lineMessage filemanager.LineMessage) {
+			switch lineMessage.MessageType {
+			case filemanager.MessageTypeData:
+				m.msgChan <- trafficMsg{
+					Request:     lineMessage.Data.(api.RequestMetadata),
+					MessageType: filemanager.MessageTypeData,
+				}
+			case filemanager.MessageTypeStatusNoStarted:
+				m.msgChan <- trafficMsg{
+					Request:     api.RequestMetadata{},
+					MessageType: filemanager.MessageTypeStatusNoStarted,
+				}
+			}
 		}),
 	)
 	if err != nil {
@@ -149,8 +160,13 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case trafficMsg:
+		if msg.MessageType == filemanager.MessageTypeStatusNoStarted {
+			m.statusComponent.SetExtra("Target not found")
+			return m, nil
+		}
+
 		m.state = StateWithData
-		m.requests = append(m.requests, api.RequestMetadata(msg))
+		m.requests = append(m.requests, msg.Request)
 		// Continue listening for more traffic messages
 
 		cmd := waitForTrafficMsg(m.msgChan)
@@ -429,7 +445,10 @@ func (m *MainView) refreshData() {
 type RequestSelectedMsg struct {
 	RequestID string
 }
-type trafficMsg api.RequestMetadata
+type trafficMsg struct {
+	Request     api.RequestMetadata
+	MessageType filemanager.MessageType
+}
 
 func getHelpKeysForLeftPane() []components.LiteralBindingName {
 	return []components.LiteralBindingName{
