@@ -30,7 +30,7 @@ const (
 type MainView struct {
 	state MainViewState
 
-	requests   []api.RequestMetadata
+	requests   []*api.RequestMetadata
 	selectedID string
 
 	leftPane  *LeftPane
@@ -58,7 +58,7 @@ type MainView struct {
 
 // NewMainView creates a new main view
 func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView, error) {
-	requests := []api.RequestMetadata{}
+	requests := []*api.RequestMetadata{}
 
 	leftPane := NewLeftPane(requests)
 	rightPane := NewRightPane()
@@ -107,14 +107,13 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat) (*MainView
 			switch lineMessage.MessageType {
 			case filemanager.MessageTypeData:
 				m.msgChan <- trafficMsg{
-					Request:     lineMessage.Data.(api.RequestMetadata),
+					Request:     lineMessage.Data,
 					MessageType: filemanager.MessageTypeData,
 				}
 			case filemanager.MessageTypeStatusNoStarted:
 				m.msgChan <- trafficMsg{
-					Request:     api.RequestMetadata{},
 					MessageType: filemanager.MessageTypeStatusNoStarted,
-					RawMessage:  lineMessage.Data,
+					Error:       lineMessage.Error,
 				}
 			}
 		}),
@@ -162,7 +161,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case trafficMsg:
 		if msg.MessageType == filemanager.MessageTypeStatusNoStarted {
-			m.statusComponent.SetAlwaysOnDisplayMessage(msg.RawMessage.(string)).UpdateStatus(components.StatusError)
+			m.statusComponent.SetAlwaysOnDisplayMessage(msg.Error.Error()).UpdateStatus(components.StatusError)
 			return m, nil
 		}
 
@@ -292,7 +291,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RequestSelectedMsg:
 		m.selectedID = msg.RequestID
 		request := m.leftPane.requests[m.leftPane.selected]
-		m.rightPane.SetRequest(m.config.GetRecordDir(), &request)
+		m.rightPane.SetRequest(m.config.GetRecordDir(), request)
 
 		return m, nil
 
@@ -449,9 +448,9 @@ type RequestSelectedMsg struct {
 	RequestID string
 }
 type trafficMsg struct {
-	Request     api.RequestMetadata
+	Request     *api.RequestMetadata
 	MessageType filemanager.MessageType
-	RawMessage  any
+	Error       error
 }
 
 func getHelpKeysForLeftPane() []components.LiteralBindingName {

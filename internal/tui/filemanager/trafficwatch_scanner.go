@@ -80,7 +80,7 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 	if err != nil {
 		tw.cfg.onNewLine(&LineMessage{
 			MessageType: MessageTypeStatusNoStarted,
-			Data:        err.Error(),
+			Error:       err,
 		})
 		return
 	}
@@ -107,18 +107,20 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 			continue
 		}
 
-		var metaRequest api.RequestMetadata
+		var metaRequest *api.RequestMetadata
+
+		metaRequest = &api.RequestMetadata{}
 
 		switch tw.cfg.recordsFormat {
 		case config.OutputFormatJSON:
-			err = json.Unmarshal(line, &metaRequest)
+			err = json.Unmarshal(line, metaRequest)
 			if err != nil {
 				continue
 			}
 			tw.offset += int64(len(line)) + 1 // \n
 
 		case config.OutputFormatYAML:
-			err = yaml.Unmarshal(line, &metaRequest)
+			err = yaml.Unmarshal(line, metaRequest)
 			if err != nil {
 				continue
 			}

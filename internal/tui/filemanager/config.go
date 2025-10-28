@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 type MessageType string
@@ -16,7 +17,8 @@ const (
 
 type LineMessage struct {
 	MessageType MessageType
-	Data        any
+	Data        *api.RequestMetadata
+	Error       error
 }
 
 type OnNewLineCallback func(lineMessage *LineMessage)
