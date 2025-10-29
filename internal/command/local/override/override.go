@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -101,6 +102,28 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 		retErr = nil
 		return retErr
 	}
+
+	green := color.New(color.FgGreen).SprintFunc()
+	bold := color.New(color.Bold).SprintFunc()
+	fmt.Fprintf(out, "%s Override created port %d to %s\n", green("✓"), cfg.Port, cfg.To)
+
+	fmt.Fprintf(out, "\nOverride has been set up successfully.\n")
+
+	if len(cfg.ExcludedStatusCodes) > 0 {
+		// Status-Based Override: everything is overridden except specified status codes
+		codes := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(cfg.ExcludedStatusCodes)), ","), "[]")
+		fmt.Fprintf(out, "* If %s responds with status %s\n", cfg.To, codes)
+		fmt.Fprintf(out, "    -> Final response from: %s (Sandbox)\n", bold(cfg.Workload+":"+fmt.Sprint(cfg.Port)))
+		fmt.Fprintf(out, "* Default: (All other local responses)\n")
+		fmt.Fprintf(out, "    -> Final response from: %s\n", bold(cfg.To))
+	} else {
+		// Header-Based Override: only override when sd-override: true header is present
+		fmt.Fprintf(out, "* If %s responds with `sd-override: true` header\n", cfg.To)
+		fmt.Fprintf(out, "    -> Final response from: %s\n", bold(cfg.To))
+		fmt.Fprintf(out, "* Default: (All other local responses)\n")
+		fmt.Fprintf(out, "    -> Final response from: %s (Sandbox)\n", bold(cfg.Workload+":"+fmt.Sprint(cfg.Port)))
+	}
+	fmt.Fprintf(out, "\n")
 
 	// Start the log server
 	startLogServer(ctx, logServer, logListener)
