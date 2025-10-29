@@ -169,7 +169,6 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.statusComponent.SetAlwaysOnDisplayMessage("").UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests)))
-		m.state = StateWithData
 		m.requests = append(m.requests, msg.Request)
 		// Continue listening for more traffic messages
 

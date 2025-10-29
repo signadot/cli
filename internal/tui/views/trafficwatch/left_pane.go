@@ -3,6 +3,7 @@ package trafficwatch
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/paginator"
@@ -44,8 +45,9 @@ func (l *LeftPane) SetSize(width, height int) {
 	l.height = height
 
 	if len(l.requests) != 0 {
+		availableHeight := height - 4
 		itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
-		l.paginator.PerPage = height / (itemHeight)                             // Elements per page is the available height divided by the height of a single item
+		l.paginator.PerPage = availableHeight / itemHeight                      // Elements per page is the available height divided by the height of a single item
 	}
 
 	// Calculate the total number of pages, making sure to round up
@@ -211,71 +213,69 @@ func (l *LeftPane) View() string {
 	return content.String()
 }
 
-// renderRequestItem renders a single request item
 func (l *LeftPane) renderRequestItem(req *api.RequestMetadata, selected bool) string {
-	methodColor := lipgloss.Color("blue")
-	methodStyle := lipgloss.NewStyle().
-		Foreground(methodColor).
-		Bold(true).
-		Width(6)
+	parsedURL, err := url.ParseRequestURI(req.RequestURI)
+	if err != nil {
+		parsedURL = &url.URL{Path: req.RequestURI}
+	}
+
+	cMethodGet := lipgloss.Color("10")      // bright green
+	cMethodPost := lipgloss.Color("14")     // cyan
+	cMethodPut := lipgloss.Color("214")     // orange
+	cMethodDel := lipgloss.Color("9")       // red
+	cHost := lipgloss.Color("245")          // light gray
+	cPath := lipgloss.Color("81")           // bright blue
+	cSubtle := lipgloss.Color("244")        // muted gray
+	cAccent := lipgloss.Color("37")         // soft teal
+	cSelectedAccent := lipgloss.Color("63") // blue accent (selection marker)
+
+	var methodColor lipgloss.Color
+	switch strings.ToUpper(req.Method) {
+	case "GET":
+		methodColor = cMethodGet
+	case "POST":
+		methodColor = cMethodPost
+	case "PUT":
+		methodColor = cMethodPut
+	case "DELETE":
+		methodColor = cMethodDel
+	default:
+		methodColor = lipgloss.Color("7") // neutral gray
+	}
+
+	methodStyle := lipgloss.NewStyle().Foreground(methodColor).Bold(true).Width(6)
+	hostStyle := lipgloss.NewStyle().Foreground(cHost)
+	pathStyle := lipgloss.NewStyle().Foreground(cPath)
+	subtleStyle := lipgloss.NewStyle().Foreground(cSubtle)
+	accentStyle := lipgloss.NewStyle().Foreground(cAccent).Italic(true)
+
 	method := methodStyle.Render(req.Method)
+	host := hostStyle.Render(parsedURL.Host)
+	path := pathStyle.Render(parsedURL.Path)
 
-	statusColor := lipgloss.Color("green")
-	statusStyle := lipgloss.NewStyle().
-		Foreground(statusColor).
-		Bold(true).
-		Width(4)
-	status := statusStyle.Render(fmt.Sprintf("%d", 200))
+	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s  %s%s", method, host, path))
+	line2 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("   ↳ %s  •  %s",
+		subtleStyle.Render(req.RoutingKey),
+		accentStyle.Render(req.DestWorkload),
+	))
 
-	// Show request URI instead of path
-	requestURI := req.RequestURI
-	if len(requestURI) > l.width-15 {
-		requestURI = requestURI[:l.width-18] + "..."
-	}
-
-	// Show routing key
-	routingKey := req.MiddlewareRequestID
-	if len(routingKey) > 20 {
-		routingKey = routingKey[:17] + "..."
-	}
-
-	duration := "100ms"
-
-	indicator := "  "
-	if selected {
-		indicator = "> "
-	}
-
-	// First line: method status duration
-	line1 := fmt.Sprintf("%s%s %s %s", indicator, method, status, duration)
-
-	// Second line: requestURI [routingKey]
-	line2 := fmt.Sprintf("  %s [%s]", requestURI, routingKey)
-
-	// Combine both lines
-	lines := []string{line1, line2}
+	content := fmt.Sprintf("%s\n%s", line1, line2)
 
 	if selected {
-		line1Style := lipgloss.NewStyle().
-			Background(lipgloss.Color("#2E77FF")).
-			Foreground(lipgloss.Color("white")).
-			Bold(true).
-			Padding(0, 1).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#2E77FF"))
+		indicator := lipgloss.NewStyle().
+			Foreground(cSelectedAccent).
+			Render("▌") // left vertical bar
 
-		line2Style := lipgloss.NewStyle().
-			Background(lipgloss.Color("#2E77FF")).
-			Foreground(lipgloss.Color("white")).
-			Padding(0, 1).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#2E77FF"))
+		lines := strings.Split(content, "\n")
+		for i, line := range lines {
+			lines[i] = fmt.Sprintf("%s %s", indicator, line)
+		}
 
-		lines[0] = line1Style.Render(line1)
-		lines[1] = line2Style.Render(line2)
+		lines[len(lines)-1] = lines[len(lines)-1] + "\n"
+		return strings.Join(lines, "\n")
 	}
 
-	return strings.Join(lines, "\n")
+	return lipgloss.NewStyle().PaddingLeft(2).Render(content + "\n")
 }
 
 func (l *LeftPane) renderEmptyState() string {

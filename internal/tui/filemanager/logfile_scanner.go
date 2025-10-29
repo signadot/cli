@@ -65,28 +65,13 @@ func (lfs *LogFileScanner) Close() {
 	}
 }
 
-// Start begins monitoring the log file
 func (lfs *LogFileScanner) Start(ctx context.Context) error {
-	file, err := os.Open(lfs.cfg.logFilePath)
-	if err != nil {
-		return err
-	}
-
-	offset, err := file.Seek(lfs.offset, io.SeekStart)
-	if err != nil {
-		return err
-	}
-	lfs.offset = offset
-
-	// Start continuous monitoring with ticker
 	go lfs.monitorWithTicker(ctx)
 
 	return nil
 }
 
-// monitorWithTicker monitors the file for changes using a ticker
 func (lfs *LogFileScanner) monitorWithTicker(ctx context.Context) {
-	// Create a ticker that checks for file changes every 500ms
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -97,16 +82,13 @@ func (lfs *LogFileScanner) monitorWithTicker(ctx context.Context) {
 		case <-lfs.closeCh:
 			return
 		case <-ticker.C:
-			// Check for new content every tick
 			lfs.checkForNewContent()
 		case <-lfs.resumeCh:
-			// Manual resume signal - check immediately
 			lfs.checkForNewContent()
 		}
 	}
 }
 
-// checkForNewContent checks for new log entries in the file
 func (lfs *LogFileScanner) checkForNewContent() {
 	file, err := os.Open(lfs.cfg.logFilePath)
 	if err != nil {
@@ -120,7 +102,6 @@ func (lfs *LogFileScanner) checkForNewContent() {
 		return
 	}
 
-	// Read new content
 	scanner := bufio.NewScanner(file)
 
 	for scanner.Scan() {
@@ -129,13 +110,10 @@ func (lfs *LogFileScanner) checkForNewContent() {
 			continue
 		}
 
-		// Parse the log entry
-		entry := lfs.parseLogLine(line)
+		entry := parseLogLine(line)
 
-		// Update offset
 		lfs.offset += int64(len(line)) + 1 // +1 for newline
 
-		// Call the callback if provided
 		if lfs.cfg.onNewLine != nil {
 			lfs.cfg.onNewLine(entry)
 		}
@@ -146,64 +124,6 @@ func (lfs *LogFileScanner) checkForNewContent() {
 	}
 }
 
-// parseLogLine parses a structured log line using slog text format
-func (lfs *LogFileScanner) parseLogLine(line string) LogEntry {
-	entry := LogEntry{
-		Timestamp: time.Now(), // Default to current time
-		Level:     slog.LevelInfo,
-		Message:   "",
-		Attrs:     make(map[string]any),
-		RawLine:   line,
-	}
-
-	// Use slog's text format parsing
-	// The format is: level=LEVEL msg="message" key1=value1 key2="quoted value"
-
-	// Split by spaces, but be careful with quoted values
-	parts := parseTextFormat(line)
-
-	for _, part := range parts {
-		if strings.Contains(part, "=") {
-			key, value := parseKeyValue(part)
-			if key != "" {
-				switch key {
-				case "level":
-					// Parse slog level
-					switch strings.ToUpper(value) {
-					case "DEBUG":
-						entry.Level = slog.LevelDebug
-					case "INFO":
-						entry.Level = slog.LevelInfo
-					case "WARN", "WARNING":
-						entry.Level = slog.LevelWarn
-					case "ERROR":
-						entry.Level = slog.LevelError
-					default:
-						entry.Level = slog.LevelInfo
-					}
-				case "msg":
-					entry.Message = value
-				case "time":
-					// Try to parse timestamp
-					if t, err := time.Parse(time.RFC3339Nano, value); err == nil {
-						entry.Timestamp = t
-					}
-				default:
-					entry.Attrs[key] = value
-				}
-			}
-		}
-	}
-
-	// If no message was found in msg field, use the whole line as message
-	if entry.Message == "" {
-		entry.Message = line
-	}
-
-	return entry
-}
-
-// parseTextFormat parses slog text format, handling quoted values
 func parseTextFormat(line string) []string {
 	var parts []string
 	var current strings.Builder
@@ -246,7 +166,6 @@ func parseTextFormat(line string) []string {
 	return parts
 }
 
-// parseKeyValue parses a key=value pair, handling quoted values
 func parseKeyValue(part string) (key, value string) {
 	eqIndex := strings.Index(part, "=")
 	if eqIndex == -1 {
@@ -264,8 +183,7 @@ func parseKeyValue(part string) (key, value string) {
 	return key, value
 }
 
-// ParseLogLine parses a log line without needing a scanner instance
-func ParseLogLine(line string) LogEntry {
+func parseLogLine(line string) LogEntry {
 	entry := LogEntry{
 		Timestamp: time.Now(), // Default to current time
 		Level:     slog.LevelInfo,
@@ -274,10 +192,6 @@ func ParseLogLine(line string) LogEntry {
 		RawLine:   line,
 	}
 
-	// Use slog's text format parsing
-	// The format is: level=LEVEL msg="message" key1=value1 key2="quoted value"
-
-	// Split by spaces, but be careful with quoted values
 	parts := parseTextFormat(line)
 
 	for _, part := range parts {

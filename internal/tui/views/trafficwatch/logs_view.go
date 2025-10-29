@@ -3,9 +3,7 @@ package trafficwatch
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -106,13 +104,12 @@ func (l *LogsView) SetSize(width, height int) {
 func (l *LogsView) SetLogFile(logFile string) {
 	l.logFile = logFile
 	l.initializeScanner()
-	l.loadLogs()
 }
 
 // Init initializes the logs view
 func (l *LogsView) Init() tea.Cmd {
 	l.initializeScanner()
-	return l.loadLogs()
+	return nil
 }
 
 // initializeScanner initializes the log file scanner
@@ -158,8 +155,6 @@ func (l *LogsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			return l, l.Back()
-		case "r":
-			return l, l.loadLogs()
 		}
 	case tea.WindowSizeMsg:
 		// Update viewport size if already initialized
@@ -302,15 +297,14 @@ func (l *LogsView) renderLogLine(entry filemanager.LogEntry) string {
 		// Color-code different types of attributes
 		switch {
 		case strings.HasPrefix(key, "request."):
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("green"))
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("23"))
 		case key == "sandbox":
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("cyan"))
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5D95FF"))
 		case key == "error":
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("red"))
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
 		case strings.Contains(key, "time") || strings.Contains(key, "At"):
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("magenta"))
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5D95FF"))
 		case key == "level" || key == "msg":
-			// Skip these as they're already displayed
 			continue
 		default:
 			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("yellow"))
@@ -327,43 +321,6 @@ func (l *LogsView) renderLogLine(entry filemanager.LogEntry) string {
 func (l *LogsView) renderEmptyState() string {
 	emptyScreen := components.NewNoLogsEmptyScreen(l.width, l.height)
 	return emptyScreen.Render()
-}
-
-// loadLogs loads logs from the file
-func (l *LogsView) loadLogs() tea.Cmd {
-	return func() tea.Msg {
-		// Try to read the log file
-		file, err := os.Open(l.logFile)
-		if err != nil {
-			// If file doesn't exist, create some mock logs
-			return LogsLoadedMsg{
-				Err: nil,
-			}
-		}
-		defer file.Close()
-
-		content, err := io.ReadAll(file)
-		if err != nil {
-			return LogsLoadedMsg{
-				Err: err,
-			}
-		}
-
-		lines := strings.Split(string(content), "\n")
-		var logs []filemanager.LogEntry
-
-		for _, line := range lines {
-			if strings.TrimSpace(line) != "" {
-				entry := filemanager.ParseLogLine(line)
-				logs = append(logs, entry)
-			}
-		}
-
-		return LogsLoadedMsg{
-			Logs: logs,
-			Err:  nil,
-		}
-	}
 }
 
 // LogsLoadedMsg is sent when logs are loaded
