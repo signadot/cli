@@ -45,8 +45,9 @@ func (l *LeftPane) SetSize(width, height int) {
 	l.height = height
 
 	if len(l.requests) != 0 {
+		availableHeight := height - 4
 		itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
-		l.paginator.PerPage = height / (itemHeight)                             // Elements per page is the available height divided by the height of a single item
+		l.paginator.PerPage = availableHeight / itemHeight                      // Elements per page is the available height divided by the height of a single item
 	}
 
 	// Calculate the total number of pages, making sure to round up
