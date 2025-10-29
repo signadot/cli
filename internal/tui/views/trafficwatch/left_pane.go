@@ -253,11 +253,11 @@ func (l *LeftPane) renderRequestItem(req *api.RequestMetadata, selected bool) st
 	host := hostStyle.Render(parsedURL.Host)
 	path := pathStyle.Render(parsedURL.Path)
 
-	line1 := fmt.Sprintf("%s  %s%s", method, host, path)
-	line2 := fmt.Sprintf("   ↳ %s  •  %s",
+	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s  %s%s", method, host, path))
+	line2 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("   ↳ %s  •  %s",
 		subtleStyle.Render(req.RoutingKey),
 		accentStyle.Render(req.DestWorkload),
-	)
+	))
 
 	content := fmt.Sprintf("%s\n%s", line1, line2)
 
