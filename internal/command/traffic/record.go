@@ -133,6 +133,7 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 	}
 	routingKey := sb.RoutingKey
 
+	var logsFile string
 	writer := w
 	if cfg.TuiMode {
 		f, err := os.CreateTemp("", "signadot-traffic-watch-*.log")
@@ -141,6 +142,7 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 		}
 		defer f.Close()
 		writer = f
+		logsFile = f.Name()
 	}
 	log := getTerminalLogger(cfg, writer)
 
@@ -173,7 +175,7 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 			}
 		}()
 
-		trafficWatch := tui.NewTrafficWatch(cfg.OutputDir, config.OutputFormatJSON)
+		trafficWatch := tui.NewTrafficWatch(cfg.OutputDir, config.OutputFormatJSON, logsFile)
 		if err := trafficWatch.Run(); err != nil {
 			return err
 		}

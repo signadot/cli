@@ -1,43 +1,78 @@
 package trafficwatch
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
+	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/views"
 )
+
+var OrderArr = []string{
+	"level",
+	"msg",
+	"time",
+	"sandbox",
+	"request.id",
+	"request.dest",
+	"request.uri",
+	"request.method",
+	"request.userAgent",
+	"request.doneAt",
+}
 
 // LogsView represents the logs view
 type LogsView struct {
 	logFile    string
-	logs       []string
-	scrollPos  int
+	logs       []filemanager.LogEntry
 	width      int
 	height     int
 	lastUpdate time.Time
+	scanner    *filemanager.LogFileScanner
+	ctx        context.Context
+	cancel     context.CancelFunc
+	viewport   viewport.Model
+	ready      bool
 }
 
 // NewLogsView creates a new logs view
-func NewLogsView() *LogsView {
+func NewLogsView(logsFile string) *LogsView {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &LogsView{
-		logFile:    "testdata/traffic.log", // Default log file
-		logs:       []string{},
-		scrollPos:  0,
+		logFile:    logsFile,
+		logs:       []filemanager.LogEntry{},
 		width:      80,
 		height:     20,
 		lastUpdate: time.Now(),
+		ctx:        ctx,
+		cancel:     cancel,
+		ready:      false,
 	}
 }
 
 func (l *LogsView) Back() tea.Cmd {
+	l.cleanup()
 	return func() tea.Msg {
 		return views.GoToViewMsg{View: "main"}
+	}
+}
+
+// cleanup cleans up resources
+func (l *LogsView) cleanup() {
+	if l.scanner != nil {
+		l.scanner.Close()
+	}
+	if l.cancel != nil {
+		l.cancel()
 	}
 }
 
@@ -45,43 +80,113 @@ func (l *LogsView) Back() tea.Cmd {
 func (l *LogsView) SetSize(width, height int) {
 	l.width = width
 	l.height = height
+
+	// Initialize viewport if not ready
+	if !l.ready {
+		headerHeight := lipgloss.Height(l.headerView())
+		footerHeight := lipgloss.Height(l.footerView())
+		verticalMarginHeight := headerHeight + footerHeight
+
+		l.viewport = viewport.New(width, height-verticalMarginHeight)
+		l.viewport.YPosition = headerHeight
+		l.viewport.SetContent(l.buildContent())
+		l.ready = true
+	} else {
+		// Update existing viewport size
+		headerHeight := lipgloss.Height(l.headerView())
+		footerHeight := lipgloss.Height(l.footerView())
+		verticalMarginHeight := headerHeight + footerHeight
+
+		l.viewport.Width = width
+		l.viewport.Height = height - verticalMarginHeight
+	}
 }
 
 // SetLogFile sets the log file path
 func (l *LogsView) SetLogFile(logFile string) {
 	l.logFile = logFile
+	l.initializeScanner()
 	l.loadLogs()
 }
 
 // Init initializes the logs view
 func (l *LogsView) Init() tea.Cmd {
+	l.initializeScanner()
 	return l.loadLogs()
+}
+
+// initializeScanner initializes the log file scanner
+func (l *LogsView) initializeScanner() {
+	if l.scanner != nil {
+		l.scanner.Close()
+	}
+
+	cfg, err := filemanager.NewLogFileScannerConfig(
+		filemanager.WithLogFilePath(l.logFile),
+		filemanager.WithOnNewLogLine(l.onNewLogEntry),
+	)
+	if err != nil {
+		return
+	}
+
+	l.scanner = filemanager.NewLogFileScanner(cfg)
+	go l.scanner.Start(l.ctx)
+}
+
+// onNewLogEntry handles new log entries from the scanner
+func (l *LogsView) onNewLogEntry(entry filemanager.LogEntry) {
+	l.logs = append(l.logs, entry)
+	l.lastUpdate = time.Now()
+
+	// Update viewport content if ready
+	if l.ready {
+		l.viewport.SetContent(l.buildContent())
+		// Auto-scroll to bottom for new logs
+		l.viewport.GotoBottom()
+	}
 }
 
 // Update handles messages
 func (l *LogsView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
 			return l, l.Back()
-		case "up", "k":
-			if l.scrollPos > 0 {
-				l.scrollPos--
-			}
-		case "down", "j":
-			if l.scrollPos < len(l.logs)-l.height+2 {
-				l.scrollPos++
-			}
-		case "g":
-			l.scrollPos = 0 // Go to top
-		case "G":
-			l.scrollPos = len(l.logs) - l.height + 2 // Go to bottom
 		case "r":
 			return l, l.loadLogs()
 		}
+	case tea.WindowSizeMsg:
+		// Update viewport size if already initialized
+		if l.ready {
+			headerHeight := lipgloss.Height(l.headerView())
+			footerHeight := lipgloss.Height(l.footerView())
+			verticalMarginHeight := headerHeight + footerHeight
+
+			l.viewport.Width = msg.Width
+			l.viewport.Height = msg.Height - verticalMarginHeight
+		}
+	case LogsLoadedMsg:
+		l.logs = msg.Logs
+		if l.ready {
+			l.viewport.SetContent(l.buildContent())
+			// Auto-scroll to bottom for new logs
+			l.viewport.GotoBottom()
+		}
 	}
-	return l, nil
+
+	// Handle keyboard and mouse events in the viewport
+	if l.ready {
+		l.viewport, cmd = l.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	return l, tea.Batch(cmds...)
 }
 
 // View renders the logs view
@@ -90,88 +195,132 @@ func (l *LogsView) View() string {
 		return l.renderEmptyState()
 	}
 
-	var content strings.Builder
+	if !l.ready {
+		// Show a simple loading state instead of "Initializing..."
+		return fmt.Sprintf("%s\n\n%s", l.headerView(), "Loading logs...")
+	}
 
-	// Header
-	header := lipgloss.NewStyle().
+	return fmt.Sprintf("%s\n%s\n%s", l.headerView(), l.viewport.View(), l.footerView())
+}
+
+// headerView renders the header
+func (l *LogsView) headerView() string {
+	title := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("blue")).
-		Render(fmt.Sprintf("Logs (%d lines) - %s", len(l.logs), l.logFile))
-	content.WriteString(header)
-	content.WriteString("\n\n")
+		Render(fmt.Sprintf("Logs (%d entries) - %s", len(l.logs), l.logFile))
 
-	// Log lines
-	start := l.scrollPos
-	end := start + l.height - 3
-	if end > len(l.logs) {
-		end = len(l.logs)
+	if l.ready {
+		line := strings.Repeat("─", max(0, l.viewport.Width-lipgloss.Width(title)))
+		return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
+	}
+	return title
+}
+
+// footerView renders the footer with scroll percentage
+func (l *LogsView) footerView() string {
+	if !l.ready {
+		return ""
 	}
 
-	for i := start; i < end; i++ {
-		line := l.logs[i]
-		content.WriteString(l.renderLogLine(line))
-		content.WriteString("\n")
+	info := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("gray")).
+		Render(fmt.Sprintf("%3.f%%", l.viewport.ScrollPercent()*100))
+
+	line := strings.Repeat("─", max(0, l.viewport.Width-lipgloss.Width(info)))
+	return lipgloss.JoinHorizontal(lipgloss.Center, line, info)
+}
+
+// buildContent builds the content for the viewport
+func (l *LogsView) buildContent() string {
+	if len(l.logs) == 0 {
+		return "No logs available"
 	}
 
-	// Scroll indicator
-	if l.scrollPos > 0 || end < len(l.logs) {
+	var content strings.Builder
+	for _, entry := range l.logs {
+		content.WriteString(l.renderLogLine(entry))
 		content.WriteString("\n")
-		indicator := l.renderScrollIndicator()
-		content.WriteString(indicator)
 	}
 
 	return content.String()
 }
 
-// renderLogLine renders a single log line with syntax highlighting
-func (l *LogsView) renderLogLine(line string) string {
-	// Simple log level detection
-	var style lipgloss.Style
-
-	if strings.Contains(line, "ERROR") || strings.Contains(line, "FATAL") {
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("red"))
-	} else if strings.Contains(line, "WARN") {
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("yellow"))
-	} else if strings.Contains(line, "INFO") {
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("blue"))
-	} else if strings.Contains(line, "DEBUG") {
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("gray"))
-	} else {
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("white"))
+// max returns the maximum of two integers
+func max(a, b int) int {
+	if a > b {
+		return a
 	}
-
-	// Truncate line if too long
-	if len(line) > l.width-2 {
-		maxLength := l.width - 5
-		if maxLength < 0 {
-			maxLength = 0
-		}
-
-		if maxLength > len(line) {
-			maxLength = len(line)
-		}
-
-		line = line[:maxLength] + "..."
-	}
-
-	return style.Render(line)
+	return b
 }
 
-// renderScrollIndicator renders the scroll position indicator
-func (l *LogsView) renderScrollIndicator() string {
-	if len(l.logs) <= l.height-3 {
-		return ""
+// renderLogLine renders a single log line with syntax highlighting
+func (l *LogsView) renderLogLine(entry filemanager.LogEntry) string {
+	// Create a styled timestamp
+	timestamp := entry.Timestamp.Format("15:04:05")
+	timestampStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("gray"))
+
+	// Create level styling based on slog.Level
+	var levelStyle lipgloss.Style
+	switch entry.Level {
+	case slog.LevelError:
+		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("red")).Bold(true)
+	case slog.LevelWarn:
+		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("yellow")).Bold(true)
+	case slog.LevelInfo:
+		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("blue"))
+	case slog.LevelDebug:
+		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("gray"))
+	default:
+		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("white"))
 	}
 
-	progress := float64(l.scrollPos) / float64(len(l.logs)-l.height+2)
-	barWidth := 20
-	filled := int(progress * float64(barWidth))
+	// Format the log line
+	var line strings.Builder
 
-	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+	// Add timestamp
+	line.WriteString(timestampStyle.Render(timestamp))
+	line.WriteString(" ")
 
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("gray")).
-		Render(fmt.Sprintf("Scroll: [%s] %d/%d", bar, l.scrollPos+1, len(l.logs)-l.height+3))
+	// Add level
+	levelText := fmt.Sprintf("[%s]", entry.Level.String())
+	line.WriteString(levelStyle.Render(levelText))
+	line.WriteString(" ")
+
+	// Add message
+	messageStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("white"))
+	line.WriteString(messageStyle.Render(entry.Message))
+
+	// Add all attributes with different colors for different types
+	for _, key := range OrderArr {
+		value, ok := entry.Attrs[key]
+		if !ok {
+			continue
+		}
+		var attrStyle lipgloss.Style
+
+		// Color-code different types of attributes
+		switch {
+		case strings.HasPrefix(key, "request."):
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("green"))
+		case key == "sandbox":
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("cyan"))
+		case key == "error":
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("red"))
+		case strings.Contains(key, "time") || strings.Contains(key, "At"):
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("magenta"))
+		case key == "level" || key == "msg":
+			// Skip these as they're already displayed
+			continue
+		default:
+			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("yellow"))
+		}
+
+		line.WriteString(" ")
+		line.WriteString(attrStyle.Render(fmt.Sprintf("%s=%v", key, value)))
+	}
+
+	return lipgloss.NewStyle().SetString(line.String()).Width(l.viewport.Width - 2).Render()
 }
 
 // renderEmptyState renders the empty state
@@ -188,8 +337,7 @@ func (l *LogsView) loadLogs() tea.Cmd {
 		if err != nil {
 			// If file doesn't exist, create some mock logs
 			return LogsLoadedMsg{
-				Logs: l.generateMockLogs(),
-				Err:  nil,
+				Err: nil,
 			}
 		}
 		defer file.Close()
@@ -197,17 +345,17 @@ func (l *LogsView) loadLogs() tea.Cmd {
 		content, err := io.ReadAll(file)
 		if err != nil {
 			return LogsLoadedMsg{
-				Logs: l.generateMockLogs(),
-				Err:  err,
+				Err: err,
 			}
 		}
 
 		lines := strings.Split(string(content), "\n")
-		// Filter out empty lines
-		var logs []string
+		var logs []filemanager.LogEntry
+
 		for _, line := range lines {
 			if strings.TrimSpace(line) != "" {
-				logs = append(logs, line)
+				entry := filemanager.ParseLogLine(line)
+				logs = append(logs, entry)
 			}
 		}
 
@@ -218,53 +366,8 @@ func (l *LogsView) loadLogs() tea.Cmd {
 	}
 }
 
-// generateMockLogs creates some mock log entries for testing
-func (l *LogsView) generateMockLogs() []string {
-	now := time.Now()
-	logs := []string{
-		fmt.Sprintf("%s INFO  Traffic watch started", now.Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s INFO  Monitoring HTTP traffic on port 8080", now.Add(-5*time.Minute).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s INFO  Captured request: GET /api/users", now.Add(-4*time.Minute).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s INFO  Captured request: POST /api/users", now.Add(-3*time.Minute).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s WARN  Slow request detected: 2.5s", now.Add(-2*time.Minute).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s ERROR Failed to capture request: connection timeout", now.Add(-1*time.Minute).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s INFO  Captured request: PUT /api/users/1", now.Add(-30*time.Second).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s INFO  Captured request: DELETE /api/users/2", now.Add(-15*time.Second).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s DEBUG Request headers: Content-Type=application/json", now.Add(-10*time.Second).Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("%s INFO  Captured request: GET /api/health", now.Add(-5*time.Second).Format("2006-01-02 15:04:05")),
-	}
-
-	// Add some random log entries
-	for i := 0; i < 20; i++ {
-		levels := []string{"INFO", "DEBUG", "WARN", "ERROR"}
-		actions := []string{
-			"Captured request: GET /api/orders",
-			"Captured request: POST /api/auth/login",
-			"Captured request: PUT /api/products/123",
-			"Captured request: DELETE /api/orders/456",
-			"Slow request detected: 1.8s",
-			"Request completed successfully",
-			"Database connection established",
-			"Cache miss for key: user:123",
-			"Rate limit exceeded for IP: 192.168.1.100",
-			"Authentication successful for user: admin",
-		}
-
-		level := levels[i%len(levels)]
-		action := actions[i%len(actions)]
-		timestamp := now.Add(-time.Duration(i*10) * time.Second)
-
-		logs = append(logs, fmt.Sprintf("%s %s %s",
-			timestamp.Format("2006-01-02 15:04:05"),
-			level,
-			action))
-	}
-
-	return logs
-}
-
 // LogsLoadedMsg is sent when logs are loaded
 type LogsLoadedMsg struct {
-	Logs []string
+	Logs []filemanager.LogEntry
 	Err  error
 }

@@ -107,7 +107,7 @@ func waitForMetaFile(ctx context.Context, dir string, w io.Writer) error {
 }
 
 func runTrafficWatchTUI(dir string) error {
-	trafficWatch := tui.NewTrafficWatch(dir, config.OutputFormatJSON)
+	trafficWatch := tui.NewTrafficWatch(dir, config.OutputFormatJSON, "")
 	if err := trafficWatch.Run(); err != nil {
 		return fmt.Errorf("error running traffic watch: %w", err)
 	}
