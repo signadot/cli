@@ -375,6 +375,11 @@ func (sb *SandboxBuilder) SetMachineID() *SandboxBuilder {
 func WithData(data models.Sandbox) Option {
 	return func(sb SandboxBuilder) SandboxBuilder {
 		sb.internal = deepCopy(data)
+		// remove deprecated
+		sb.internal.Spec.Endpoints = nil
+		for _, f := range sb.internal.Spec.Forks {
+			f.Endpoints = nil
+		}
 		return sb
 	}
 }

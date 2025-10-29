@@ -18,6 +18,8 @@ type TrafficWatch struct {
 	WaitTimeout  time.Duration
 	NoInstrument bool
 	Clean        bool
+
+	TuiMode bool
 }
 
 func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
@@ -30,4 +32,5 @@ func (c *TrafficWatch) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.NoInstrument, "no-instrument", false, "do not instrument sandbox")
 	cmd.Flags().MarkHidden("no-instrument")
 	cmd.Flags().BoolVar(&c.Clean, "clean", false, "remove old data from output directory first, unless --short")
+	cmd.Flags().BoolVar(&c.TuiMode, "inspect", false, "inspect traffic in TUI mode")
 }

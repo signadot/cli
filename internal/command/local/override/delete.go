@@ -1,12 +1,16 @@
 package override
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
@@ -32,6 +36,10 @@ Example:
 }
 
 func runDelete(out io.Writer, cfg *config.LocalOverrideDelete, name string) error {
+	ctx, cancel := signal.NotifyContext(context.Background(),
+		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
+	defer cancel()
+
 	if err := cfg.InitLocalConfig(); err != nil {
 		return err
 	}
@@ -41,16 +49,15 @@ func runDelete(out io.Writer, cfg *config.LocalOverrideDelete, name string) erro
 		return err
 	}
 
-	printOverrideProgress(out, fmt.Sprintf("Removing override %s from sandbox %s", name, cfg.Sandbox))
-
 	// Get the sandbox
-	sandbox, err := getSandboxForDelete(cfg)
+	sb, err := utils.GetSandbox(ctx, cfg.API, cfg.Sandbox)
 	if err != nil {
 		return err
 	}
+	printOverrideProgress(out, fmt.Sprintf("Removing override %s from sandbox %s", name, cfg.Sandbox))
 
 	// Verify the override exists in the sandbox and is not attached
-	overrideDetails := getOverrideDetails(sandbox, name)
+	overrideDetails := getOverrideDetails(sb, name)
 	switch {
 	case overrideDetails == nil:
 		return fmt.Errorf("override %s not found in sandbox %s", name, cfg.Sandbox)
@@ -59,24 +66,13 @@ func runDelete(out io.Writer, cfg *config.LocalOverrideDelete, name string) erro
 	}
 
 	// Delete the override from the sandbox
-	if err := deleteOverrideFromSandbox(cfg, sandbox, name); err != nil {
+	if err := deleteOverrideFromSandbox(ctx, cfg.API, sb, name); err != nil {
 		return err
 	}
 
 	printOverrideStatus(out, fmt.Sprintf("Override %s deleted successfully from sandbox %s", name, cfg.Sandbox), true)
 
 	return nil
-}
-
-func getSandboxForDelete(cfg *config.LocalOverrideDelete) (*models.Sandbox, error) {
-	sandboxParams := sandboxes.NewGetSandboxParams().WithOrgName(cfg.Org).WithSandboxName(cfg.Sandbox)
-
-	resp, err := cfg.Client.Sandboxes.
-		GetSandbox(sandboxParams, nil)
-	if err != nil {
-		return nil, err
-	}
-	return resp.Payload, nil
 }
 
 func getOverrideDetails(sandbox *models.Sandbox, overrideName string) *builder.DetailedOverrideMiddleware {
@@ -94,27 +90,4 @@ func getOverrideDetails(sandbox *models.Sandbox, overrideName string) *builder.D
 	}
 
 	return detailsOverride
-}
-
-func deleteOverrideFromSandbox(cfg *config.LocalOverrideDelete, sandbox *models.Sandbox, overrideName string) error {
-	// Use the sandbox builder to delete the override
-	sbBuilder := builder.
-		BuildSandbox(cfg.Sandbox, builder.WithData(*sandbox)).
-		SetMachineID().
-		DeleteOverrideMiddleware(overrideName)
-
-	sb, err := sbBuilder.Build()
-	if err != nil {
-		return err
-	}
-
-	// Apply the updated sandbox
-	sbParams := sandboxes.
-		NewApplySandboxParams().
-		WithOrgName(cfg.Org).
-		WithSandboxName(cfg.Sandbox).
-		WithData(&sb)
-
-	_, err = cfg.Client.Sandboxes.ApplySandbox(sbParams, nil)
-	return err
 }

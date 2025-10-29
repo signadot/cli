@@ -2,6 +2,7 @@
 package poll
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -37,9 +38,12 @@ func (p *Poll) WithResetOnLoop(resetOnLoop bool) *Poll {
 	return p
 }
 
-// UntilWithError polls until the given function returns true, or the timeout expires.
-// But also can return error so can be pass down to handle proper errors
-func (p *Poll) UntilWithError(fn func() (bool, error)) error {
+type UntilWithErrorFunc func(ctx context.Context) (bool, error)
+
+// UntilWithError polls until the given function returns true, or the timeout
+// expires. But also can return error so can be pass down to handle proper
+// errors
+func (p *Poll) UntilWithError(ctx context.Context, fn UntilWithErrorFunc) error {
 	start := time.Now()
 
 	for {
@@ -47,11 +51,10 @@ func (p *Poll) UntilWithError(fn func() (bool, error)) error {
 			return fmt.Errorf("timed out after %v", p.timeout)
 		}
 
-		done, err := fn()
+		done, err := fn(ctx)
 		if done {
 			return nil
 		}
-
 		if err != nil {
 			return err
 		}
@@ -60,13 +63,20 @@ func (p *Poll) UntilWithError(fn func() (bool, error)) error {
 			start = time.Now()
 		}
 
-		time.Sleep(p.delay)
+		select {
+		case <-time.After(p.delay):
+			continue
+		case <-ctx.Done():
+			return fmt.Errorf("poll canceled during wait: %w", ctx.Err())
+		}
 	}
 }
 
+type UntilFunc func(ctx context.Context) bool
+
 // Until polls until the given function returns true, or the timeout expires.
-func (p *Poll) Until(fn func() bool) error {
-	return p.UntilWithError(func() (bool, error) {
-		return fn(), nil
+func (p *Poll) Until(ctx context.Context, fn UntilFunc) error {
+	return p.UntilWithError(ctx, func(ctx context.Context) (bool, error) {
+		return fn(ctx), nil
 	})
 }
