@@ -147,22 +147,26 @@ func runOverride(out, errOut io.Writer, cfg *config.LocalOverrideCreate) error {
 	defer cancel()
 
 	green := color.New(color.FgGreen).SprintFunc()
+	bold := color.New(color.Bold).SprintFunc()
 	fmt.Fprintf(out, "%s Override created port %d to %s\n", green("✓"), cfg.Port, cfg.To)
 
-	// Add policy message
-	if len(cfg.ExcludedStatusCodes) > 0 {
-		// When except-status is used, everything is overridden by default except specified status codes
-		policyMessage := fmt.Sprintf("Policy: All traffic will be overridden by the local process for sandbox <%s>", cfg.Sandbox)
-		fmt.Fprintf(out, "%s\n", policyMessage)
+	fmt.Fprintf(out, "\nOverride has been set up successfully.\n")
 
+	if len(cfg.ExcludedStatusCodes) > 0 {
+		// Status-Based Override: everything is overridden except specified status codes
 		codes := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(cfg.ExcludedStatusCodes)), ","), "[]")
-		excludedStatusCodesMessage := fmt.Sprintf("Override will not apply to responses with status codes: %s", codes)
-		fmt.Fprintf(out, "%s\n", excludedStatusCodesMessage)
+		fmt.Fprintf(out, "* If %s responds with status %s\n", cfg.To, codes)
+		fmt.Fprintf(out, "    -> Final response from: %s (Sandbox)\n", bold(cfg.Workload+":"+fmt.Sprint(cfg.Port)))
+		fmt.Fprintf(out, "* Default: (All other local responses)\n")
+		fmt.Fprintf(out, "    -> Final response from: %s\n", bold(cfg.To))
 	} else {
-		// Default behavior: only override when sd-override: true header is present
-		policyMessage := fmt.Sprintf("Policy: HTTP/gRPC responses containing the 'sd-override: true' header will be intercepted by the local process for sandbox <%s>", cfg.Sandbox)
-		fmt.Fprintf(out, "%s\n", policyMessage)
+		// Header-Based Override: only override when sd-override: true header is present
+		fmt.Fprintf(out, "* If %s responds with `sd-override: true` header\n", cfg.To)
+		fmt.Fprintf(out, "    -> Final response from: %s\n", bold(cfg.To))
+		fmt.Fprintf(out, "* Default: (All other local responses)\n")
+		fmt.Fprintf(out, "    -> Final response from: %s (Sandbox)\n", bold(cfg.Workload+":"+fmt.Sprint(cfg.Port)))
 	}
+	fmt.Fprintf(out, "\n")
 
 	startLogServer(ctx, logServer, logListener)
 	readiness := poll.NewPoll().Readiness(ctx, 5*time.Second, ckMatch(cfg, sandbox, overrideName))
