@@ -294,10 +294,10 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 
 	// date-time  protocol  host
 	line1 := fmt.Sprintf("%s  %-5s  ", formattedTime, protocol)
-	line1 += truncateURL(host, l.width-len(line1)-1)
+	line1 += truncateURL(host, l.width-lipgloss.Width(line1)-1)
 	// method  fullPath
 	line2 := fmt.Sprintf("%-6s  ", method)
-	line2 += truncateURL(fullPath, l.width-len(line2)-1)
+	line2 += truncateURL(fullPath, l.width-lipgloss.Width(line2)-1)
 
 	content := lipgloss.NewStyle().Width(l.width).Render(line1 + "\n" + line2)
 	if selected {
