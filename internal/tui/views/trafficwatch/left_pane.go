@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/filemanager"
-	"github.com/xeonx/timeago"
 )
 
 type LeftPane struct {
@@ -279,9 +278,17 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 
 	method := methodStyle.Render(req.Method)
 	host := hostStyle.Render(parsedURL.Host)
-	path := pathStyle.Render(parsedURL.Path)
+	fullPath := pathStyle.Render(parsedURL.Path)
+	if parsedURL.RawQuery != "" {
+		fullPath += "?" + parsedURL.RawQuery
+	}
 
-	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s %s %s %s%s", req.Protocol, timeago.NoMax(timeago.English).Format(req.DoneAt), method, host, path))
+	if parsedURL.Fragment != "" {
+		fullPath += "?" + parsedURL.Fragment
+	}
+
+	timestamp := req.DoneAt
+	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s %s %s %s%s", timestamp, req.Protocol, method, host, fullPath))
 	line2 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("   ↳ %s  •  %s",
 		subtleStyle.Render(req.RoutingKey),
 		accentStyle.Render(req.DestWorkload),
