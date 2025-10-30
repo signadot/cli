@@ -17,7 +17,7 @@ const (
 	MessageTypeStatusNoStarted MessageType = "target_not_found"
 
 	ProtocolHTTP Protocol = "http"
-	ProtocolGRPC Protocol = "grpc"
+	ProtocolGRPC Protocol = "gRPC"
 )
 
 type RequestMetadata struct {

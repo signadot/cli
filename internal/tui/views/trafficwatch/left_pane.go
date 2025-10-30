@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/filemanager"
-	"github.com/xeonx/timeago"
 )
 
 type LeftPane struct {
@@ -253,8 +252,6 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 	cMethodDel := lipgloss.Color("9")       // red
 	cHost := lipgloss.Color("245")          // light gray
 	cPath := lipgloss.Color("81")           // bright blue
-	cSubtle := lipgloss.Color("244")        // muted gray
-	cAccent := lipgloss.Color("37")         // soft teal
 	cSelectedAccent := lipgloss.Color("63") // blue accent (selection marker)
 
 	var methodColor lipgloss.Color
@@ -274,32 +271,46 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 	methodStyle := lipgloss.NewStyle().Foreground(methodColor).Bold(true).Width(6)
 	hostStyle := lipgloss.NewStyle().Foreground(cHost)
 	pathStyle := lipgloss.NewStyle().Foreground(cPath)
-	subtleStyle := lipgloss.NewStyle().Foreground(cSubtle)
-	accentStyle := lipgloss.NewStyle().Foreground(cAccent).Italic(true)
 
-	method := methodStyle.Render(req.Method)
+	method := methodStyle.Render(strings.ToUpper(req.Method))
 	host := hostStyle.Render(parsedURL.Host)
-	path := pathStyle.Render(parsedURL.Path)
+	fullPath := pathStyle.Render(parsedURL.Path)
+	if parsedURL.RawQuery != "" {
+		fullPath += "?" + parsedURL.RawQuery
+	}
 
-	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s %s %s %s%s", req.Protocol, timeago.NoMax(timeago.English).Format(req.DoneAt), method, host, path))
-	line2 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("   ↳ %s  •  %s",
-		subtleStyle.Render(req.RoutingKey),
-		accentStyle.Render(req.DestWorkload),
-	))
+	if parsedURL.Fragment != "" {
+		fullPath += "#" + parsedURL.Fragment
+	}
 
-	content := fmt.Sprintf("%s\n%s", line1, line2)
+	// Format timestamp (strip milliseconds and timezone)
+	timestamp := req.DoneAt
+	formattedTime := timestamp.Format("2006-01-02 15:04:05")
+
+	// Properly render protocol
+	protocol := strings.ToUpper(string(req.Protocol))
+	if strings.Contains(protocol, "GRPC") {
+		protocol = "gRPC"
+	} else {
+		protocol = "HTTP"
+	}
+
+	line := lipgloss.NewStyle().Width(l.width).Render(
+		fmt.Sprintf("%s  %-5s  %-6s  %s%s", formattedTime, protocol, method, host, fullPath),
+	)
+
+	content := fmt.Sprintf("%s", line)
 
 	if selected {
 		indicator := lipgloss.NewStyle().
 			Foreground(cSelectedAccent).
-			Render("▌") // left vertical bar
+			Render("▌")
 
 		lines := strings.Split(content, "\n")
 		for i, line := range lines {
 			lines[i] = fmt.Sprintf("%s %s", indicator, line)
 		}
-
-		lines[len(lines)-1] = lines[len(lines)-1] + "\n"
+		lines[len(lines)-1] += "\n"
 		return strings.Join(lines, "\n")
 	}
 
