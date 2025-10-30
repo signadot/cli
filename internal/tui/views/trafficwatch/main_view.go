@@ -241,6 +241,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshData()
 			return m, nil
 		case key.Matches(msg, m.keys.Tab):
+			m.rightPane.SetFocused(m.focus != "right")
 			if m.focus == "left" {
 				m.focus = "right"
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
@@ -260,6 +261,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move focus from left pane to right pane, or navigate within right pane
 			if m.focus == "left" {
 				m.focus = "right"
+				m.rightPane.SetFocused(true)
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 					fmt.Sprintf("Loaded %d requests", len(m.requests)),
 				)
@@ -272,6 +274,8 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// If already on right pane, let the right pane handle tab navigation
 		case key.Matches(msg, m.keys.Left):
+			m.rightPane.SetFocused(false)
+
 			// Move focus from right pane to left pane, or navigate within left pane
 			if m.focus == "right" {
 				// Check if we're at the first tab of right pane
@@ -321,6 +325,8 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Update focused pane
 	var cmd tea.Cmd
 	if m.state == StateWithData {
+		m.rightPane.SetFocused(m.focus == "right")
+
 		switch m.focus {
 		case "left":
 			_, cmd = m.leftPane.Update(msg)

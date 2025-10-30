@@ -40,6 +40,8 @@ type RightPane struct {
 	width     int
 	height    int
 
+	focused bool
+
 	requestContent  string
 	responseContent string
 
@@ -57,14 +59,18 @@ func NewRightPane(recordDir string) *RightPane {
 	}
 }
 
+func (r *RightPane) SetFocused(focused bool) {
+	r.focused = focused
+}
+
 // SetSize sets the size of the right pane
 func (r *RightPane) SetSize(width, height int) {
 	r.width = width
 	r.height = height
 
-	r.viewport.Height = r.height - lipgloss.Height(r.renderTabBar()) - 4
+	r.viewport.Height = r.height - lipgloss.Height(r.renderTabBar(false)) - 4
 	r.viewport.Width = width - 1
-	r.viewport.YPosition = lipgloss.Height(r.renderTabBar())
+	r.viewport.YPosition = lipgloss.Height(r.renderTabBar(false))
 
 	if r.request != nil {
 		r.SetRequest(r.request)
@@ -131,7 +137,7 @@ func (r *RightPane) View() string {
 
 	var content strings.Builder
 
-	tabBar := r.renderTabBar()
+	tabBar := r.renderTabBar(r.focused)
 	content.WriteString(tabBar)
 	content.WriteString("\n\n")
 
@@ -143,7 +149,7 @@ func (r *RightPane) View() string {
 }
 
 // renderTabBar renders the tab bar
-func (r *RightPane) renderTabBar() string {
+func (r *RightPane) renderTabBar(isFocused bool) string {
 	tabs := []string{"Request", "Response"}
 	tabColors := []string{"#008080", "#008080"}
 
@@ -155,9 +161,18 @@ func (r *RightPane) renderTabBar() string {
 
 		if int(r.activeTab) == i {
 			style = style.
-				Background(lipgloss.Color(tabColors[i])).
-				Foreground(lipgloss.Color("white")).
+				Foreground(lipgloss.Color(tabColors[i])).
 				Bold(true)
+
+			switch isFocused {
+			case true:
+				style = style.
+					Background(lipgloss.Color(tabColors[i])).
+					Foreground(lipgloss.Color("white"))
+			case false:
+				style = style.
+					Underline(true)
+			}
 		} else {
 			style = style.
 				Foreground(lipgloss.Color(tabColors[i]))
