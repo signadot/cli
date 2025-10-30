@@ -9,11 +9,12 @@ import (
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/signadot/libconnect/common/trafficwatch/api"
+	"github.com/signadot/cli/internal/tui/filemanager"
+	"github.com/xeonx/timeago"
 )
 
 type LeftPane struct {
-	requests                    []*api.RequestMetadata
+	requests                    []*filemanager.RequestMetadata
 	selected                    int
 	selectedRequestMiddlewareID string
 
@@ -24,10 +25,10 @@ type LeftPane struct {
 }
 
 type RefreshDataMsg struct {
-	Requests []*api.RequestMetadata
+	Requests []*filemanager.RequestMetadata
 }
 
-func NewLeftPane(requests []*api.RequestMetadata) *LeftPane {
+func NewLeftPane(requests []*filemanager.RequestMetadata) *LeftPane {
 	p := paginator.New()
 	p.Type = paginator.Arabic
 	p.ArabicFormat = "%d of %d"
@@ -66,7 +67,7 @@ func (l *LeftPane) SetSize(width, height int) {
 	}
 }
 
-func (l *LeftPane) SetRequests(requests []*api.RequestMetadata) {
+func (l *LeftPane) SetRequests(requests []*filemanager.RequestMetadata) {
 	l.requests = requests
 	if l.selected >= len(requests) && l.selected != -1 {
 		l.selected = 0
@@ -103,7 +104,7 @@ func (l *LeftPane) PrevPage(withAuto bool) tea.Cmd {
 	}
 }
 
-func (l *LeftPane) RefreshData(requests []*api.RequestMetadata) tea.Cmd {
+func (l *LeftPane) RefreshData(requests []*filemanager.RequestMetadata) tea.Cmd {
 	return func() tea.Msg {
 		return RefreshDataMsg{Requests: requests}
 	}
@@ -240,7 +241,7 @@ func (l *LeftPane) View() string {
 	return content.String()
 }
 
-func (l *LeftPane) renderRequestItem(req *api.RequestMetadata, selected bool) string {
+func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected bool) string {
 	parsedURL, err := url.ParseRequestURI(req.RequestURI)
 	if err != nil {
 		parsedURL = &url.URL{Path: req.RequestURI}
@@ -280,7 +281,7 @@ func (l *LeftPane) renderRequestItem(req *api.RequestMetadata, selected bool) st
 	host := hostStyle.Render(parsedURL.Host)
 	path := pathStyle.Render(parsedURL.Path)
 
-	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s  %s%s", method, host, path))
+	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s %s %s %s%s", req.Protocol, timeago.NoMax(timeago.English).Format(req.DoneAt), method, host, path))
 	line2 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("   ↳ %s  •  %s",
 		subtleStyle.Render(req.RoutingKey),
 		accentStyle.Render(req.DestWorkload),

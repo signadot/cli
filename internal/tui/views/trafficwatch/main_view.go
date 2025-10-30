@@ -13,7 +13,6 @@ import (
 	"github.com/signadot/cli/internal/tui/components"
 	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/views"
-	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 // MainViewState represents the current state of the main view
@@ -30,7 +29,7 @@ const (
 type MainView struct {
 	state MainViewState
 
-	requests   []*api.RequestMetadata
+	requests   []*filemanager.RequestMetadata
 	selectedID string
 
 	leftPane  *LeftPane
@@ -58,7 +57,7 @@ type MainView struct {
 
 // NewMainView creates a new main view
 func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile string) (*MainView, error) {
-	requests := []*api.RequestMetadata{}
+	requests := []*filemanager.RequestMetadata{}
 
 	leftPane := NewLeftPane(requests)
 	rightPane := NewRightPane()
@@ -454,7 +453,7 @@ type RequestSelectedMsg struct {
 	RequestID string
 }
 type trafficMsg struct {
-	Request     *api.RequestMetadata
+	Request     *filemanager.RequestMetadata
 	MessageType filemanager.MessageType
 	Error       error
 }
