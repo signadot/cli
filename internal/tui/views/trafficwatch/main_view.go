@@ -290,7 +290,13 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Otherwise, let the right pane handle tab navigation
 			}
-			// If already on left pane, let the left pane handle its own navigation
+
+			// Return early when focus is on left to prevent message passthrough.
+			// Otherwise, the paginator would interpret arrow keys (with aliases like "left" for prevPage)
+			// and cause unintended navigation in the left pane.q
+			if m.focus == "left" {
+				return m, nil
+			}
 		}
 
 	case RequestSelectedMsg:
