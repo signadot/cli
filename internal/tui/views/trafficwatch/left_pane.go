@@ -204,9 +204,19 @@ func (l *LeftPane) View() string {
 		}
 	}
 
-	content.WriteString("\n" + l.paginator.View())
+	mainContent := content.String()
+	paginatorView := l.paginator.View()
 
-	return content.String()
+	// Use lipgloss to position content at top and paginator at bottom
+	paginatorHeight := lipgloss.Height(paginatorView)
+	availableHeight := l.height - paginatorHeight - 2
+
+	// Place main content at the top, paginator at the bottom
+	topContent := lipgloss.NewStyle().
+		Height(availableHeight).
+		Render(mainContent)
+
+	return lipgloss.JoinVertical(lipgloss.Left, topContent, paginatorView)
 }
 
 func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected bool) string {
