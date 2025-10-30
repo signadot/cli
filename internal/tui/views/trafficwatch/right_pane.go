@@ -321,10 +321,16 @@ func (r *RightPane) renderResponseTab(response *http.Response, err error) string
 			Width(r.width - 6).
 			Border(lipgloss.RoundedBorder())
 
-		body := response.Body
-		bodyString, err := io.ReadAll(body)
-		if err != nil {
-			log.Fatal(err)
+		var bodyString string
+		if r.request.Protocol == filemanager.ProtocolGRPC {
+			bodyString = "Binary response"
+		} else {
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				bodyString = fmt.Sprintf("Data couldn't be handled: %v", err.Error())
+			} else {
+				bodyString = string(body)
+			}
 		}
 
 		if len(bodyString) == 0 {

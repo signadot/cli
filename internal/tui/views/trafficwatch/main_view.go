@@ -295,7 +295,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case RequestSelectedMsg:
 		m.selectedID = msg.RequestID
-		request := m.leftPane.requests[m.leftPane.selected]
+		request := m.getCurrentRequest()
 		m.rightPane.SetRequest(m.config.GetRecordDir(), request)
 
 		return m, nil
@@ -446,6 +446,16 @@ func (m *MainView) refreshData() {
 		components.StatusSuccess,
 		fmt.Sprintf("Refreshed %d requests", len(m.requests)),
 	)
+}
+
+func (m *MainView) getCurrentRequest() *filemanager.RequestMetadata {
+	for _, req := range m.requests {
+		if req.MiddlewareRequestID == m.leftPane.selectedRequestMiddlewareID {
+			return req
+		}
+	}
+
+	return nil
 }
 
 // RequestSelectedMsg is sent when a request is selected
