@@ -6,12 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/goccy/go-yaml"
 	"github.com/signadot/cli/internal/config"
-	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 type TrafficWatchScanner struct {
@@ -20,14 +21,17 @@ type TrafficWatchScanner struct {
 
 	resumeCh chan struct{}
 	closeCh  chan struct{}
+
+	pendingRequests map[string]*RequestMetadata
 }
 
 func NewTrafficWatchScanner(cfg *TrafficWatchScannerConfig) *TrafficWatchScanner {
 	return &TrafficWatchScanner{
-		cfg:      cfg,
-		offset:   0,
-		resumeCh: make(chan struct{}),
-		closeCh:  make(chan struct{}),
+		cfg:             cfg,
+		offset:          0,
+		resumeCh:        make(chan struct{}),
+		closeCh:         make(chan struct{}),
+		pendingRequests: make(map[string]*RequestMetadata),
 	}
 }
 
@@ -107,9 +111,7 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 			continue
 		}
 
-		var metaRequest *api.RequestMetadata
-
-		metaRequest = &api.RequestMetadata{}
+		metaRequest := &RequestMetadata{}
 
 		switch tw.cfg.recordsFormat {
 		case config.OutputFormatJSON:
@@ -132,19 +134,55 @@ func (tw *TrafficWatchScanner) checkForNewContent() {
 			continue
 		}
 
-		if metaRequest.DestWorkload == "" {
-			continue
-		}
-
-		tw.cfg.onNewLine(&LineMessage{
-			MessageType: MessageTypeData,
-			Data:        metaRequest,
-		})
+		tw.handleMessageRequest(metaRequest)
 	}
 
 	if err := scanner.Err(); err != nil {
 		return
 	}
+}
+
+func (tw *TrafficWatchScanner) handleMessageRequest(request *RequestMetadata) {
+	if !request.DoneAt.IsZero() {
+		pendingRequest, ok := tw.pendingRequests[request.MiddlewareRequestID]
+		if !ok {
+			return
+		}
+
+		pendingRequest.DoneAt = request.DoneAt
+
+		response, _ := tw.loadResponseFile(pendingRequest)
+		if response != nil {
+			switch response.Header.Get("Content-Type") {
+			case "application/grpc":
+				pendingRequest.Protocol = ProtocolGRPC
+			default:
+				pendingRequest.Protocol = ProtocolHTTP
+			}
+		}
+
+		tw.cfg.onNewLine(&LineMessage{
+			MessageType: MessageTypeData,
+			Data:        pendingRequest,
+		})
+
+		delete(tw.pendingRequests, request.MiddlewareRequestID)
+		return
+	}
+
+	if _, ok := tw.pendingRequests[request.MiddlewareRequestID]; !ok {
+		tw.pendingRequests[request.MiddlewareRequestID] = request
+	}
+}
+
+func (tw *TrafficWatchScanner) loadResponseFile(request *RequestMetadata) (*http.Response, error) {
+	requestFile, err := os.Open(filepath.Join(tw.cfg.recordDir, request.MiddlewareRequestID, "response"))
+	if err != nil {
+		return nil, err
+	}
+	defer requestFile.Close()
+
+	return http.ReadResponse(bufio.NewReader(requestFile), &http.Request{})
 }
 
 func (tw *TrafficWatchScanner) splitYAML(data []byte, atEOF bool) (advance int, token []byte, err error) {

@@ -9,12 +9,14 @@ import (
 	"github.com/charmbracelet/bubbles/paginator"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/signadot/libconnect/common/trafficwatch/api"
+	"github.com/signadot/cli/internal/tui/filemanager"
+	"github.com/xeonx/timeago"
 )
 
 type LeftPane struct {
-	requests []*api.RequestMetadata
-	selected int
+	requests                    []*filemanager.RequestMetadata
+	selected                    int
+	selectedRequestMiddlewareID string
 
 	width  int
 	height int
@@ -23,10 +25,10 @@ type LeftPane struct {
 }
 
 type RefreshDataMsg struct {
-	Requests []*api.RequestMetadata
+	Requests []*filemanager.RequestMetadata
 }
 
-func NewLeftPane(requests []*api.RequestMetadata) *LeftPane {
+func NewLeftPane(requests []*filemanager.RequestMetadata) *LeftPane {
 	p := paginator.New()
 	p.Type = paginator.Arabic
 	p.ArabicFormat = "%d of %d"
@@ -65,7 +67,7 @@ func (l *LeftPane) SetSize(width, height int) {
 	}
 }
 
-func (l *LeftPane) SetRequests(requests []*api.RequestMetadata) {
+func (l *LeftPane) SetRequests(requests []*filemanager.RequestMetadata) {
 	l.requests = requests
 	if l.selected >= len(requests) && l.selected != -1 {
 		l.selected = 0
@@ -102,7 +104,7 @@ func (l *LeftPane) PrevPage(withAuto bool) tea.Cmd {
 	}
 }
 
-func (l *LeftPane) RefreshData(requests []*api.RequestMetadata) tea.Cmd {
+func (l *LeftPane) RefreshData(requests []*filemanager.RequestMetadata) tea.Cmd {
 	return func() tea.Msg {
 		return RefreshDataMsg{Requests: requests}
 	}
@@ -116,6 +118,28 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshDataMsg:
 		l.SetRequests(msg.Requests)
 		l.SetSize(l.width, l.height)
+
+		// Recalculate the selected index
+		if l.selectedRequestMiddlewareID != "" {
+			for i, req := range l.requests {
+				if req.MiddlewareRequestID == l.selectedRequestMiddlewareID {
+					l.selected = len(l.requests) - i - 1
+					break
+				}
+			}
+
+			// Calculate the page based on the selected index
+			l.paginator.Page = l.selected / l.paginator.PerPage
+
+			if l.paginator.Page >= l.paginator.TotalPages {
+				l.paginator.Page = l.paginator.TotalPages - 1
+			}
+
+			if l.paginator.Page < 0 {
+				l.paginator.Page = 0
+			}
+		}
+
 		return l, nil
 	case NextPageMsg:
 		if l.paginator.Page < l.paginator.TotalPages {
@@ -130,6 +154,12 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If not auto first, move the selected index down by the number of items per page
 			if !msg.AutoFirst {
 				l.selected = l.selected + l.paginator.PerPage
+
+				// This happens when the same row in the next page, don't have a pair element in that row
+				if l.selected >= len(l.requests) {
+					l.selected = len(l.requests) - 1
+				}
+				return l, l.sendSelection()
 			}
 		}
 		return l, nil
@@ -140,6 +170,7 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// If auto last, keep the selected index as is
 			if !msg.AutoLast {
 				l.selected = l.selected - l.paginator.PerPage
+				return l, l.sendSelection()
 			}
 
 			l.paginator.Page--
@@ -151,10 +182,6 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if l.selected > 0 {
 				// If an item is selected, move up
 				l.selected--
-				return l, l.sendSelection()
-			} else if l.selected == -1 && len(l.requests) > 0 {
-				// If nothing is selected, go to the last item
-				l.selected = len(l.requests) - 1
 				return l, l.sendSelection()
 			}
 			return l, nil
@@ -200,7 +227,8 @@ func (l *LeftPane) View() string {
 	start, end = l.paginator.GetSliceBounds(len(l.requests))
 
 	for i := start; i < end; i++ {
-		req := l.requests[i]
+		realIndex := len(l.requests) - i - 1
+		req := l.requests[realIndex]
 		item := l.renderRequestItem(req, i == l.selected)
 		content.WriteString(item)
 		if i < end-1 { // Don't add newline after the last item
@@ -213,7 +241,7 @@ func (l *LeftPane) View() string {
 	return content.String()
 }
 
-func (l *LeftPane) renderRequestItem(req *api.RequestMetadata, selected bool) string {
+func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected bool) string {
 	parsedURL, err := url.ParseRequestURI(req.RequestURI)
 	if err != nil {
 		parsedURL = &url.URL{Path: req.RequestURI}
@@ -253,7 +281,7 @@ func (l *LeftPane) renderRequestItem(req *api.RequestMetadata, selected bool) st
 	host := hostStyle.Render(parsedURL.Host)
 	path := pathStyle.Render(parsedURL.Path)
 
-	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s  %s%s", method, host, path))
+	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s %s %s %s%s", req.Protocol, timeago.NoMax(timeago.English).Format(req.DoneAt), method, host, path))
 	line2 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("   ↳ %s  •  %s",
 		subtleStyle.Render(req.RoutingKey),
 		accentStyle.Render(req.DestWorkload),
@@ -298,6 +326,8 @@ func (l *LeftPane) sendSelection() tea.Cmd {
 		} else if l.selected > maxIndex {
 			cmd = l.NextPage(true)
 		}
+
+		l.selectedRequestMiddlewareID = l.requests[len(l.requests)-l.selected-1].MiddlewareRequestID
 
 		return tea.Batch(cmd, func() tea.Msg {
 			return RequestSelectedMsg{

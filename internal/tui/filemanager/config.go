@@ -3,21 +3,33 @@ package filemanager
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 type MessageType string
+type Protocol string
 
 const (
 	MessageTypeData            MessageType = "data"
 	MessageTypeStatusNoStarted MessageType = "target_not_found"
+
+	ProtocolHTTP Protocol = "http"
+	ProtocolGRPC Protocol = "grpc"
 )
+
+type RequestMetadata struct {
+	api.RequestMetadata
+
+	DoneAt   time.Time `json:"doneAt"`
+	Protocol Protocol
+}
 
 type LineMessage struct {
 	MessageType MessageType
-	Data        *api.RequestMetadata
+	Data        *RequestMetadata
 	Error       error
 }
 

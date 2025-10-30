@@ -12,8 +12,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/components"
+	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/utils"
-	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 var (
@@ -37,7 +37,7 @@ const (
 
 // RightPane represents the right pane showing request details
 type RightPane struct {
-	request   *api.RequestMetadata
+	request   *filemanager.RequestMetadata
 	activeTab RightPaneTab
 	width     int
 	height    int
@@ -206,7 +206,7 @@ func (r *RightPane) getLineRenderMeta(key string, value string) string {
 }
 
 // renderMetaTab renders the meta information tab
-func (r *RightPane) renderMetaTab(request *api.RequestMetadata) string {
+func (r *RightPane) renderMetaTab(request *filemanager.RequestMetadata) string {
 	var content strings.Builder
 
 	content.WriteString(lipgloss.NewStyle().
@@ -321,10 +321,16 @@ func (r *RightPane) renderResponseTab(response *http.Response, err error) string
 			Width(r.width - 6).
 			Border(lipgloss.RoundedBorder())
 
-		body := response.Body
-		bodyString, err := io.ReadAll(body)
-		if err != nil {
-			log.Fatal(err)
+		var bodyString string
+		if r.request.Protocol == filemanager.ProtocolGRPC {
+			bodyString = "Binary response"
+		} else {
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				bodyString = fmt.Sprintf("Data couldn't be handled: %v", err.Error())
+			} else {
+				bodyString = string(body)
+			}
 		}
 
 		if len(bodyString) == 0 {
@@ -339,7 +345,7 @@ func (r *RightPane) renderResponseTab(response *http.Response, err error) string
 }
 
 // SetRequest sets the current request to display
-func (r *RightPane) SetRequest(trafficDir string, request *api.RequestMetadata) {
+func (r *RightPane) SetRequest(trafficDir string, request *filemanager.RequestMetadata) {
 	r.request = request
 
 	r.currentTrafficDir = trafficDir

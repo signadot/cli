@@ -13,7 +13,6 @@ import (
 	"github.com/signadot/cli/internal/tui/components"
 	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/views"
-	"github.com/signadot/libconnect/common/trafficwatch/api"
 )
 
 // MainViewState represents the current state of the main view
@@ -30,7 +29,7 @@ const (
 type MainView struct {
 	state MainViewState
 
-	requests   []*api.RequestMetadata
+	requests   []*filemanager.RequestMetadata
 	selectedID string
 
 	leftPane  *LeftPane
@@ -58,7 +57,7 @@ type MainView struct {
 
 // NewMainView creates a new main view
 func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile string) (*MainView, error) {
-	requests := []*api.RequestMetadata{}
+	requests := []*filemanager.RequestMetadata{}
 
 	leftPane := NewLeftPane(requests)
 	rightPane := NewRightPane()
@@ -291,12 +290,18 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				// Otherwise, let the right pane handle tab navigation
 			}
-			// If already on left pane, let the left pane handle its own navigation
+
+			// Return early when focus is on left to prevent message passthrough.
+			// Otherwise, the paginator would interpret arrow keys (with aliases like "left" for prevPage)
+			// and cause unintended navigation in the left pane.q
+			if m.focus == "left" {
+				return m, nil
+			}
 		}
 
 	case RequestSelectedMsg:
 		m.selectedID = msg.RequestID
-		request := m.leftPane.requests[m.leftPane.selected]
+		request := m.getCurrentRequest()
 		m.rightPane.SetRequest(m.config.GetRecordDir(), request)
 
 		return m, nil
@@ -449,12 +454,22 @@ func (m *MainView) refreshData() {
 	)
 }
 
+func (m *MainView) getCurrentRequest() *filemanager.RequestMetadata {
+	for _, req := range m.requests {
+		if req.MiddlewareRequestID == m.leftPane.selectedRequestMiddlewareID {
+			return req
+		}
+	}
+
+	return nil
+}
+
 // RequestSelectedMsg is sent when a request is selected
 type RequestSelectedMsg struct {
 	RequestID string
 }
 type trafficMsg struct {
-	Request     *api.RequestMetadata
+	Request     *filemanager.RequestMetadata
 	MessageType filemanager.MessageType
 	Error       error
 }
