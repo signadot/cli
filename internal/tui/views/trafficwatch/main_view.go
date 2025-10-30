@@ -455,13 +455,7 @@ func (m *MainView) refreshData() {
 }
 
 func (m *MainView) getCurrentRequest() *filemanager.RequestMetadata {
-	for _, req := range m.requests {
-		if req.MiddlewareRequestID == m.leftPane.selectedRequestMiddlewareID {
-			return req
-		}
-	}
-
-	return nil
+	return m.requests[m.leftPane.selected]
 }
 
 // RequestSelectedMsg is sent when a request is selected

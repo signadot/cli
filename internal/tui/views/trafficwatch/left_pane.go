@@ -14,9 +14,8 @@ import (
 )
 
 type LeftPane struct {
-	requests                    []*filemanager.RequestMetadata
-	selected                    int
-	selectedRequestMiddlewareID string
+	requests []*filemanager.RequestMetadata
+	selected int
 
 	width  int
 	height int
@@ -118,28 +117,6 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RefreshDataMsg:
 		l.SetRequests(msg.Requests)
 		l.SetSize(l.width, l.height)
-
-		// Recalculate the selected index
-		if l.selectedRequestMiddlewareID != "" {
-			for i, req := range l.requests {
-				if req.MiddlewareRequestID == l.selectedRequestMiddlewareID {
-					l.selected = len(l.requests) - i - 1
-					break
-				}
-			}
-
-			// Calculate the page based on the selected index
-			l.paginator.Page = l.selected / l.paginator.PerPage
-
-			if l.paginator.Page >= l.paginator.TotalPages {
-				l.paginator.Page = l.paginator.TotalPages - 1
-			}
-
-			if l.paginator.Page < 0 {
-				l.paginator.Page = 0
-			}
-		}
-
 		return l, nil
 	case NextPageMsg:
 		if l.paginator.Page < l.paginator.TotalPages {
@@ -227,8 +204,7 @@ func (l *LeftPane) View() string {
 	start, end = l.paginator.GetSliceBounds(len(l.requests))
 
 	for i := start; i < end; i++ {
-		realIndex := len(l.requests) - i - 1
-		req := l.requests[realIndex]
+		req := l.requests[i]
 		item := l.renderRequestItem(req, i == l.selected)
 		content.WriteString(item)
 		if i < end-1 { // Don't add newline after the last item
@@ -326,8 +302,6 @@ func (l *LeftPane) sendSelection() tea.Cmd {
 		} else if l.selected > maxIndex {
 			cmd = l.NextPage(true)
 		}
-
-		l.selectedRequestMiddlewareID = l.requests[len(l.requests)-l.selected-1].MiddlewareRequestID
 
 		return tea.Batch(cmd, func() tea.Msg {
 			return RequestSelectedMsg{
