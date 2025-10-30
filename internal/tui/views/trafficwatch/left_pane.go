@@ -46,7 +46,7 @@ func (l *LeftPane) SetSize(width, height int) {
 	l.height = height
 
 	if len(l.requests) != 0 {
-		availableHeight := height - 4
+		availableHeight := height - 6
 		itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
 		l.paginator.PerPage = availableHeight / itemHeight                      // Elements per page is the available height divided by the height of a single item
 	}
@@ -220,11 +220,8 @@ func (l *LeftPane) View() string {
 		Render(fmt.Sprintf("Traffic Watch (%d)", len(l.requests)))
 	content.WriteString(header)
 	content.WriteString("\n\n")
-	start := 0
-	end := len(l.requests)
 
-	start, end = l.paginator.GetSliceBounds(len(l.requests))
-
+	start, end := l.paginator.GetSliceBounds(len(l.requests))
 	for i := start; i < end; i++ {
 		realIndex := len(l.requests) - i - 1
 		req := l.requests[realIndex]
@@ -284,23 +281,25 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 	}
 
 	// Format timestamp (strip milliseconds and timezone)
-	timestamp := req.DoneAt
-	formattedTime := timestamp.Format("2006-01-02 15:04:05")
+	formattedTime := req.DoneAt.Format("2006-01-02 15:04:05")
 
 	// Properly render protocol
-	protocol := strings.ToUpper(string(req.Protocol))
-	if strings.Contains(protocol, "GRPC") {
+	var protocol string
+	switch req.Protocol {
+	case filemanager.ProtocolGRPC:
 		protocol = "gRPC"
-	} else {
-		protocol = "HTTP"
+	default:
+		protocol = strings.ToUpper(string(req.Protocol))
 	}
 
-	line := lipgloss.NewStyle().Width(l.width).Render(
-		fmt.Sprintf("%s  %-5s  %-6s  %s%s", formattedTime, protocol, method, host, fullPath),
-	)
+	// date-time  protocol  host
+	line1 := fmt.Sprintf("%s  %-5s  ", formattedTime, protocol)
+	line1 += truncateURL(host, l.width-lipgloss.Width(line1)-1)
+	// method  fullPath
+	line2 := fmt.Sprintf("%-6s  ", method)
+	line2 += truncateURL(fullPath, l.width-lipgloss.Width(line2)-1)
 
-	content := fmt.Sprintf("%s", line)
-
+	content := lipgloss.NewStyle().Width(l.width).Render(line1 + "\n" + line2)
 	if selected {
 		indicator := lipgloss.NewStyle().
 			Foreground(cSelectedAccent).
