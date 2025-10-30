@@ -169,13 +169,21 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.statusComponent.SetAlwaysOnDisplayMessage("").UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests)))
 		m.requests = append(m.requests, msg.Request)
-		// Continue listening for more traffic messages
 
-		cmd := waitForTrafficMsg(m.msgChan)
-		return m, tea.Batch(cmd, m.leftPane.RefreshData(m.requests))
+		var cmds []tea.Cmd
+		cmds = append(cmds, waitForTrafficMsg(m.msgChan))
+
+		if m.leftPane.followMode {
+			m.leftPane.selected = len(m.requests) - 1
+			cmds = append(cmds, m.leftPane.sendSelection())
+		}
+
+		cmds = append(cmds, m.leftPane.RefreshData(m.requests))
+		// Continue listening for more traffic messages
+		return m, tea.Batch(cmds...)
 	case tea.WindowSizeMsg:
 		helpHeight := lipgloss.Height(m.help.View(m.keys))
-		statusHeight := lipgloss.Height(m.statusComponent.Render())
+		statusHeight := lipgloss.Height(m.statusComponent.Render(m.leftPane.followMode))
 
 		m.width = msg.Width
 		m.height = msg.Height
@@ -204,6 +212,8 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle key bindings using the keyMap
 		switch {
+		case key.Matches(msg, m.keys.FollowMode):
+			return m, ToggleFollowMode()
 		case key.Matches(msg, m.keys.NextPage):
 			return m, m.leftPane.NextPage(false)
 		case key.Matches(msg, m.keys.PrevPage):
@@ -314,6 +324,15 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logsView.logs = msg.Logs
 		return m, nil
 
+	case ToggleFollowModeMsg:
+		m.leftPane.toggleFollowMode()
+
+		if m.leftPane.followMode {
+			m.leftPane.selected = len(m.requests) - 1
+			return m, m.leftPane.sendSelection()
+		}
+		return m, nil
+
 	case views.GoToViewMsg:
 		switch msg.View {
 		case "main":
@@ -369,13 +388,13 @@ func (m *MainView) View() string {
 			SetShortHelpMessage(m.help.View(m.keys))
 
 		content.WriteString("\n")
-		content.WriteString(m.statusComponent.Render())
+		content.WriteString(m.statusComponent.Render(m.leftPane.followMode))
 	} else {
 		content.WriteString("\n")
 		m.statusComponent.
 			UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests))).
 			SetShortHelpMessage(m.help.View(m.keys))
-		content.WriteString(m.statusComponent.Render())
+		content.WriteString(m.statusComponent.Render(m.leftPane.followMode))
 	}
 
 	return content.String()
@@ -464,20 +483,11 @@ func (m *MainView) getCurrentRequest() *filemanager.RequestMetadata {
 	return m.requests[m.leftPane.selected]
 }
 
-// RequestSelectedMsg is sent when a request is selected
-type RequestSelectedMsg struct {
-	RequestID string
-}
-type trafficMsg struct {
-	Request     *filemanager.RequestMetadata
-	MessageType filemanager.MessageType
-	Error       error
-}
-
 func getHelpKeysForLeftPane() []components.LiteralBindingName {
 	return []components.LiteralBindingName{
 		components.LiteralBindingNameHelp,
 		components.LiteralBindingNameQuit,
+		components.LiteralBindingNameFollowMode,
 		components.LiteralBindingNameNextPage,
 		components.LiteralBindingNamePrevPage,
 		components.LiteralBindingNameLeft,

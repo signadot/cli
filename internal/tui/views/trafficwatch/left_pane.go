@@ -13,17 +13,14 @@ import (
 )
 
 type LeftPane struct {
-	requests []*filemanager.RequestMetadata
-	selected int
+	requests   []*filemanager.RequestMetadata
+	selected   int
+	followMode bool
 
 	width  int
 	height int
 
 	paginator paginator.Model
-}
-
-type RefreshDataMsg struct {
-	Requests []*filemanager.RequestMetadata
 }
 
 func NewLeftPane(requests []*filemanager.RequestMetadata) *LeftPane {
@@ -72,18 +69,6 @@ func (l *LeftPane) SetRequests(requests []*filemanager.RequestMetadata) {
 	}
 }
 
-type NextPageMsg struct {
-	Page int
-
-	AutoFirst bool // When true, the selected index will not be changed
-}
-
-type PrevPageMsg struct {
-	Page int
-
-	AutoLast bool // When true, the selected index will not be changed
-}
-
 func (l *LeftPane) NextPage(withAuto bool) tea.Cmd {
 	return func() tea.Msg {
 		return NextPageMsg{
@@ -117,7 +102,12 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		l.SetRequests(msg.Requests)
 		l.SetSize(l.width, l.height)
 		return l, nil
+
+	case ToggleFollowModeMsg:
+		l.followMode = !l.followMode
+		return l, nil
 	case NextPageMsg:
+		l.unsetFollowMode()
 		if l.paginator.Page < l.paginator.TotalPages {
 			l.paginator.Page++
 
@@ -140,6 +130,8 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return l, nil
 	case PrevPageMsg:
+		l.unsetFollowMode()
+
 		if l.paginator.Page > 0 {
 
 			// If not auto last, move the selected index up by the number of items per page
@@ -155,6 +147,8 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up":
+			l.unsetFollowMode()
+
 			if l.selected > 0 {
 				// If an item is selected, move up
 				l.selected--
@@ -162,6 +156,8 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return l, nil
 		case "down":
+			l.unsetFollowMode()
+
 			if l.selected < len(l.requests)-1 {
 				// If an item is selected, move down
 				l.selected++
@@ -301,24 +297,42 @@ func (l *LeftPane) renderEmptyState() string {
 
 func (l *LeftPane) sendSelection() tea.Cmd {
 
-	mixIndex := l.paginator.PerPage * l.paginator.Page
-	maxIndex := mixIndex + l.paginator.PerPage - 1
+	minIndex := l.paginator.PerPage * l.paginator.Page
+	maxIndex := minIndex + l.paginator.PerPage - 1
 
 	if l.selected < len(l.requests) {
 
-		var cmd tea.Cmd
-		if l.selected < mixIndex {
-			cmd = l.PrevPage(true)
-		} else if l.selected > maxIndex {
-			cmd = l.NextPage(true)
+		// If selected item is not on the current page, jump directly to the correct page
+		if l.selected < minIndex || l.selected > maxIndex {
+			// Calculate the page that contains the selected item
+			targetPage := l.selected / l.paginator.PerPage
+
+			// Ensure the page is within valid bounds
+			if targetPage >= l.paginator.TotalPages {
+				targetPage = l.paginator.TotalPages - 1
+			}
+			if targetPage < 0 {
+				targetPage = 0
+			}
+
+			// Set the page directly
+			l.paginator.Page = targetPage
 		}
 
-		return tea.Batch(cmd, func() tea.Msg {
+		return func() tea.Msg {
 			return RequestSelectedMsg{
 				RequestID: l.requests[l.selected].MiddlewareRequestID,
 			}
-		})
+		}
 
 	}
 	return nil
+}
+
+func (l *LeftPane) toggleFollowMode() {
+	l.followMode = !l.followMode
+}
+
+func (l *LeftPane) unsetFollowMode() {
+	l.followMode = false
 }

@@ -8,18 +8,19 @@ import (
 // KeyMap defines a set of keybindings. To work for help it must satisfy
 // key.Map. It could also very easily be a map[string]key.Binding.
 type KeyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Left     key.Binding
-	Right    key.Binding
-	Help     key.Binding
-	Quit     key.Binding
-	Refresh  key.Binding
-	Logs     key.Binding
-	Tab      key.Binding
-	GoBack   key.Binding
-	NextPage key.Binding
-	PrevPage key.Binding
+	Up         key.Binding
+	Down       key.Binding
+	Left       key.Binding
+	Right      key.Binding
+	Help       key.Binding
+	Quit       key.Binding
+	Refresh    key.Binding
+	Logs       key.Binding
+	Tab        key.Binding
+	GoBack     key.Binding
+	NextPage   key.Binding
+	PrevPage   key.Binding
+	FollowMode key.Binding
 
 	shortHelp []key.Binding
 }
@@ -27,18 +28,19 @@ type KeyMap struct {
 type LiteralBindingName string
 
 const (
-	LiteralBindingNameUp       LiteralBindingName = "up"
-	LiteralBindingNameDown     LiteralBindingName = "down"
-	LiteralBindingNameLeft     LiteralBindingName = "left"
-	LiteralBindingNameRight    LiteralBindingName = "right"
-	LiteralBindingNameHelp     LiteralBindingName = "help"
-	LiteralBindingNameQuit     LiteralBindingName = "quit"
-	LiteralBindingNameRefresh  LiteralBindingName = "refresh"
-	LiteralBindingNameLogs     LiteralBindingName = "logs"
-	LiteralBindingNameTab      LiteralBindingName = "tab"
-	LiteralBindingNameGoBack   LiteralBindingName = "go_back"
-	LiteralBindingNameNextPage LiteralBindingName = "next_page"
-	LiteralBindingNamePrevPage LiteralBindingName = "prev_page"
+	LiteralBindingNameUp         LiteralBindingName = "up"
+	LiteralBindingNameDown       LiteralBindingName = "down"
+	LiteralBindingNameLeft       LiteralBindingName = "left"
+	LiteralBindingNameRight      LiteralBindingName = "right"
+	LiteralBindingNameHelp       LiteralBindingName = "help"
+	LiteralBindingNameQuit       LiteralBindingName = "quit"
+	LiteralBindingNameRefresh    LiteralBindingName = "refresh"
+	LiteralBindingNameLogs       LiteralBindingName = "logs"
+	LiteralBindingNameTab        LiteralBindingName = "tab"
+	LiteralBindingNameGoBack     LiteralBindingName = "go_back"
+	LiteralBindingNameNextPage   LiteralBindingName = "next_page"
+	LiteralBindingNamePrevPage   LiteralBindingName = "prev_page"
+	LiteralBindingNameFollowMode LiteralBindingName = "follow_mode"
 )
 
 func (k *KeyMap) GetBasicShortHelpNames() []LiteralBindingName {
@@ -78,6 +80,8 @@ func (k *KeyMap) SetShortHelpByNames(fieldNames ...LiteralBindingName) {
 			k.shortHelp = append(k.shortHelp, k.NextPage)
 		case LiteralBindingNamePrevPage:
 			k.shortHelp = append(k.shortHelp, k.PrevPage)
+		case LiteralBindingNameFollowMode:
+			k.shortHelp = append(k.shortHelp, k.FollowMode)
 		}
 	}
 }
@@ -91,11 +95,15 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // FullHelp returns keybindings for the expanded help view. It's part of the
 // key.Map interface.
 func (k KeyMap) FullHelp() [][]key.Binding {
+
+	tmpFollowMode := k.FollowMode
+	tmpFollowMode.SetHelp("f", "turn on/off follow mode")
+
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Left, k.Right}, // first column
-		{k.NextPage, k.PrevPage},        // second column
-		{k.Tab, k.Logs, k.Refresh},      // second column
-		{k.Help, k.Quit},                // third column
+		{k.Up, k.Down, k.Left, k.Right},         // first column
+		{k.NextPage, k.PrevPage, tmpFollowMode}, // second column
+		{k.Tab, k.Logs, k.Refresh},              // second column
+		{k.Help, k.Quit},                        // third column
 	}
 }
 
@@ -147,6 +155,10 @@ var Keys = KeyMap{
 	PrevPage: key.NewBinding(
 		key.WithKeys("p"),
 		key.WithHelp("p", "previous page"),
+	),
+	FollowMode: key.NewBinding(
+		key.WithKeys("f"),
+		key.WithHelp("f", "turn on/off follow mode"),
 	),
 }
 

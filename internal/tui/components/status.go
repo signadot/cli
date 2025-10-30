@@ -55,7 +55,17 @@ func (s *StatusComponent) SetStyle(style lipgloss.Style) *StatusComponent {
 }
 
 // Render returns the formatted status string
-func (s *StatusComponent) Render() string {
+func (s *StatusComponent) Render(followMode bool) string {
+	var content strings.Builder
+
+	if followMode {
+		followModeText := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("25")).
+			Bold(true).
+			Render("[FOLLOW MODE]")
+		content.WriteString(followModeText + " ")
+	}
+
 	statusColor := lipgloss.Color("green")
 	switch s.Status {
 	case "error", "failed":
@@ -69,7 +79,6 @@ func (s *StatusComponent) Render() string {
 		Bold(true).
 		Render(strings.ToUpper(s.Status))
 
-	var content strings.Builder
 	content.WriteString(statusText)
 	if s.alwaysOnDisplayMessage != "" {
 		content.WriteString(" " + s.alwaysOnDisplayMessage)
