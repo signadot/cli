@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/goccy/go-yaml"
@@ -176,7 +175,7 @@ func (tw *TrafficWatchScanner) handleMessageRequest(request *RequestMetadata) {
 }
 
 func (tw *TrafficWatchScanner) loadResponseFile(request *RequestMetadata) (*http.Response, error) {
-	requestFile, err := os.Open(filepath.Join(tw.cfg.recordDir, request.MiddlewareRequestID, "response"))
+	requestFile, err := os.Open(GetSourceResponsePath(tw.cfg.recordDir, request.MiddlewareRequestID))
 	if err != nil {
 		return nil, err
 	}

@@ -60,7 +60,7 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile s
 	requests := []*filemanager.RequestMetadata{}
 
 	leftPane := NewLeftPane(requests)
-	rightPane := NewRightPane()
+	rightPane := NewRightPane(recordDir)
 	logsView := NewLogsView(logsFile)
 
 	statusComponent := components.NewStatusComponent(
@@ -275,7 +275,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move focus from right pane to left pane, or navigate within left pane
 			if m.focus == "right" {
 				// Check if we're at the first tab of right pane
-				if m.rightPane.GetActiveTab() == TabMeta {
+				if m.rightPane.GetActiveTab() == TabRequest {
 					// Move focus back to left pane
 					m.focus = "left"
 					m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
@@ -302,7 +302,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case RequestSelectedMsg:
 		m.selectedID = msg.RequestID
 		request := m.getCurrentRequest()
-		m.rightPane.SetRequest(m.config.GetRecordDir(), request)
+		m.rightPane.SetRequest(request)
 
 		return m, nil
 

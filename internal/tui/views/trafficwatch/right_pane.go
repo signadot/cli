@@ -3,9 +3,7 @@ package trafficwatch
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -30,30 +28,29 @@ var (
 type RightPaneTab int
 
 const (
-	TabMeta RightPaneTab = iota
-	TabRequest
+	TabRequest RightPaneTab = iota
 	TabResponse
 )
 
 // RightPane represents the right pane showing request details
 type RightPane struct {
+	recordDir string
 	request   *filemanager.RequestMetadata
 	activeTab RightPaneTab
 	width     int
 	height    int
 
-	currentTrafficDir string
-	metadataContent   string
-	requestContent    string
-	responseContent   string
+	requestContent  string
+	responseContent string
 
 	viewport viewport.Model
 }
 
 // NewRightPane creates a new right pane
-func NewRightPane() *RightPane {
+func NewRightPane(recordDir string) *RightPane {
 	return &RightPane{
-		activeTab: TabMeta,
+		recordDir: recordDir,
+		activeTab: TabRequest,
 		width:     50,
 		height:    20,
 		viewport:  viewport.New(40, 20),
@@ -70,7 +67,7 @@ func (r *RightPane) SetSize(width, height int) {
 	r.viewport.YPosition = lipgloss.Height(r.renderTabBar())
 
 	if r.request != nil {
-		r.SetRequest(r.currentTrafficDir, r.request)
+		r.SetRequest(r.request)
 	}
 }
 
@@ -90,7 +87,7 @@ func (r *RightPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "left":
-			if r.activeTab > TabMeta {
+			if r.activeTab > TabRequest {
 				r.activeTab--
 			} else {
 				// If at first tab, left arrow should move focus back to left pane
@@ -101,10 +98,8 @@ func (r *RightPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				r.activeTab++
 			}
 		case "1":
-			r.activeTab = TabMeta
-		case "2":
 			r.activeTab = TabRequest
-		case "3":
+		case "2":
 			r.activeTab = TabResponse
 		}
 	}
@@ -117,12 +112,9 @@ func (r *RightPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the right pane
 func (r *RightPane) view() string {
-
 	var content strings.Builder
 
 	switch r.activeTab {
-	case TabMeta:
-		content.WriteString(r.metadataContent)
 	case TabRequest:
 		content.WriteString(r.requestContent)
 	case TabResponse:
@@ -152,8 +144,8 @@ func (r *RightPane) View() string {
 
 // renderTabBar renders the tab bar
 func (r *RightPane) renderTabBar() string {
-	tabs := []string{"Meta", "Request", "Response"}
-	tabColors := []string{"#2E77FF", "#2E77FF", "#2E77FF"}
+	tabs := []string{"Request", "Response"}
+	tabColors := []string{"#008080", "#008080"}
 
 	var tabStrings []string
 	for i, tab := range tabs {
@@ -205,30 +197,8 @@ func (r *RightPane) getLineRenderMeta(key string, value string) string {
 	return content
 }
 
-// renderMetaTab renders the meta information tab
-func (r *RightPane) renderMetaTab(request *filemanager.RequestMetadata) string {
-	var content strings.Builder
-
-	content.WriteString(lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#5D95FF")).
-		Render("Request Information"))
-	content.WriteString("\n\n")
-
-	content.WriteString(r.getLineRenderMeta("Middleware Request", request.MiddlewareRequestID))
-	content.WriteString(r.getLineRenderMeta("Routing Key", request.RoutingKey))
-	content.WriteString(r.getLineRenderMeta("Method", request.Method))
-	content.WriteString(r.getLineRenderMeta("Request URI", request.RequestURI))
-	content.WriteString(r.getLineRenderMeta("Host", request.Host))
-	content.WriteString(r.getLineRenderMeta("Dest Workload", request.DestWorkload))
-	content.WriteString(r.getLineRenderMeta("Protocol", request.Proto))
-	content.WriteString(r.getLineRenderMeta("User Agent", request.UserAgent))
-
-	return content.String()
-}
-
 // renderRequestTab renders the request details tab
-func (r *RightPane) renderRequestTab(request *http.Request, err error) string {
+func (r *RightPane) renderRequestTab(reqMeta *filemanager.RequestMetadata, req *http.Request, err error) string {
 	var content strings.Builder
 
 	if err != nil {
@@ -238,48 +208,41 @@ func (r *RightPane) renderRequestTab(request *http.Request, err error) string {
 		return content.String()
 	}
 
+	// render general section
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#2E77FF")).
-		Render("Request Headers"))
+		Foreground(lipgloss.Color("#008080")).
+		Render("General"))
+	content.WriteString("\n\n")
+	content.WriteString(r.getLineRenderMeta("ID", reqMeta.MiddlewareRequestID))
+	content.WriteString(r.getLineRenderMeta("URL", reqMeta.RequestURI))
+	content.WriteString(r.getLineRenderMeta("Protocol", req.Proto))
+	content.WriteString(r.getLineRenderMeta("Method", req.Method))
+	content.WriteString(r.getLineRenderMeta("Routing Key", reqMeta.RoutingKey))
+	content.WriteString(r.getLineRenderMeta("Workload", reqMeta.DestWorkload))
+	content.WriteString(r.getLineRenderMeta("File",
+		filemanager.GetSourceRequestPath(r.recordDir, reqMeta.MiddlewareRequestID)))
+	content.WriteString("\n")
+
+	// render headers section
+	content.WriteString(lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#008080")).
+		Render("Headers"))
 	content.WriteString("\n\n")
 
-	for key, values := range request.Header {
+	for key, values := range req.Header {
 		content.WriteString(r.getLineRenderMeta(key, strings.Join(values, ", ")))
 	}
 
-	if request.Body != nil {
-		content.WriteString("\n")
-		content.WriteString(lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#2E77FF")).
-			Render("Request Body"))
-		content.WriteString("\n\n")
-
-		bodyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("white")).
-			Background(lipgloss.Color("black")).
-			Padding(1).
-			Border(lipgloss.RoundedBorder())
-
-		bodyString, err := io.ReadAll(request.Body)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if len(bodyString) == 0 {
-			content.WriteString("No body data available")
-			return content.String()
-		}
-
-		content.WriteString(bodyStyle.Render(string(bodyString)))
-	}
+	// render body section
+	r.renderBody(&content, req, nil)
 
 	return content.String()
 }
 
 // renderResponseTab renders the response details tab
-func (r *RightPane) renderResponseTab(response *http.Response, err error) string {
+func (r *RightPane) renderResponseTab(reqMeta *filemanager.RequestMetadata, resp *http.Response, err error) string {
 	var content strings.Builder
 
 	if err != nil {
@@ -289,73 +252,113 @@ func (r *RightPane) renderResponseTab(response *http.Response, err error) string
 		return content.String()
 	}
 
-	if response.StatusCode == 0 {
+	if resp.StatusCode == 0 {
 		content.WriteString(lipgloss.NewStyle().
 			Foreground(lipgloss.Color("gray")).
 			Render("No response data available"))
 		return content.String()
 	}
 
+	// render general section
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#5D95FF")).
-		Render("Response Headers"))
+		Foreground(lipgloss.Color("#008080")).
+		Render("General"))
+	content.WriteString("\n\n")
+	content.WriteString(r.getLineRenderMeta("Status", resp.Status))
+	content.WriteString(r.getLineRenderMeta("Protocol", resp.Proto))
+	content.WriteString(r.getLineRenderMeta("File",
+		filemanager.GetSourceResponsePath(r.recordDir, reqMeta.MiddlewareRequestID)))
+	content.WriteString("\n")
+
+	// render headers section
+	content.WriteString(lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#008080")).
+		Render("Headers"))
 	content.WriteString("\n\n")
 
-	for key, values := range response.Header {
+	for key, values := range resp.Header {
 		content.WriteString(r.getLineRenderMeta(key, strings.Join(values, ", ")))
 	}
 
-	if response.Body != nil {
-		content.WriteString("\n")
-		content.WriteString(lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#5D95FF")).
-			Render("Response Body"))
-		content.WriteString("\n\n")
-
-		bodyStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("white")).
-			Background(lipgloss.Color("black")).
-			Padding(1).
-			Width(r.width - 6).
-			Border(lipgloss.RoundedBorder())
-
-		var bodyString string
-		if r.request.Protocol == filemanager.ProtocolGRPC {
-			bodyString = "Binary response"
-		} else {
-			body, err := io.ReadAll(response.Body)
-			if err != nil {
-				bodyString = fmt.Sprintf("Data couldn't be handled: %v", err.Error())
-			} else {
-				bodyString = string(body)
-			}
-		}
-
-		if len(bodyString) == 0 {
-			content.WriteString("No body data available")
-			return content.String()
-		}
-
-		content.WriteString(bodyStyle.Render(string(bodyString)))
-	}
+	// render body section
+	r.renderBody(&content, nil, resp)
 
 	return content.String()
 }
 
+func (r *RightPane) renderBody(content *strings.Builder, req *http.Request, resp *http.Response) {
+	var (
+		body   io.ReadCloser
+		length int64
+	)
+	if req != nil {
+		body = req.Body
+		length = req.ContentLength
+	} else if resp != nil {
+		body = resp.Body
+		length = resp.ContentLength
+	}
+	if body == nil {
+		return
+	}
+
+	content.WriteString("\n")
+	content.WriteString(lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#008080")).
+		Render("Body"))
+	content.WriteString("\n\n")
+
+	var isRenderable bool
+	if req != nil {
+		isRenderable = isReqBodyRenderable(req)
+	} else {
+		isRenderable = isRespBodyRenderable(resp)
+	}
+	if !isRenderable {
+		content.WriteString("Unsupported content type for terminal rendering")
+		return
+	}
+	if length > 500*1024 /*500KB*/ {
+		content.WriteString("Body too large to display in the terminal")
+		return
+	}
+
+	// try reading the body
+	var bodyString string
+	bodyBytes, err := io.ReadAll(body)
+	if err != nil {
+		bodyString = fmt.Sprintf("Failed to read body: %v", err.Error())
+	} else {
+		bodyString = string(bodyBytes)
+	}
+	if len(bodyString) == 0 {
+		content.WriteString("No body content available")
+		return
+	}
+
+	bodyStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("white")).
+		Background(lipgloss.Color("black")).
+		Padding(1).
+		Width(r.width - 6).
+		Border(lipgloss.RoundedBorder())
+
+	content.WriteString(bodyStyle.Render(string(bodyString)))
+}
+
 // SetRequest sets the current request to display
-func (r *RightPane) SetRequest(trafficDir string, request *filemanager.RequestMetadata) {
-	r.request = request
+func (r *RightPane) SetRequest(reqMeta *filemanager.RequestMetadata) {
+	r.request = reqMeta
 
-	r.currentTrafficDir = trafficDir
+	// Load the request/response details from the os
+	requestDetail, err := utils.LoadHttpRequest(
+		filemanager.GetSourceRequestPath(r.recordDir, reqMeta.MiddlewareRequestID))
+	r.requestContent = r.renderRequestTab(reqMeta, requestDetail, err)
 
-	// Load the request detail from the /traffic-dir/request-id
-	requestDetail, err := utils.LoadHttpRequest(filepath.Join(trafficDir, request.MiddlewareRequestID, "request"))
-	r.requestContent = r.renderRequestTab(requestDetail, err)
-
-	responseDetail, err := utils.LoadHttpResponse(filepath.Join(trafficDir, request.MiddlewareRequestID, "response"))
-	r.responseContent = r.renderResponseTab(responseDetail, err)
-
-	r.metadataContent = r.renderMetaTab(request)
+	responseDetail, err := utils.LoadHttpResponse(
+		filemanager.GetSourceResponsePath(r.recordDir, reqMeta.MiddlewareRequestID))
+	r.responseContent = r.renderResponseTab(reqMeta, responseDetail, err)
 }
