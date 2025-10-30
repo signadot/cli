@@ -151,7 +151,7 @@ func (tw *TrafficWatchScanner) handleMessageRequest(request *RequestMetadata) {
 
 		pendingRequest.DoneAt = request.DoneAt
 
-		response, _ := tw.loadRequestFile(pendingRequest)
+		response, _ := tw.loadResponseFile(pendingRequest)
 		if response != nil {
 			switch response.Header.Get("Content-Type") {
 			case "application/grpc":
@@ -175,7 +175,7 @@ func (tw *TrafficWatchScanner) handleMessageRequest(request *RequestMetadata) {
 	}
 }
 
-func (tw *TrafficWatchScanner) loadRequestFile(request *RequestMetadata) (*http.Response, error) {
+func (tw *TrafficWatchScanner) loadResponseFile(request *RequestMetadata) (*http.Response, error) {
 	requestFile, err := os.Open(filepath.Join(tw.cfg.recordDir, request.MiddlewareRequestID, "response"))
 	if err != nil {
 		return nil, err
