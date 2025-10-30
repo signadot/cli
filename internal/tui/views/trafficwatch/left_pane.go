@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/tui/filemanager"
-	"github.com/xeonx/timeago"
 )
 
 type LeftPane struct {
@@ -46,7 +45,7 @@ func (l *LeftPane) SetSize(width, height int) {
 	l.height = height
 
 	if len(l.requests) != 0 {
-		availableHeight := height - 4
+		availableHeight := height - 6
 		itemHeight := lipgloss.Height(l.renderRequestItem(l.requests[0], true)) // Using true to have in calculation the selected item
 		l.paginator.PerPage = availableHeight / itemHeight                      // Elements per page is the available height divided by the height of a single item
 	}
@@ -198,11 +197,8 @@ func (l *LeftPane) View() string {
 		Render(fmt.Sprintf("Traffic Watch (%d)", len(l.requests)))
 	content.WriteString(header)
 	content.WriteString("\n\n")
-	start := 0
-	end := len(l.requests)
 
-	start, end = l.paginator.GetSliceBounds(len(l.requests))
-
+	start, end := l.paginator.GetSliceBounds(len(l.requests))
 	for i := start; i < end; i++ {
 		req := l.requests[i]
 		item := l.renderRequestItem(req, i == l.selected)
@@ -229,8 +225,6 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 	cMethodDel := lipgloss.Color("9")       // red
 	cHost := lipgloss.Color("245")          // light gray
 	cPath := lipgloss.Color("81")           // bright blue
-	cSubtle := lipgloss.Color("244")        // muted gray
-	cAccent := lipgloss.Color("37")         // soft teal
 	cSelectedAccent := lipgloss.Color("63") // blue accent (selection marker)
 
 	var methodColor lipgloss.Color
@@ -250,32 +244,48 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 	methodStyle := lipgloss.NewStyle().Foreground(methodColor).Bold(true).Width(6)
 	hostStyle := lipgloss.NewStyle().Foreground(cHost)
 	pathStyle := lipgloss.NewStyle().Foreground(cPath)
-	subtleStyle := lipgloss.NewStyle().Foreground(cSubtle)
-	accentStyle := lipgloss.NewStyle().Foreground(cAccent).Italic(true)
 
-	method := methodStyle.Render(req.Method)
+	method := methodStyle.Render(strings.ToUpper(req.Method))
 	host := hostStyle.Render(parsedURL.Host)
-	path := pathStyle.Render(parsedURL.Path)
+	fullPath := pathStyle.Render(parsedURL.Path)
+	if parsedURL.RawQuery != "" {
+		fullPath += "?" + parsedURL.RawQuery
+	}
 
-	line1 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("%s %s %s %s%s", req.Protocol, timeago.NoMax(timeago.English).Format(req.DoneAt), method, host, path))
-	line2 := lipgloss.NewStyle().Width(l.width).Render(fmt.Sprintf("   ↳ %s  •  %s",
-		subtleStyle.Render(req.RoutingKey),
-		accentStyle.Render(req.DestWorkload),
-	))
+	if parsedURL.Fragment != "" {
+		fullPath += "#" + parsedURL.Fragment
+	}
 
-	content := fmt.Sprintf("%s\n%s", line1, line2)
+	// Format timestamp (strip milliseconds and timezone)
+	formattedTime := req.DoneAt.Format("2006-01-02 15:04:05")
 
+	// Properly render protocol
+	var protocol string
+	switch req.Protocol {
+	case filemanager.ProtocolGRPC:
+		protocol = "gRPC"
+	default:
+		protocol = strings.ToUpper(string(req.Protocol))
+	}
+
+	// date-time  protocol  host
+	line1 := fmt.Sprintf("%s  %-5s  ", formattedTime, protocol)
+	line1 += truncateURL(host, l.width-lipgloss.Width(line1)-1)
+	// method  fullPath
+	line2 := fmt.Sprintf("%-6s  ", method)
+	line2 += truncateURL(fullPath, l.width-lipgloss.Width(line2)-1)
+
+	content := lipgloss.NewStyle().Width(l.width).Render(line1 + "\n" + line2)
 	if selected {
 		indicator := lipgloss.NewStyle().
 			Foreground(cSelectedAccent).
-			Render("▌") // left vertical bar
+			Render("▌")
 
 		lines := strings.Split(content, "\n")
 		for i, line := range lines {
 			lines[i] = fmt.Sprintf("%s %s", indicator, line)
 		}
-
-		lines[len(lines)-1] = lines[len(lines)-1] + "\n"
+		lines[len(lines)-1] += "\n"
 		return strings.Join(lines, "\n")
 	}
 
