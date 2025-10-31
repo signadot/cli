@@ -49,6 +49,9 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 	if err := validateWorkload(sb, cfg.Workload); err != nil {
 		return err
 	}
+	if hasSandboxOverride(sb) {
+		return errors.New("the sandbox already has an override, delete it before proceeding.")
+	}
 
 	// Make sure sandbox manager is running against the sandbox cluster
 	// (signadot local connect has been executed)

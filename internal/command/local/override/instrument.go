@@ -15,6 +15,10 @@ import (
 
 type undoFunc func(ctx context.Context, w io.Writer) error
 
+func hasSandboxOverride(sb *models.Sandbox) bool {
+	return len(builder.GetAvailableOverrideMiddlewares(sb)) > 0
+}
+
 func applyOverrideToSandbox(ctx context.Context, cfg *config.LocalOverrideCreate,
 	baseSandbox *models.Sandbox, workloadName string, logPort int,
 ) (*models.Sandbox, string, undoFunc, error) {
