@@ -91,6 +91,9 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 		if cfg.Clean {
 			return fmt.Errorf("only one of --short or --clean can be provided")
 		}
+		if cfg.TuiMode {
+			return fmt.Errorf("--inspect is not supported when running with --short")
+		}
 	}
 
 	// define output dir
