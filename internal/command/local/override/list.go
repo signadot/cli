@@ -78,7 +78,7 @@ func getSandboxes(cfg *config.LocalOverrideList) ([]*models.Sandbox, error) {
 func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForward, error) {
 	overrides := make([]*sandboxWithForward, 0)
 	for _, sandbox := range sandboxes {
-		forwards := builder.GetAvailableOverrideMiddlewares(*sandbox)
+		forwards := builder.GetAvailableOverrideMiddlewares(sandbox)
 		if len(forwards) == 0 {
 			continue
 		}
@@ -88,6 +88,5 @@ func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForwa
 			Forwards: forwards,
 		})
 	}
-
 	return overrides, nil
 }
