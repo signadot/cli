@@ -105,23 +105,23 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 
 	green := color.New(color.FgGreen).SprintFunc()
 	bold := color.New(color.Bold).SprintFunc()
-	fmt.Fprintf(out, "%s Override created port %d to %s\n", green("✓"), cfg.Port, cfg.To)
+	fmt.Fprintf(out, "%s Local destination %s will override sandbox responses as follows:\n", green("✓"), cfg.To)
+	fmt.Fprintln(out)
 
-	fmt.Fprintf(out, "\nOverride has been set up successfully.\n")
+	fmt.Fprintf(out, "All HTTP/gRPC requests intended for sandbox %s, workload %s, port %d will be sent to your local service at %s.\n\n",
+		bold(cfg.Sandbox), bold(cfg.Workload), cfg.Port, bold(cfg.To))
 
 	if len(cfg.ExcludedStatusCodes) > 0 {
-		// Status-Based Override: everything is overridden except specified status codes
 		codes := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(cfg.ExcludedStatusCodes)), ","), "[]")
-		fmt.Fprintf(out, "* If %s responds with status %s\n", cfg.To, codes)
-		fmt.Fprintf(out, "    -> Final response from: %s (Sandbox)\n", bold(cfg.Workload+":"+fmt.Sprint(cfg.Port)))
-		fmt.Fprintf(out, "* Default: (All other local responses)\n")
-		fmt.Fprintf(out, "    -> Final response from: %s\n", bold(cfg.To))
+		fmt.Fprintf(out, "* If your local service (%s) responds with status code(s) %s:\n", bold(cfg.To), codes)
+		fmt.Fprintf(out, "    -> Request is forwarded to the sandbox (%s).\n", bold(cfg.Sandbox))
+		fmt.Fprintf(out, "* Otherwise:\n")
+		fmt.Fprintf(out, "    -> Response from your local service (%s) is returned to the client.\n", bold(cfg.To))
 	} else {
-		// Header-Based Override: only override when sd-override: true header is present
-		fmt.Fprintf(out, "* If %s responds with `sd-override: true` header\n", cfg.To)
-		fmt.Fprintf(out, "    -> Final response from: %s\n", bold(cfg.To))
-		fmt.Fprintf(out, "* Default: (All other local responses)\n")
-		fmt.Fprintf(out, "    -> Final response from: %s (Sandbox)\n", bold(cfg.Workload+":"+fmt.Sprint(cfg.Port)))
+		fmt.Fprintf(out, "* If your local service (%s) responds with header `sd-override: true`:\n", bold(cfg.To))
+		fmt.Fprintf(out, "    -> Response from your local service (%s) is returned to the client.\n", bold(cfg.To))
+		fmt.Fprintf(out, "* Otherwise:\n")
+		fmt.Fprintf(out, "    -> Request is forwarded to the sandbox (%s).\n", bold(cfg.Sandbox))
 	}
 	fmt.Fprintf(out, "\n")
 
