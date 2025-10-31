@@ -13,24 +13,22 @@ func New(local *config.Local) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "override --sandbox=<sandbox> [--workload=<workload>] --workload-port=<port> --with=<target> [--except-status=...] [--detach]",
 		Short: "Override sandbox HTTP traffic using a local service",
-		Long: `Using the 'override' command, when a request comes into the sandbox it is
-delivered to the local service. The response of the local service determines
-whether or not the request will subsequently be delivered to its original
-destination (i.e. the sandbox workload).
+		Long: `The 'override' command lets you intercept both HTTP and gRPC traffic coming into your sandbox and process it with a local service you specify (such as on your laptop).
 
-When the request is not subsequently delivered to the original destination,
-the response from the local service is the response returned to the client.
+How it works:
+- Any HTTP request (including gRPC) to your sandbox is first routed to your local service.
+- Your local service processes the request and replies.
+- By default:
+    * If your local service's response contains the header 'sd-override: true' (for HTTP), or sets the metadata key 'sd-override: true' on the response (for gRPC), the response from your local service is immediately sent back to the client—the request does NOT reach the original sandbox workload.
+    * For all other responses (i.e., 'sd-override: true' not present), the request is forwarded to the original sandbox workload as usual, and its response is returned to the client.
+- If your local service is unavailable or not running, all requests automatically fall through to the original sandbox workload.
 
-When the local service is not running, requests will be delivered to the
-original destination after failing to communicate with the local service.
+Special case: Using '--except-status'
+- When you provide the '--except-status' flag, you specify a list of HTTP status codes (such as 404,503).
+- With this flag, all requests are overridden and served by your local service, EXCEPT when your local service returns one of the specified HTTP status codes.
+- In those cases (when your local service replies with a status listed in '--except-status'), the request is forwarded to the original sandbox workload, and its response is returned to the client instead.
 
-By default, overrides apply when the response from the local service
-includes the header 'sd-override: true'.
-
-You can use the '--except-status' flag to specify HTTP response codes that
-should not be overridden. When set, all other traffic will be overridden
-except for the specified status codes, which will fall through to the
-original sandboxed destination.`,
+This setup allows flexible and powerful local testing of changes for both HTTP and gRPC services while letting you make exceptions for specific HTTP status codes as needed.`,
 		Example: `  # Override sandbox traffic from workload my-workload, port 8080 to localhost:9999
   signadot local override --sandbox=my-sandbox --workload=my-workload --workload-port=8080 --with=localhost:9999
 

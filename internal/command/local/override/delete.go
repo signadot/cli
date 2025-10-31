@@ -75,19 +75,19 @@ func runDelete(out io.Writer, cfg *config.LocalOverrideDelete, name string) erro
 	return nil
 }
 
-func getOverrideDetails(sandbox *models.Sandbox, overrideName string) *builder.DetailedOverrideMiddleware {
+func getOverrideDetails(sandbox *models.Sandbox,
+	overrideName string) *builder.DetailedOverrideMiddleware {
 	if sandbox.Spec.Routing == nil || sandbox.Spec.Routing.Forwards == nil {
 		return nil
 	}
 
 	var detailsOverride *builder.DetailedOverrideMiddleware
-	overrides := builder.GetAvailableOverrideMiddlewares(*sandbox)
+	overrides := builder.GetAvailableOverrideMiddlewares(sandbox)
 	for _, override := range overrides {
 		if override.Forward.Name == overrideName {
 			detailsOverride = override
 			break
 		}
 	}
-
 	return detailsOverride
 }

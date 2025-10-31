@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -239,15 +240,7 @@ func (r *RightPane) renderRequestTab(reqMeta *filemanager.RequestMetadata, req *
 	content.WriteString("\n")
 
 	// render headers section
-	content.WriteString(lipgloss.NewStyle().
-		Bold(true).
-		Foreground(colors.Cyan).
-		Render("Headers"))
-	content.WriteString("\n\n")
-
-	for key, values := range req.Header {
-		content.WriteString(r.getLineRenderMeta(key, strings.Join(values, ", ")))
-	}
+	r.renderHeaders(&content, req.Header)
 
 	// render body section
 	r.renderBody(&content, req, nil)
@@ -278,15 +271,7 @@ func (r *RightPane) renderResponseTab(reqMeta *filemanager.RequestMetadata, resp
 	content.WriteString("\n")
 
 	// render headers section
-	content.WriteString(lipgloss.NewStyle().
-		Bold(true).
-		Foreground(colors.Cyan).
-		Render("Headers"))
-	content.WriteString("\n\n")
-
-	for key, values := range resp.Header {
-		content.WriteString(r.getLineRenderMeta(key, strings.Join(values, ", ")))
-	}
+	r.renderHeaders(&content, resp.Header)
 
 	// render body section
 	r.renderBody(&content, nil, resp)
@@ -306,6 +291,28 @@ func (r *RightPane) renderError(content *strings.Builder, err error) {
 
 	content.WriteString(lipgloss.NewStyle().Width(r.width - 5).
 		Render(prefix + err.Error()))
+}
+
+func (r *RightPane) renderHeaders(content *strings.Builder, headers http.Header) {
+	// render headers section
+	content.WriteString(lipgloss.NewStyle().
+		Bold(true).
+		Foreground(colors.Cyan).
+		Render("Headers"))
+	content.WriteString("\n\n")
+
+	// collect and sort header keys
+	keys := make([]string, 0, len(headers))
+	for key := range headers {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	// render headers in sorted order
+	for _, key := range keys {
+		values := headers[key]
+		content.WriteString(r.getLineRenderMeta(key, strings.Join(values, ", ")))
+	}
 }
 
 func (r *RightPane) renderBody(content *strings.Builder, req *http.Request, resp *http.Response) {
