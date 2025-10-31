@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/signadot/cli/internal/tui/colors"
 )
 
 // StatusComponent represents a reusable status component
@@ -60,18 +61,18 @@ func (s *StatusComponent) Render(followMode bool) string {
 
 	if followMode {
 		followModeText := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("25")).
+			Foreground(colors.Blue).
 			Bold(true).
 			Render("[FOLLOW MODE]")
 		content.WriteString(followModeText + " ")
 	}
 
-	statusColor := lipgloss.Color("green")
+	statusColor := colors.Green
 	switch s.Status {
 	case "error", "failed":
-		statusColor = lipgloss.Color("red")
+		statusColor = colors.Red
 	case "warning":
-		statusColor = lipgloss.Color("yellow")
+		statusColor = colors.Orange
 	}
 
 	statusText := lipgloss.NewStyle().
