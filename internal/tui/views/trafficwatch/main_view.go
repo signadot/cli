@@ -342,6 +342,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 		_, cmd = m.rightPane.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	if m.state == StateLogs {
