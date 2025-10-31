@@ -126,7 +126,7 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 	fmt.Fprintln(out, "Printing traffic logs below (press Ctrl+C to stop):")
 	fmt.Fprintf(out, "\n")
 	// Print the header
-	printLogHeader()
+	printLogHeader(cfg.Sandbox, cfg.To)
 	// Start the log server
 	startLogServer(ctx, logServer, logListener)
 
@@ -137,10 +137,22 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 	return retErr
 }
 
-func printLogHeader() {
+func computeServedByWidth(sandboxName, localAddress string) int {
+	width := len("SERVED BY")
+	if len(sandboxName) > width {
+		width = len(sandboxName)
+	}
+	if len(localAddress) > width {
+		width = len(localAddress)
+	}
+	return width + 4
+}
+
+func printLogHeader(sandboxName, localAddress string) {
 	bold := color.New(color.Bold).SprintFunc()
+	servedByWidth := computeServedByWidth(sandboxName, localAddress)
 	// Pad text first, then apply bold formatting
-	servedBy := fmt.Sprintf("%-32s", "SERVED BY")
+	servedBy := fmt.Sprintf("%-*s", servedByWidth, "SERVED BY")
 	method := fmt.Sprintf("%-7s", "METHOD")
 	path := "PATH"
 	status := "STATUS"
@@ -161,14 +173,14 @@ func printFormattedLogEntry(logEntry *override.LogEntry, sandboxName string, loc
 	var methodStr string
 	var pathStr string
 
+	servedByWidth := computeServedByWidth(sandboxName, localAddress)
 	// Get the plain text first for proper width calculation
 	if logEntry.Overridden {
 		routingStr = localAddress
 	} else {
 		routingStr = sandboxName
 	}
-	routingStr = fmt.Sprintf("%-32s", routingStr)
-
+	routingStr = fmt.Sprintf("%-*s", servedByWidth, routingStr)
 	statusStr = fmt.Sprintf("%d", logEntry.StatusCode)
 
 	// Display method as-is
