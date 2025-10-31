@@ -65,7 +65,7 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile s
 
 	statusComponent := components.NewStatusComponent(
 		components.StatusSuccess,
-		fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(requests)),
+		"",
 	)
 
 	helpComponent := components.NewHelpComponent(
@@ -167,15 +167,21 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		m.statusComponent.SetAlwaysOnDisplayMessage("").UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests)))
 		m.requests = append(m.requests, msg.Request)
-		// Continue listening for more traffic messages
 
 		cmd := waitForTrafficMsg(m.msgChan)
+
+		if m.leftPane.followMode {
+			m.leftPane.selected = len(m.requests) - 1
+			m.handleRequestSelected(m.requests[m.leftPane.selected].MiddlewareRequestID)
+			m.leftPane.sendSelection()
+		}
+
+		// Continue listening for more traffic messages
 		return m, tea.Batch(cmd, m.leftPane.RefreshData(m.requests))
 	case tea.WindowSizeMsg:
 		helpHeight := lipgloss.Height(m.help.View(m.keys))
-		statusHeight := lipgloss.Height(m.statusComponent.Render())
+		statusHeight := lipgloss.Height(m.statusComponent.Render(m.leftPane.followMode))
 
 		m.width = msg.Width
 		m.height = msg.Height
@@ -204,6 +210,8 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle key bindings using the keyMap
 		switch {
+		case key.Matches(msg, m.keys.FollowMode):
+			return m, ToggleFollowMode()
 		case key.Matches(msg, m.keys.NextPage):
 			return m, m.leftPane.NextPage(false)
 		case key.Matches(msg, m.keys.PrevPage):
@@ -241,6 +249,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refreshData()
 			return m, nil
 		case key.Matches(msg, m.keys.Tab):
+			m.rightPane.SetFocused(m.focus != "right")
 			if m.focus == "left" {
 				m.focus = "right"
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
@@ -260,6 +269,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Move focus from left pane to right pane, or navigate within right pane
 			if m.focus == "left" {
 				m.focus = "right"
+				m.rightPane.SetFocused(true)
 				m.statusComponent.UpdateStatus(components.StatusSuccess).UpdateStatusMessage(
 					fmt.Sprintf("Loaded %d requests", len(m.requests)),
 				)
@@ -272,6 +282,8 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// If already on right pane, let the right pane handle tab navigation
 		case key.Matches(msg, m.keys.Left):
+			m.rightPane.SetFocused(false)
+
 			// Move focus from right pane to left pane, or navigate within left pane
 			if m.focus == "right" {
 				// Check if we're at the first tab of right pane
@@ -300,14 +312,21 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case RequestSelectedMsg:
-		m.selectedID = msg.RequestID
-		request := m.getCurrentRequest()
-		m.rightPane.SetRequest(request)
 
+		m.handleRequestSelected(msg.RequestID)
 		return m, nil
 
 	case LogsLoadedMsg:
 		m.logsView.logs = msg.Logs
+		return m, nil
+
+	case ToggleFollowModeMsg:
+		m.leftPane.toggleFollowMode()
+
+		if m.leftPane.followMode {
+			m.leftPane.selected = len(m.requests) - 1
+			return m, m.leftPane.sendSelection()
+		}
 		return m, nil
 
 	case views.GoToViewMsg:
@@ -321,6 +340,8 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Update focused pane
 	var cmd tea.Cmd
 	if m.state == StateWithData {
+		m.rightPane.SetFocused(m.focus == "right")
+
 		switch m.focus {
 		case "left":
 			_, cmd = m.leftPane.Update(msg)
@@ -359,17 +380,15 @@ func (m *MainView) View() string {
 	// Add help at the bottom if not in help state
 	if m.state != StateHelp {
 		m.statusComponent.
-			UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests))).
 			SetShortHelpMessage(m.help.View(m.keys))
 
 		content.WriteString("\n")
-		content.WriteString(m.statusComponent.Render())
+		content.WriteString(m.statusComponent.Render(m.leftPane.followMode))
 	} else {
 		content.WriteString("\n")
 		m.statusComponent.
-			UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests))).
 			SetShortHelpMessage(m.help.View(m.keys))
-		content.WriteString(m.statusComponent.Render())
+		content.WriteString(m.statusComponent.Render(m.leftPane.followMode))
 	}
 
 	return content.String()
@@ -454,30 +473,21 @@ func (m *MainView) refreshData() {
 	)
 }
 
+func (m *MainView) handleRequestSelected(requestID string) {
+	m.selectedID = requestID
+	request := m.getCurrentRequest()
+	m.rightPane.SetRequest(request)
+}
+
 func (m *MainView) getCurrentRequest() *filemanager.RequestMetadata {
-	for _, req := range m.requests {
-		if req.MiddlewareRequestID == m.leftPane.selectedRequestMiddlewareID {
-			return req
-		}
-	}
-
-	return nil
-}
-
-// RequestSelectedMsg is sent when a request is selected
-type RequestSelectedMsg struct {
-	RequestID string
-}
-type trafficMsg struct {
-	Request     *filemanager.RequestMetadata
-	MessageType filemanager.MessageType
-	Error       error
+	return m.requests[m.leftPane.selected]
 }
 
 func getHelpKeysForLeftPane() []components.LiteralBindingName {
 	return []components.LiteralBindingName{
 		components.LiteralBindingNameHelp,
 		components.LiteralBindingNameQuit,
+		components.LiteralBindingNameFollowMode,
 		components.LiteralBindingNameNextPage,
 		components.LiteralBindingNamePrevPage,
 		components.LiteralBindingNameLeft,
