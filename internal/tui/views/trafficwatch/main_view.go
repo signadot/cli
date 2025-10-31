@@ -172,6 +172,11 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.leftPane.selected = len(m.requests) - 1
 			m.handleRequestSelected(m.requests[m.leftPane.selected].MiddlewareRequestID)
 			m.leftPane.sendSelection()
+
+			if m.focus == "right" {
+				m.focus = "left"
+				m.rightPane.SetFocused(false)
+			}
 		}
 
 		// Continue listening for more traffic messages
