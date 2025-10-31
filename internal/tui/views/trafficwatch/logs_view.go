@@ -10,8 +10,8 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/signadot/cli/internal/trafficwatch/filemanager"
 	"github.com/signadot/cli/internal/tui/components"
-	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/views"
 )
 

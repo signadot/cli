@@ -10,8 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/trafficwatch/filemanager"
 	"github.com/signadot/cli/internal/tui/components"
-	"github.com/signadot/cli/internal/tui/filemanager"
 	"github.com/signadot/cli/internal/tui/views"
 )
 
@@ -41,6 +41,7 @@ type MainView struct {
 	focus    string // "left" or "right"
 	showHelp bool
 
+	scanner         *filemanager.TrafficWatchScanner
 	statusComponent *components.StatusComponent
 	helpComponent   *components.HelpComponent
 	help            help.Model
@@ -51,23 +52,31 @@ type MainView struct {
 	leftPaneHelpKeys []components.LiteralBindingName
 	// help keys for right pane
 	rightPaneHelpKeys []components.LiteralBindingName
-
-	config *filemanager.TrafficWatchScannerConfig
 }
 
 // NewMainView creates a new main view
-func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile string) (*MainView, error) {
-	requests := []*filemanager.RequestMetadata{}
+func NewMainView(trafficDir string, format config.OutputFormat, logsFile string) (*MainView, error) {
+	// create a traffic scanner
+	scanner, err := filemanager.NewTrafficWatchScanner(&filemanager.ScannerConfig{
+		TrafficDir: trafficDir,
+		Format:     format,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not create traffic watch scanner: %w", err)
+	}
 
+	// load initial requests
+	requests := scanner.Init()
+
+	// create views, panes and components
 	leftPane := NewLeftPane(requests)
-	rightPane := NewRightPane(recordDir)
+	rightPane := NewRightPane(trafficDir)
 	logsView := NewLogsView(logsFile)
 
 	statusComponent := components.NewStatusComponent(
 		components.StatusSuccess,
 		"",
 	)
-
 	helpComponent := components.NewHelpComponent(
 		"Traffic Watch",
 		"Monitor HTTP traffic in real-time",
@@ -81,12 +90,14 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile s
 	leftPaneHelpKeys := getHelpKeysForLeftPane()
 	rightPaneHelpKeys := getHelpKeysForRightPane()
 
+	// create the main view
 	m := &MainView{
 		state:           state,
 		requests:        requests,
 		leftPane:        leftPane,
 		rightPane:       rightPane,
 		logsView:        logsView,
+		scanner:         scanner,
 		statusComponent: statusComponent,
 		helpComponent:   helpComponent,
 		help:            components.NewHelpModel(),
@@ -99,40 +110,24 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile s
 		rightPaneHelpKeys: rightPaneHelpKeys,
 	}
 
-	cfg, err := filemanager.NewTrafficWatchScannerConfig(
-		filemanager.WithRecordDir(recordDir),
-		filemanager.WithRecordsFormat(recordsFormat),
-		filemanager.WithOnNewLine(func(lineMessage *filemanager.LineMessage) {
-			switch lineMessage.MessageType {
-			case filemanager.MessageTypeData:
-				m.msgChan <- trafficMsg{
-					Request:     lineMessage.Data,
-					MessageType: filemanager.MessageTypeData,
-				}
-			case filemanager.MessageTypeStatusNoStarted:
-				m.msgChan <- trafficMsg{
-					MessageType: filemanager.MessageTypeStatusNoStarted,
-					Error:       lineMessage.Error,
-				}
-			}
-		}),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create traffic watch scanner config: %w", err)
+	// set callbacks to the scanner
+	scanner.OnRequest = func(reqMeta *filemanager.RequestMetadata) {
+		m.msgChan <- trafficMsg{
+			Request: reqMeta,
+		}
 	}
-
-	m.config = cfg
+	scanner.OnError = func(err error) {
+		m.msgChan <- trafficMsg{
+			Error: err,
+		}
+	}
 
 	return m, nil
 }
 
 // Init initializes the main view
 func (m *MainView) Init() tea.Cmd {
-
-	// Create traffic watcher with callback to handle parsed requests
-	watcher := filemanager.NewTrafficWatchScanner(m.config)
-
-	err := watcher.Start(context.Background())
+	err := m.scanner.Start(context.Background())
 	if err != nil {
 		panic(err)
 	}
@@ -162,8 +157,9 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state != StateLogs {
 			m.state = StateWithData
 		}
-		if msg.MessageType == filemanager.MessageTypeStatusNoStarted {
-			m.statusComponent.SetAlwaysOnDisplayMessage(msg.Error.Error()).UpdateStatus(components.StatusError)
+		if msg.Error != nil {
+			m.statusComponent.SetAlwaysOnDisplayMessage(msg.Error.Error()).
+				UpdateStatus(components.StatusError)
 			return m, nil
 		}
 
@@ -179,6 +175,7 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Continue listening for more traffic messages
 		return m, tea.Batch(cmd, m.leftPane.RefreshData(m.requests))
+
 	case tea.WindowSizeMsg:
 		helpHeight := lipgloss.Height(m.help.View(m.keys))
 		statusHeight := lipgloss.Height(m.statusComponent.Render(m.leftPane.followMode))
@@ -312,7 +309,6 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case RequestSelectedMsg:
-
 		m.handleRequestSelected(msg.RequestID)
 		return m, nil
 

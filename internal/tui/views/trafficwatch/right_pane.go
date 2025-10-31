@@ -9,9 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/signadot/cli/internal/trafficwatch/filemanager"
 	"github.com/signadot/cli/internal/tui/components"
-	"github.com/signadot/cli/internal/tui/filemanager"
-	"github.com/signadot/cli/internal/tui/utils"
 )
 
 var (
@@ -369,11 +368,11 @@ func (r *RightPane) SetRequest(reqMeta *filemanager.RequestMetadata) {
 	r.request = reqMeta
 
 	// Load the request/response details from the os
-	requestDetail, err := utils.LoadHttpRequest(
+	requestDetail, err := filemanager.LoadHttpRequest(
 		filemanager.GetSourceRequestPath(r.recordDir, reqMeta.MiddlewareRequestID))
 	r.requestContent = r.renderRequestTab(reqMeta, requestDetail, err)
 
-	responseDetail, err := utils.LoadHttpResponse(
+	responseDetail, err := filemanager.LoadHttpResponse(
 		filemanager.GetSourceResponsePath(r.recordDir, reqMeta.MiddlewareRequestID))
 	r.responseContent = r.renderResponseTab(reqMeta, responseDetail, err)
 }

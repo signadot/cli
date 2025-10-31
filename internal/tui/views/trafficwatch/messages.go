@@ -2,7 +2,7 @@ package trafficwatch
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/signadot/cli/internal/tui/filemanager"
+	"github.com/signadot/cli/internal/trafficwatch/filemanager"
 )
 
 type ToggleFollowModeMsg struct {
@@ -35,7 +35,6 @@ type RequestSelectedMsg struct {
 }
 
 type trafficMsg struct {
-	Request     *filemanager.RequestMetadata
-	MessageType filemanager.MessageType
-	Error       error
+	Request *filemanager.RequestMetadata
+	Error   error
 }
