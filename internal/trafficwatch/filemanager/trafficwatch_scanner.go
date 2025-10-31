@@ -119,7 +119,9 @@ func (tw *TrafficWatchScanner) run(ctx context.Context) {
 func (tw *TrafficWatchScanner) checkForNewContent() {
 	file, err := os.Open(tw.path)
 	if err != nil {
-		tw.OnError(err)
+		if tw.OnError != nil {
+			tw.OnError(err)
+		}
 		return
 	}
 	defer file.Close()
@@ -198,7 +200,9 @@ func (tw *TrafficWatchScanner) handleRequestEvent(reqEvent *RequestMetadata) {
 			}
 		}
 
-		tw.OnRequest(reqMeta)
+		if tw.OnRequest != nil {
+			tw.OnRequest(reqMeta)
+		}
 		delete(tw.pendingRequests, reqID)
 		return
 	}
