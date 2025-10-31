@@ -90,7 +90,7 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 	}
 
 	if cfg.Detach {
-		fmt.Fprintf(out, "Overriding traffic from sandbox %q, workload %q, port %d to %s\n",
+		fmt.Fprintf(out, "All HTTP/gRPC requests intended for sandbox %s, workload %s, port %d will be sent to your local service at %s.\n\n",
 			cfg.Sandbox, cfg.Workload, cfg.Port, cfg.To)
 
 		fmt.Fprintf(out, "Traffic override will persist after this session ends\n")
@@ -105,11 +105,8 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 
 	green := color.New(color.FgGreen).SprintFunc()
 	bold := color.New(color.Bold).SprintFunc()
-	fmt.Fprintf(out, "%s Local destination %s will override sandbox responses as follows:\n", green("✓"), cfg.To)
-	fmt.Fprintln(out)
-
-	fmt.Fprintf(out, "All HTTP/gRPC requests intended for sandbox %s, workload %s, port %d will be sent to your local service at %s.\n\n",
-		bold(cfg.Sandbox), bold(cfg.Workload), cfg.Port, bold(cfg.To))
+	fmt.Fprintf(out, "%s Local destination %s will override sandbox responses as follows:\n\nAll HTTP/gRPC requests intended for sandbox %s, workload %s, port %d will be sent to your local service at %s.\n\n",
+		green("✓"), cfg.To, bold(cfg.Sandbox), bold(cfg.Workload), cfg.Port, bold(cfg.To))
 
 	if len(cfg.ExcludedStatusCodes) > 0 {
 		codes := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(cfg.ExcludedStatusCodes)), ","), "[]")
@@ -125,6 +122,11 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 	}
 	fmt.Fprintf(out, "\n")
 
+	// Inform the user that traffic logs will be printed
+	fmt.Fprintln(out, "Printing traffic logs below (press Ctrl+C to stop):")
+	fmt.Fprintf(out, "\n")
+	// Print the header
+	printLogHeader()
 	// Start the log server
 	startLogServer(ctx, logServer, logListener)
 
@@ -135,31 +137,70 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 	return retErr
 }
 
+func printLogHeader() {
+	bold := color.New(color.Bold).SprintFunc()
+	// Pad text first, then apply bold formatting
+	servedBy := fmt.Sprintf("%-32s", "SERVED BY")
+	method := fmt.Sprintf("%-7s", "METHOD")
+	path := "PATH"
+	status := "STATUS"
+	// Strings are already padded, use %s to avoid ANSI code width issues
+	fmt.Printf("%s %s %s -> %s\n",
+		bold(servedBy),
+		bold(method),
+		bold(path),
+		bold(status),
+	)
+}
+
 func printFormattedLogEntry(logEntry *override.LogEntry, sandboxName string, localAddress string) {
 	var status string
 	var routing string
+	var statusStr string
+	var routingStr string
+	var methodStr string
+	var pathStr string
 
+	// Get the plain text first for proper width calculation
+	if logEntry.Overridden {
+		routingStr = localAddress
+	} else {
+		routingStr = sandboxName
+	}
+	routingStr = fmt.Sprintf("%-32s", routingStr)
+
+	statusStr = fmt.Sprintf("%d", logEntry.StatusCode)
+
+	// Display method as-is
+	methodStr = logEntry.Method
+	methodStr = fmt.Sprintf("%-7s", methodStr)
+
+	// Display path as-is
+	pathStr = logEntry.Path
+
+	// Apply colors after padding
 	switch {
 	case logEntry.StatusCode >= 200 && logEntry.StatusCode < 300:
-		status = color.New(color.FgGreen).Sprintf("%d", logEntry.StatusCode)
+		status = color.New(color.FgGreen).Sprint(statusStr)
 	case logEntry.StatusCode >= 300 && logEntry.StatusCode < 400:
-		status = color.New(color.FgYellow).Sprintf("%d", logEntry.StatusCode)
+		status = color.New(color.FgYellow).Sprint(statusStr)
 	case logEntry.StatusCode >= 400:
-		status = color.New(color.FgRed).Sprintf("%d", logEntry.StatusCode)
+		status = color.New(color.FgRed).Sprint(statusStr)
 	default:
-		status = fmt.Sprintf("%d", logEntry.StatusCode)
+		status = statusStr
 	}
 
 	if logEntry.Overridden {
-		routing = color.New(color.FgCyan).Sprint("(" + localAddress + ")")
+		routing = color.New(color.FgCyan).Sprint(routingStr)
 	} else {
-		routing = color.New(color.FgBlue).Sprint("(" + sandboxName + ")")
+		routing = color.New(color.FgBlue).Sprint(routingStr)
 	}
 
-	fmt.Printf("%-20s %-7s %s -> %s\n",
+	// Strings are already padded, use %s to avoid ANSI code width issues
+	fmt.Printf("%s %s %s -> %s\n",
 		routing,
-		logEntry.Method,
-		logEntry.Path,
+		methodStr,
+		pathStr,
 		status,
 	)
 }
