@@ -306,7 +306,6 @@ func (l *LeftPane) renderEmptyState() string {
 }
 
 func (l *LeftPane) sendSelection() tea.Cmd {
-
 	minIndex := l.paginator.PerPage * l.paginator.Page
 	maxIndex := minIndex + l.paginator.PerPage - 1
 

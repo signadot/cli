@@ -65,7 +65,7 @@ func NewMainView(recordDir string, recordsFormat config.OutputFormat, logsFile s
 
 	statusComponent := components.NewStatusComponent(
 		components.StatusSuccess,
-		fmt.Sprintf("Loaded %d requests | Focus: Left Pane", len(requests)),
+		"",
 	)
 
 	helpComponent := components.NewHelpComponent(
@@ -167,20 +167,18 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		m.statusComponent.SetAlwaysOnDisplayMessage("").UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests)))
 		m.requests = append(m.requests, msg.Request)
 
-		var cmds []tea.Cmd
-		cmds = append(cmds, waitForTrafficMsg(m.msgChan))
+		cmd := waitForTrafficMsg(m.msgChan)
 
 		if m.leftPane.followMode {
 			m.leftPane.selected = len(m.requests) - 1
-			cmds = append(cmds, m.leftPane.sendSelection())
+			m.handleRequestSelected(m.requests[m.leftPane.selected].MiddlewareRequestID)
+			m.leftPane.sendSelection()
 		}
 
-		cmds = append(cmds, m.leftPane.RefreshData(m.requests))
 		// Continue listening for more traffic messages
-		return m, tea.Batch(cmds...)
+		return m, tea.Batch(cmd, m.leftPane.RefreshData(m.requests))
 	case tea.WindowSizeMsg:
 		helpHeight := lipgloss.Height(m.help.View(m.keys))
 		statusHeight := lipgloss.Height(m.statusComponent.Render(m.leftPane.followMode))
@@ -314,10 +312,8 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case RequestSelectedMsg:
-		m.selectedID = msg.RequestID
-		request := m.getCurrentRequest()
-		m.rightPane.SetRequest(request)
 
+		m.handleRequestSelected(msg.RequestID)
 		return m, nil
 
 	case LogsLoadedMsg:
@@ -384,7 +380,6 @@ func (m *MainView) View() string {
 	// Add help at the bottom if not in help state
 	if m.state != StateHelp {
 		m.statusComponent.
-			UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests))).
 			SetShortHelpMessage(m.help.View(m.keys))
 
 		content.WriteString("\n")
@@ -392,7 +387,6 @@ func (m *MainView) View() string {
 	} else {
 		content.WriteString("\n")
 		m.statusComponent.
-			UpdateStatusMessage(fmt.Sprintf("Loaded %d requests", len(m.requests))).
 			SetShortHelpMessage(m.help.View(m.keys))
 		content.WriteString(m.statusComponent.Render(m.leftPane.followMode))
 	}
@@ -477,6 +471,12 @@ func (m *MainView) refreshData() {
 		components.StatusSuccess,
 		fmt.Sprintf("Refreshed %d requests", len(m.requests)),
 	)
+}
+
+func (m *MainView) handleRequestSelected(requestID string) {
+	m.selectedID = requestID
+	request := m.getCurrentRequest()
+	m.rightPane.SetRequest(request)
 }
 
 func (m *MainView) getCurrentRequest() *filemanager.RequestMetadata {

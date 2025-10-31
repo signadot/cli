@@ -33,6 +33,7 @@ type PrevPageMsg struct {
 type RequestSelectedMsg struct {
 	RequestID string
 }
+
 type trafficMsg struct {
 	Request     *filemanager.RequestMetadata
 	MessageType filemanager.MessageType
