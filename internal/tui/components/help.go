@@ -15,6 +15,7 @@ type HelpComponent struct {
 	help        help.Model
 	keys        KeyMap
 	Style       lipgloss.Style
+	width       int
 }
 
 // NewHelpComponent creates a new help component
@@ -30,7 +31,16 @@ func NewHelpComponent(title, description string) *HelpComponent {
 
 // SetWidth sets the width of the help component
 func (h *HelpComponent) SetWidth(width int) {
-	h.help.Width = width - 6
+	h.width = width
+	overhead := h.getStyleOverhead()
+	h.help.Width = width - overhead
+}
+
+// getStyleOverhead calculates the total width overhead from padding and borders
+func (h *HelpComponent) getStyleOverhead() int {
+	hPadding := h.Style.GetHorizontalPadding()
+	hBorder := h.Style.GetHorizontalBorderSize()
+	return hPadding + hBorder
 }
 
 // ShowAll toggles the help view between short and full
@@ -50,8 +60,6 @@ func (h *HelpComponent) IsShowingAll() bool {
 
 // Render returns the formatted help string
 func (h *HelpComponent) Render() string {
-	h.help.ShowAll = true
-
 	var content strings.Builder
 
 	// Title
@@ -76,9 +84,7 @@ func (h *HelpComponent) Render() string {
 
 	content.WriteString(h.renderKeyBindings())
 
-	view := h.Style.Render(content.String())
-	h.help.ShowAll = false
-	return view
+	return h.Style.Render(content.String())
 }
 
 func (h *HelpComponent) renderKeyBindings() string {
@@ -86,6 +92,12 @@ func (h *HelpComponent) renderKeyBindings() string {
 
 	if len(fullHelp) == 0 {
 		return ""
+	}
+
+	// Calculate available content width
+	availableWidth := h.help.Width
+	if availableWidth <= 0 {
+		availableWidth = 80 // default fallback
 	}
 
 	keyStyle := lipgloss.NewStyle().
@@ -117,7 +129,7 @@ func (h *HelpComponent) renderKeyBindings() string {
 				Foreground(colors.Blue).
 				Underline(true)
 			rows = append(rows, titleStyle.Render(sectionTitles[i]))
-			rows = append(rows, "") // spacing
+			rows = append(rows, "")
 		}
 
 		for _, binding := range column {
@@ -138,6 +150,7 @@ func (h *HelpComponent) renderKeyBindings() string {
 		sections = append(sections, section)
 	}
 
+	// Calculate the width for each section
 	maxWidth := 0
 	for _, section := range sections {
 		lines := strings.Split(section, "\n")
@@ -149,22 +162,62 @@ func (h *HelpComponent) renderKeyBindings() string {
 		}
 	}
 
-	sectionStyle := lipgloss.NewStyle().
-		Width(maxWidth+4).
-		Padding(1, 2)
+	// Section padding and spacing constants
+	const sectionHPadding = 4 // horizontal padding per section (left + right)
+	const sectionSpacing = 2  // spacing between sections
+	sectionWidth := maxWidth + sectionHPadding
 
-	var styledSections []string
-	for _, section := range sections {
-		styledSections = append(styledSections, sectionStyle.Render(section))
+	// Calculate total width needed for horizontal layout
+	numSections := len(sections)
+	totalWidthNeeded := (sectionWidth * numSections) + (sectionSpacing * (numSections - 1))
+
+	// Decide layout based on available width
+	var helpContent string
+	if totalWidthNeeded <= availableWidth && numSections > 1 {
+		// Horizontal layout - sections side by side
+		sectionStyle := lipgloss.NewStyle().
+			Width(sectionWidth).
+			Padding(1, 2)
+
+		var styledSections []string
+		for _, section := range sections {
+			styledSections = append(styledSections, sectionStyle.Render(section))
+		}
+
+		helpContent = lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			styledSections...,
+		)
+	} else {
+		// Vertical layout - sections stacked
+		// Adjust section width to use more available space
+		adjustedWidth := availableWidth - sectionHPadding
+		if adjustedWidth < maxWidth {
+			adjustedWidth = maxWidth
+		}
+
+		sectionStyle := lipgloss.NewStyle().
+			Width(adjustedWidth).
+			Padding(1, 2)
+
+		var styledSections []string
+		for i, section := range sections {
+			styledSections = append(styledSections, sectionStyle.Render(section))
+			// Add spacing between sections except for the last one
+			if i < len(sections)-1 {
+				styledSections = append(styledSections, "")
+			}
+		}
+
+		helpContent = lipgloss.JoinVertical(
+			lipgloss.Left,
+			styledSections...,
+		)
 	}
 
-	helpContent := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		styledSections...,
-	)
-
+	// Center the entire help content
 	centeredStyle := lipgloss.NewStyle().
-		Width(h.help.Width).
+		Width(availableWidth).
 		Align(lipgloss.Center)
 
 	return centeredStyle.Render(helpContent)
