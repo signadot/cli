@@ -299,36 +299,35 @@ func (l *LeftPane) renderEmptyState() string {
 }
 
 func (l *LeftPane) sendSelection() tea.Cmd {
+	if l.selected < 0 || l.selected >= len(l.requests) {
+		return nil
+	}
+
 	minIndex := l.paginator.PerPage * l.paginator.Page
 	maxIndex := minIndex + l.paginator.PerPage - 1
 
-	if l.selected < len(l.requests) {
+	// If selected item is not on the current page, jump directly to the correct page
+	if l.selected < minIndex || l.selected > maxIndex {
+		// Calculate the page that contains the selected item
+		targetPage := l.selected / l.paginator.PerPage
 
-		// If selected item is not on the current page, jump directly to the correct page
-		if l.selected < minIndex || l.selected > maxIndex {
-			// Calculate the page that contains the selected item
-			targetPage := l.selected / l.paginator.PerPage
-
-			// Ensure the page is within valid bounds
-			if targetPage >= l.paginator.TotalPages {
-				targetPage = l.paginator.TotalPages - 1
-			}
-			if targetPage < 0 {
-				targetPage = 0
-			}
-
-			// Set the page directly
-			l.paginator.Page = targetPage
+		// Ensure the page is within valid bounds
+		if targetPage >= l.paginator.TotalPages {
+			targetPage = l.paginator.TotalPages - 1
+		}
+		if targetPage < 0 {
+			targetPage = 0
 		}
 
-		return func() tea.Msg {
-			return RequestSelectedMsg{
-				RequestID: l.requests[l.selected].MiddlewareRequestID,
-			}
-		}
-
+		// Set the page directly
+		l.paginator.Page = targetPage
 	}
-	return nil
+
+	return func() tea.Msg {
+		return RequestSelectedMsg{
+			RequestID: l.requests[l.selected].MiddlewareRequestID,
+		}
+	}
 }
 
 func (l *LeftPane) toggleFollowMode() {
