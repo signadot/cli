@@ -16,7 +16,7 @@ func New(local *config.Local) *cobra.Command {
 		Long: `The 'override' command lets you intercept both HTTP and gRPC traffic coming into your sandbox and process it with a local service you specify (such as on your laptop).
 
 How it works:
-- Any HTTP or gRPC request to your sandbox is first routed to your local service.
+- Any HTTP request (including gRPC) to your sandbox is first routed to your local service.
 - Your local service processes the request and replies.
 - By default:
     * If your local service's response contains the header 'sd-override: true' (for HTTP), or the metadata 'sd-override: true' (for gRPC), the response from your local service is immediately sent back to the client—the request does NOT reach the original sandbox workload.
