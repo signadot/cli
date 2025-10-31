@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/signadot/cli/internal/tui/colors"
 )
 
 // HelpComponent represents a reusable help component using bubbles help
@@ -56,7 +57,7 @@ func (h *HelpComponent) Render() string {
 	// Title
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("blue"))
+		Foreground(colors.Blue)
 	content.WriteString(titleStyle.Render(h.Title))
 	content.WriteString("\n\n")
 

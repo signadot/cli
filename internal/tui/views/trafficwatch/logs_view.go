@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/trafficwatch/filemanager"
+	"github.com/signadot/cli/internal/tui/colors"
 	"github.com/signadot/cli/internal/tui/components"
 	"github.com/signadot/cli/internal/tui/views"
 )
@@ -202,7 +203,7 @@ func (l *LogsView) View() string {
 func (l *LogsView) headerView() string {
 	title := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("blue")).
+		Foreground(colors.Blue).
 		Render(fmt.Sprintf("Logs (%d entries) - %s", len(l.logs), l.logFile))
 
 	if l.ready {
@@ -219,7 +220,7 @@ func (l *LogsView) footerView() string {
 	}
 
 	info := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("gray")).
+		Foreground(colors.LightGray).
 		Render(fmt.Sprintf("%3.f%%", l.viewport.ScrollPercent()*100))
 
 	line := strings.Repeat("─", max(0, l.viewport.Width-lipgloss.Width(info)))
@@ -253,21 +254,21 @@ func max(a, b int) int {
 func (l *LogsView) renderLogLine(entry filemanager.LogEntry) string {
 	// Create a styled timestamp
 	timestamp := entry.Timestamp.Format("15:04:05")
-	timestampStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("gray"))
+	timestampStyle := lipgloss.NewStyle().Foreground(colors.LightGray)
 
 	// Create level styling based on slog.Level
 	var levelStyle lipgloss.Style
 	switch entry.Level {
 	case slog.LevelError:
-		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("red")).Bold(true)
+		levelStyle = lipgloss.NewStyle().Foreground(colors.Red).Bold(true)
 	case slog.LevelWarn:
-		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("yellow")).Bold(true)
+		levelStyle = lipgloss.NewStyle().Foreground(colors.Orange).Bold(true)
 	case slog.LevelInfo:
-		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("blue"))
+		levelStyle = lipgloss.NewStyle().Foreground(colors.Blue)
 	case slog.LevelDebug:
-		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("gray"))
+		levelStyle = lipgloss.NewStyle().Foreground(colors.LightGray)
 	default:
-		levelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("white"))
+		levelStyle = lipgloss.NewStyle().Foreground(colors.White)
 	}
 
 	// Format the log line
@@ -283,7 +284,7 @@ func (l *LogsView) renderLogLine(entry filemanager.LogEntry) string {
 	line.WriteString(" ")
 
 	// Add message
-	messageStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("white"))
+	messageStyle := lipgloss.NewStyle().Foreground(colors.White)
 	line.WriteString(messageStyle.Render(entry.Message))
 
 	// Add all attributes with different colors for different types
@@ -297,17 +298,17 @@ func (l *LogsView) renderLogLine(entry filemanager.LogEntry) string {
 		// Color-code different types of attributes
 		switch {
 		case strings.HasPrefix(key, "request."):
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("23"))
+			attrStyle = lipgloss.NewStyle().Foreground(colors.Cyan)
 		case key == "sandbox":
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5D95FF"))
+			attrStyle = lipgloss.NewStyle().Foreground(colors.Blue)
 		case key == "error":
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
+			attrStyle = lipgloss.NewStyle().Foreground(colors.Red)
 		case strings.Contains(key, "time") || strings.Contains(key, "At"):
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#5D95FF"))
+			attrStyle = lipgloss.NewStyle().Foreground(colors.Blue)
 		case key == "level" || key == "msg":
 			continue
 		default:
-			attrStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("yellow"))
+			attrStyle = lipgloss.NewStyle().Foreground(colors.Orange)
 		}
 
 		line.WriteString(" ")

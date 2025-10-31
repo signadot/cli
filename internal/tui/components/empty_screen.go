@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/signadot/cli/internal/tui/colors"
 )
 
 // EmptyScreenComponent represents a reusable empty state component
@@ -61,14 +62,14 @@ func (e *EmptyScreenComponent) Render() string {
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("blue")).
+		Foreground(colors.Blue).
 		MarginBottom(1)
 	content.WriteString(titleStyle.Render(e.Title))
 	content.WriteString("\n\n")
 
 	if e.Description != "" {
 		descStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("gray")).
+			Foreground(colors.LightGray).
 			MarginBottom(1)
 
 		centeredDescription := lipgloss.Place(e.width, e.height-20, lipgloss.Center, lipgloss.Top, e.Description)
@@ -79,7 +80,7 @@ func (e *EmptyScreenComponent) Render() string {
 	if e.Action != "" {
 		actionStyle := lipgloss.NewStyle().
 			Italic(true).
-			Foreground(lipgloss.Color("yellow"))
+			Foreground(colors.Orange)
 		content.WriteString(actionStyle.Render(e.Action))
 	}
 

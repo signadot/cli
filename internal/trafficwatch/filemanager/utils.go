@@ -28,7 +28,7 @@ func LoadHttpRequest(requestPath string) (*http.Request, error) {
 
 	res, err := http.ReadRequest(bufReader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read request file: %w", err)
+		return nil, fmt.Errorf("failed to read HTTP request from %s: %w", requestPath, err)
 	}
 
 	return res, nil
@@ -45,7 +45,7 @@ func LoadHttpResponse(responsePath string) (*http.Response, error) {
 
 	res, err := http.ReadResponse(bufReader, &http.Request{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response file: %w", err)
+		return nil, fmt.Errorf("failed to read HTTP response from %s: %w", responsePath, err)
 	}
 
 	return res, nil

@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/trafficwatch/filemanager"
+	"github.com/signadot/cli/internal/tui/colors"
 	"github.com/signadot/cli/internal/tui/components"
 	"github.com/signadot/cli/internal/tui/views"
 )
@@ -404,37 +405,33 @@ func (m *MainView) renderWithDataState() string {
 	paneWidth := m.width/2 - 2
 	leftStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#5D95FF")).
+		BorderForeground(colors.Blue).
 		Padding(1).
 		Width(paneWidth).
 		Height(m.leftPane.height)
 
 	rightStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#2E77FF")).
+		BorderForeground(colors.Blue).
 		Padding(1).
 		Width(paneWidth).
 		Height(m.rightPane.height)
 	if m.focus == "left" {
 		leftStyle = leftStyle.
-			BorderForeground(lipgloss.Color("#5D95FF")).
+			BorderForeground(colors.Blue).
 			BorderStyle(lipgloss.ThickBorder()).
-			Background(lipgloss.Color("black")).
-			Foreground(lipgloss.Color("white"))
+			Foreground(colors.White)
 		rightStyle = rightStyle.
-			BorderForeground(lipgloss.Color("gray")).
-			Background(lipgloss.Color("black")).
-			Foreground(lipgloss.Color("gray"))
+			BorderForeground(colors.LightGray).
+			Foreground(colors.LightGray)
 	} else {
 		rightStyle = rightStyle.
-			BorderForeground(lipgloss.Color("#2E77FF")).
+			BorderForeground(colors.Blue).
 			BorderStyle(lipgloss.ThickBorder()).
-			Background(lipgloss.Color("black")).
-			Foreground(lipgloss.Color("white"))
+			Foreground(colors.White)
 		leftStyle = leftStyle.
-			BorderForeground(lipgloss.Color("gray")).
-			Background(lipgloss.Color("black")).
-			Foreground(lipgloss.Color("gray"))
+			BorderForeground(colors.LightGray).
+			Foreground(colors.LightGray)
 	}
 
 	leftPane := leftStyle.Render(leftContent)

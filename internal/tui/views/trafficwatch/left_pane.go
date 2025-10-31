@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/trafficwatch/filemanager"
+	"github.com/signadot/cli/internal/tui/colors"
 )
 
 type LeftPane struct {
@@ -189,7 +190,7 @@ func (l *LeftPane) View() string {
 
 	header := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#5D95FF")).
+		Foreground(colors.Blue).
 		Render(fmt.Sprintf("Traffic Watch (%d)", len(l.requests)))
 	content.WriteString(header)
 	content.WriteString("\n\n")
@@ -225,57 +226,49 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 		parsedURL = &url.URL{Path: req.RequestURI}
 	}
 
-	cMethodGet := lipgloss.Color("10")      // bright green
-	cMethodPost := lipgloss.Color("14")     // cyan
-	cMethodPut := lipgloss.Color("214")     // orange
-	cMethodDel := lipgloss.Color("9")       // red
-	cHost := lipgloss.Color("245")          // light gray
-	cPath := lipgloss.Color("81")           // bright blue
-	cSelectedAccent := lipgloss.Color("63") // blue accent (selection marker)
-
 	var methodColor lipgloss.Color
 	switch strings.ToUpper(req.Method) {
 	case "GET":
-		methodColor = cMethodGet
+		methodColor = colors.Green
 	case "POST":
-		methodColor = cMethodPost
+		methodColor = colors.BrightCyan
 	case "PUT":
-		methodColor = cMethodPut
+		methodColor = colors.Orange
 	case "DELETE":
-		methodColor = cMethodDel
+		methodColor = colors.Red
 	default:
-		methodColor = lipgloss.Color("7") // neutral gray
+		methodColor = colors.LightGray
 	}
 
-	methodStyle := lipgloss.NewStyle().Foreground(methodColor).Bold(true).Width(6)
-	hostStyle := lipgloss.NewStyle().Foreground(cHost)
-	pathStyle := lipgloss.NewStyle().Foreground(cPath)
-
-	method := methodStyle.Render(strings.ToUpper(req.Method))
-	host := hostStyle.Render(parsedURL.Host)
-	fullPath := pathStyle.Render(parsedURL.Path)
+	method := lipgloss.NewStyle().Foreground(methodColor).Bold(true).Width(6).
+		Render(strings.ToUpper(req.Method))
+	host := lipgloss.NewStyle().Foreground(colors.Gray).
+		Render(parsedURL.Host)
+	fullPath := lipgloss.NewStyle().Foreground(colors.BrightBlue).
+		Render(parsedURL.Path)
 	if parsedURL.RawQuery != "" {
 		fullPath += "?" + parsedURL.RawQuery
 	}
-
 	if parsedURL.Fragment != "" {
 		fullPath += "#" + parsedURL.Fragment
 	}
 
 	// Format timestamp (strip milliseconds and timezone)
-	formattedTime := req.DoneAt.Format("2006-01-02 15:04:05")
+	formattedTime := lipgloss.NewStyle().Foreground(colors.White).
+		Render(req.DoneAt.Format("2006-01-02 15:04:05"))
 
-	// Properly render protocol
-	var protocol string
+	// Properly render proto
+	var proto string
 	switch req.Protocol {
 	case filemanager.ProtocolGRPC:
-		protocol = "gRPC"
+		proto = "gRPC"
 	default:
-		protocol = strings.ToUpper(string(req.Protocol))
+		proto = strings.ToUpper(string(req.Protocol))
 	}
+	proto = lipgloss.NewStyle().Foreground(colors.White).Render(proto)
 
 	// date-time  protocol  host
-	line1 := fmt.Sprintf("%s  %-5s  ", formattedTime, protocol)
+	line1 := fmt.Sprintf("%s  %-5s  ", formattedTime, proto)
 	line1 += truncateURL(host, l.width-lipgloss.Width(line1)-1)
 	// method  fullPath
 	line2 := fmt.Sprintf("%-6s  ", method)
@@ -284,7 +277,7 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 	content := lipgloss.NewStyle().Width(l.width).Render(line1 + "\n" + line2)
 	if selected {
 		indicator := lipgloss.NewStyle().
-			Foreground(cSelectedAccent).
+			Foreground(colors.Blue).
 			Render("▌")
 
 		lines := strings.Split(content, "\n")
@@ -301,7 +294,7 @@ func (l *LeftPane) renderRequestItem(req *filemanager.RequestMetadata, selected 
 func (l *LeftPane) renderEmptyState() string {
 	return lipgloss.NewStyle().
 		Align(lipgloss.Center).
-		Foreground(lipgloss.Color("gray")).
+		Foreground(colors.LightGray).
 		Render("No traffic data available")
 }
 

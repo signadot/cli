@@ -10,17 +10,18 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/signadot/cli/internal/trafficwatch/filemanager"
+	"github.com/signadot/cli/internal/tui/colors"
 	"github.com/signadot/cli/internal/tui/components"
 )
 
 var (
 	keyStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#5D95FF")).
+			Foreground(colors.Blue).
 			Width(18)
 
 	valueStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("white"))
+			Foreground(colors.White)
 )
 
 // RightPaneTab represents the active tab
@@ -150,7 +151,7 @@ func (r *RightPane) View() string {
 // renderTabBar renders the tab bar
 func (r *RightPane) renderTabBar(isFocused bool) string {
 	tabs := []string{"Request", "Response"}
-	tabColors := []string{"#008080", "#008080"}
+	tabColors := []lipgloss.Color{colors.Cyan, colors.Cyan}
 
 	var tabStrings []string
 	for i, tab := range tabs {
@@ -160,21 +161,21 @@ func (r *RightPane) renderTabBar(isFocused bool) string {
 
 		if int(r.activeTab) == i {
 			style = style.
-				Foreground(lipgloss.Color(tabColors[i])).
+				Foreground(tabColors[i]).
 				Bold(true)
 
 			switch isFocused {
 			case true:
 				style = style.
-					Background(lipgloss.Color(tabColors[i])).
-					Foreground(lipgloss.Color("white"))
+					Background(tabColors[i]).
+					Foreground(colors.White)
 			case false:
 				style = style.
 					Underline(true)
 			}
 		} else {
 			style = style.
-				Foreground(lipgloss.Color(tabColors[i]))
+				Foreground(tabColors[i])
 		}
 
 		tabStrings = append(tabStrings, style.Render(tab))
@@ -216,16 +217,15 @@ func (r *RightPane) renderRequestTab(reqMeta *filemanager.RequestMetadata, req *
 	var content strings.Builder
 
 	if err != nil {
-		content.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("red")).
-			Render(err.Error()))
+		// render error
+		r.renderError(&content, err)
 		return content.String()
 	}
 
 	// render general section
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#008080")).
+		Foreground(colors.Cyan).
 		Render("General"))
 	content.WriteString("\n\n")
 	content.WriteString(r.getLineRenderMeta("ID", reqMeta.MiddlewareRequestID))
@@ -241,7 +241,7 @@ func (r *RightPane) renderRequestTab(reqMeta *filemanager.RequestMetadata, req *
 	// render headers section
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#008080")).
+		Foreground(colors.Cyan).
 		Render("Headers"))
 	content.WriteString("\n\n")
 
@@ -260,23 +260,15 @@ func (r *RightPane) renderResponseTab(reqMeta *filemanager.RequestMetadata, resp
 	var content strings.Builder
 
 	if err != nil {
-		content.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("red")).
-			Render(err.Error()))
-		return content.String()
-	}
-
-	if resp.StatusCode == 0 {
-		content.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("gray")).
-			Render("No response data available"))
+		// render error
+		r.renderError(&content, err)
 		return content.String()
 	}
 
 	// render general section
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#008080")).
+		Foreground(colors.Cyan).
 		Render("General"))
 	content.WriteString("\n\n")
 	content.WriteString(r.getLineRenderMeta("Status", resp.Status))
@@ -288,7 +280,7 @@ func (r *RightPane) renderResponseTab(reqMeta *filemanager.RequestMetadata, resp
 	// render headers section
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#008080")).
+		Foreground(colors.Cyan).
 		Render("Headers"))
 	content.WriteString("\n\n")
 
@@ -300,6 +292,20 @@ func (r *RightPane) renderResponseTab(reqMeta *filemanager.RequestMetadata, resp
 	r.renderBody(&content, nil, resp)
 
 	return content.String()
+}
+
+func (r *RightPane) renderError(content *strings.Builder, err error) {
+	if err == nil {
+		return
+	}
+
+	prefix := lipgloss.NewStyle().
+		Foreground(colors.Red).
+		Bold(true).
+		Render("Error: ")
+
+	content.WriteString(lipgloss.NewStyle().Width(r.width - 5).
+		Render(prefix + err.Error()))
 }
 
 func (r *RightPane) renderBody(content *strings.Builder, req *http.Request, resp *http.Response) {
@@ -321,7 +327,7 @@ func (r *RightPane) renderBody(content *strings.Builder, req *http.Request, resp
 	content.WriteString("\n")
 	content.WriteString(lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#008080")).
+		Foreground(colors.Cyan).
 		Render("Body"))
 	content.WriteString("\n\n")
 
@@ -354,8 +360,7 @@ func (r *RightPane) renderBody(content *strings.Builder, req *http.Request, resp
 	}
 
 	bodyStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("white")).
-		Background(lipgloss.Color("black")).
+		Foreground(colors.White).
 		Padding(1).
 		Width(r.width - 6).
 		Border(lipgloss.RoundedBorder())
