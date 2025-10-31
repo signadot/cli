@@ -95,15 +95,11 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // FullHelp returns keybindings for the expanded help view. It's part of the
 // key.Map interface.
 func (k KeyMap) FullHelp() [][]key.Binding {
-
-	tmpFollowMode := k.FollowMode
-	tmpFollowMode.SetHelp("f", "turn on/off follow mode")
-
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Left, k.Right},         // first column
-		{k.NextPage, k.PrevPage, tmpFollowMode}, // second column
-		{k.Tab, k.Logs, k.Refresh},              // second column
-		{k.Help, k.Quit},                        // third column
+		{k.Up, k.Down, k.Left, k.Right},        // first column
+		{k.NextPage, k.PrevPage, k.FollowMode}, // second column
+		{k.Tab, k.Logs, k.Refresh},             // second column
+		{k.Help, k.Quit},                       // third column
 	}
 }
 
@@ -158,7 +154,7 @@ var Keys = KeyMap{
 	),
 	FollowMode: key.NewBinding(
 		key.WithKeys("f"),
-		key.WithHelp("f", "turn on/off follow mode"),
+		key.WithHelp("f", "toggle follow mode"),
 	),
 }
 
