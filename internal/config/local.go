@@ -330,10 +330,10 @@ func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&lo.Workload, "workload", "w", "",
 		"name of the workload to override traffic for")
 
-	cmd.Flags().Int64Var(&lo.Port, "port", 0,
+	cmd.Flags().Int64VarP(&lo.Port, "workload-port", "p", 0,
 		"port on the sandbox workload to intercept traffic from")
 
-	cmd.Flags().StringVar(&lo.To, "to", "",
+	cmd.Flags().StringVar(&lo.To, "with", "",
 		"target address of the override destination (e.g., localhost:9999) where traffic will be forwarded")
 
 	cmd.Flags().BoolVarP(&lo.Detach, "detach", "d", false,
@@ -349,8 +349,8 @@ func (lo *LocalOverrideCreate) AddFlags(cmd *cobra.Command) {
 
 	cmd.MarkFlagRequired("sandbox")
 	cmd.MarkFlagRequired("workload")
-	cmd.MarkFlagRequired("port")
-	cmd.MarkFlagRequired("to")
+	cmd.MarkFlagRequired("workload-port")
+	cmd.MarkFlagRequired("with")
 }
 
 func (lo *LocalOverrideCreate) Validate() error {

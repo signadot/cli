@@ -84,8 +84,13 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 	if cfg.Sandbox == "" {
 		return fmt.Errorf("must specify sandbox")
 	}
-	if cfg.Short && cfg.HeadersOnly {
-		return fmt.Errorf("only one of --short or --headers-only can be provided")
+	if cfg.Short {
+		if cfg.HeadersOnly {
+			return fmt.Errorf("only one of --short or --headers-only can be provided")
+		}
+		if cfg.Clean {
+			return fmt.Errorf("only one of --short or --clean can be provided")
+		}
 	}
 
 	// define output dir

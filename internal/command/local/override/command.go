@@ -11,7 +11,7 @@ func New(local *config.Local) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Use:   "override --sandbox=<sandbox> [--workload=<workload>] --port=<port> --to=<target> [--except-status=...] [--detach]",
+		Use:   "override --sandbox=<sandbox> [--workload=<workload>] --workload-port=<port> --with=<target> [--except-status=...] [--detach]",
 		Short: "Override sandbox HTTP traffic using a local service",
 		Long: `Using the 'override' command, when a request comes into the sandbox it is
 delivered to the local service. The response of the local service determines
@@ -32,13 +32,13 @@ should not be overridden. When set, all other traffic will be overridden
 except for the specified status codes, which will fall through to the
 original sandboxed destination.`,
 		Example: `  # Override sandbox traffic from workload my-workload, port 8080 to localhost:9999
-  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999
+  signadot local override --sandbox=my-sandbox --workload=my-workload --workload-port=8080 --with=localhost:9999
 
   # Bypass override when the response returns 404 and 503
-  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999 --except-status=404,503
+  signadot local override --sandbox=my-sandbox --workload=my-workload --workload-port=8080 --with=localhost:9999 --except-status=404,503
 
   # Keep the override active after the CLI session ends
-  signadot local override --sandbox=my-sandbox --workload=my-workload --port=8080 --to=localhost:9999 --detach
+  signadot local override --sandbox=my-sandbox --workload=my-workload --workload-port=8080 --with=localhost:9999 --detach
 
   # List all active overrides
   signadot local override list
