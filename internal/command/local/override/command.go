@@ -19,7 +19,7 @@ How it works:
 - Any HTTP request (including gRPC) to your sandbox is first routed to your local service.
 - Your local service processes the request and replies.
 - By default:
-    * If your local service's response contains the header 'sd-override: true' (for HTTP), or the metadata 'sd-override: true' (for gRPC), the response from your local service is immediately sent back to the client—the request does NOT reach the original sandbox workload.
+    * If your local service's response contains the header 'sd-override: true', the response from your local service is immediately sent back to the client—the request does NOT reach the original sandbox workload.
     * For all other responses (i.e., 'sd-override: true' not present), the request is forwarded to the original sandbox workload as usual, and its response is returned to the client.
 - If your local service is unavailable or not running, all requests automatically fall through to the original sandbox workload.
 
