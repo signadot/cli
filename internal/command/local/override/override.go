@@ -114,14 +114,14 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 	if len(cfg.ExcludedStatusCodes) > 0 {
 		codes := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(cfg.ExcludedStatusCodes)), ","), "[]")
 		fmt.Fprintf(out, "* If your local service (%s) responds with status code(s) %s:\n", bold(cfg.To), codes)
-		fmt.Fprintf(out, "    -> Request is forwarded to the sandbox (%s).\n", cfg.Sandbox)
+		fmt.Fprintf(out, "    -> Request is forwarded to the sandbox (%s).\n", bold(cfg.Sandbox))
 		fmt.Fprintf(out, "* Otherwise:\n")
 		fmt.Fprintf(out, "    -> Response from your local service (%s) is returned to the client.\n", bold(cfg.To))
 	} else {
 		fmt.Fprintf(out, "* If your local service (%s) responds with header `sd-override: true`:\n", bold(cfg.To))
 		fmt.Fprintf(out, "    -> Response from your local service (%s) is returned to the client.\n", bold(cfg.To))
 		fmt.Fprintf(out, "* Otherwise:\n")
-		fmt.Fprintf(out, "    -> Request is forwarded to the sandbox (%s).\n", cfg.Sandbox)
+		fmt.Fprintf(out, "    -> Request is forwarded to the sandbox (%s).\n", bold(cfg.Sandbox))
 	}
 	fmt.Fprintf(out, "\n")
 
