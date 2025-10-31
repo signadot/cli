@@ -1,12 +1,21 @@
-package utils
+package filemanager
 
 import (
 	"bufio"
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 )
+
+func GetSourceRequestPath(recordDir, requestID string) string {
+	return filepath.Join(recordDir, requestID, "request")
+}
+
+func GetSourceResponsePath(recordDir, requestID string) string {
+	return filepath.Join(recordDir, requestID, "response")
+}
 
 func LoadHttpRequest(requestPath string) (*http.Request, error) {
 	request, err := os.ReadFile(requestPath)
