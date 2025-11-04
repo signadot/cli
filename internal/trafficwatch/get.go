@@ -1,8 +1,8 @@
 package trafficwatch
 
 import (
+	"bufio"
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"os"
@@ -171,13 +171,15 @@ func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC
 		errC <- err
 		return
 	}
-	_, err = io.Copy(f, s.R)
+	defer f.Close()
+	bw := bufio.NewWriter(f)
+	_, err = io.Copy(bw, s.R)
 	if err != nil {
-		if !errors.Is(err, os.ErrClosed) {
-			errC <- err
-		}
+		errC <- err
 	}
-
+	if err := bw.Flush(); err != nil {
+		errC <- err
+	}
 }
 
 func setupTW(ctx context.Context, tw *trafficwatch.TrafficWatch, log *slog.Logger) <-chan struct{} {
