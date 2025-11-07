@@ -59,8 +59,11 @@ func printAuthInfo(cfg *config.AuthStatus, out io.Writer, authInfo *auth.Resolve
 		status = "Not authenticated (expired token)"
 	} else {
 		status = "Authenticated"
-		if authInfo.Source == auth.ConfigAuthSource {
+		switch authInfo.Source {
+		case auth.ConfigAuthSource:
 			status += " (via config file or env vars)"
+		case auth.PlainTextAuthSource:
+			status += " (via plain text file)"
 		}
 	}
 	fmt.Fprintf(tw, "Status:\t%s\n", status)
