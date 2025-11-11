@@ -29,6 +29,20 @@ type ResolvedAuth struct {
 	Source AuthSource `json:"source"`
 }
 
+func IsAuthenticated(authInfo *ResolvedAuth) bool {
+	if authInfo == nil {
+		var err error
+		authInfo, err = ResolveAuth()
+		if err != nil {
+			return false
+		}
+	}
+	if authInfo == nil {
+		return false
+	}
+	return authInfo.ExpiresAt == nil || authInfo.ExpiresAt.After(time.Now())
+}
+
 func ResolveAuth() (*ResolvedAuth, error) {
 	auth, err := loadAuth()
 	if err != nil {
