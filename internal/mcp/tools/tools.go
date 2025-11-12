@@ -1,25 +1,34 @@
 package tools
 
 import (
+	"context"
+	"fmt"
+	"log/slog"
+	"sync"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/signadot/cli/internal/auth"
-	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/mcp/remote"
 )
 
-const (
-	authenticatedDummyToolName = "signadotAuthenticatedDummy"
-)
+type Tools struct {
+	sync.Mutex
+	log       *slog.Logger
+	mcpSrv    *mcp.Server
+	remoteMgr *remote.Remote
+}
 
-var (
-	// authenticatedTools is the list of tool names that require authentication
-	authenticatedTools = []string{authenticatedDummyToolName}
-)
+func NewTools(log *slog.Logger, mcpSrv *mcp.Server, remoteMgr *remote.Remote) *Tools {
+	return &Tools{
+		log:       log.With("component", "tools"),
+		mcpSrv:    mcpSrv,
+		remoteMgr: remoteMgr,
+	}
+}
 
-// Setup registers all tools. Public tools are always registered,
-// authenticated tools are only registered if the user is authenticated.
-func Setup(cfg *config.MCPRun, srv *mcp.Server) {
+func (t *Tools) Setup() {
 	// Always register public tools
-	mcp.AddTool(srv, &mcp.Tool{
+	mcp.AddTool(t.mcpSrv, &mcp.Tool{
 		Name: "signadotAuthStatus",
 		Description: `<usecase>
 Checks Signadot authentication status.
@@ -28,42 +37,40 @@ Checks Signadot authentication status.
 Use this tool to verify authentication when other Signadot tools are unavailable or not found.
 </instructions>`,
 	}, signadotAuthStatus)
-
-	// Register authenticated tools based on current auth status
-	Update(srv)
 }
 
-// Update checks the current authentication status and adds or removes
-// authenticated tools accordingly. The MCP SDK will automatically send
-// tools/list_changed notifications to clients when tools are added/removed.
-func Update(srv *mcp.Server) {
-	if auth.IsAuthenticated(nil) {
-		// User is authenticated, ensure authenticated tools are registered
-		ensureAuthenticatedToolsRegistered(srv)
-	} else {
-		// User is not authenticated, remove authenticated tools
-		removeAuthenticatedTools(srv)
+func (t *Tools) Update(ctx context.Context, meta *remote.Meta) error {
+	if meta == nil {
+		return fmt.Errorf("remote metadata is not available")
+	}
+
+	// register remote tools
+	for _, tool := range meta.Tools {
+		if auth.IsAuthenticated(nil) {
+			// register tool with the remote proxy handler
+			mcp.AddTool(t.mcpSrv, tool, t.remoteMgr.ToolHandler(tool.Name))
+		} else {
+			// register tool with the local auth request handler (and override
+			// the output schema)
+			tool.OutputSchema = nil
+			mcp.AddTool(t.mcpSrv, tool, t.localAuthRequestHandler(tool.Name))
+		}
+	}
+	return nil
+}
+
+func (t *Tools) localAuthRequestHandler(_ string) func(ctx context.Context, req *mcp.CallToolRequest, in remote.ToolInput) (*mcp.CallToolResult, remote.ToolOutput, error) {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in remote.ToolInput) (*mcp.CallToolResult, remote.ToolOutput, error) {
+		out := remote.ToolOutput{}
+		return notAuthenticatedResult(), out, nil
 	}
 }
 
-// ensureAuthenticatedToolsRegistered adds authenticated tools if they're not
-// already registered. Note: The MCP SDK may handle duplicate registrations
-// gracefully, but we try to avoid them.
-func ensureAuthenticatedToolsRegistered(srv *mcp.Server) {
-	// Register the authenticated dummy tool
-	mcp.AddTool(srv, &mcp.Tool{
-		Name: authenticatedDummyToolName,
-		Description: `<usecase>
-A dummy tool that requires authentication to be available.
-</usecase>
-<instructions>
-This is an example authenticated tool. It will only appear in the tool list when you are authenticated with Signadot.
-</instructions>`,
-	}, signadotAuthenticatedDummy)
-}
-
-// removeAuthenticatedTools removes all authenticated tools from the server.
-// This will trigger tools/list_changed notifications to all connected clients.
-func removeAuthenticatedTools(srv *mcp.Server) {
-	srv.RemoveTools(authenticatedTools...)
+func notAuthenticatedResult() *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: "Not authenticated. In a terminal, run:"},
+			&mcp.TextContent{Text: "```bash\nsignadot auth login\n```"},
+		},
+	}
 }

@@ -23,12 +23,7 @@ func signadotAuthStatus(ctx context.Context, req *mcp.CallToolRequest, in AuthSt
 	}
 
 	if !auth.IsAuthenticated(authInfo) {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: "Not signed in. In a terminal, run:"},
-				&mcp.TextContent{Text: "```bash\nsignadot auth login\n```"},
-			},
-		}, out, nil
+		return notAuthenticatedResult(), out, nil
 	}
 
 	var buf bytes.Buffer

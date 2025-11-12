@@ -24,9 +24,14 @@ func newRun(mcpConfig *config.MCP) *cobra.Command {
 }
 
 func run(ctx context.Context, cfg *config.MCPRun) error {
-	srv := mcp.NewServer(cfg)
-	if err := srv.Run(ctx); err != nil {
+	// initialize api config
+	if err := cfg.API.InitUnauthAPIConfig(); err != nil {
 		return err
 	}
-	return nil
+
+	// create mcp server
+	srv := mcp.NewServer(cfg)
+
+	// run mcp server
+	return srv.Run(ctx)
 }
