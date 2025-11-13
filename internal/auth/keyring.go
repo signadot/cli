@@ -12,7 +12,7 @@ const (
 	authKey        = "auth"
 )
 
-func StoreAuthInKeyring(auth *Auth) error {
+func storeAuthInKeyring(auth *Auth) error {
 	authJson, err := json.Marshal(auth)
 	if err != nil {
 		return err
@@ -20,8 +20,7 @@ func StoreAuthInKeyring(auth *Auth) error {
 	return keyring.Set(keyringService, authKey, string(authJson))
 }
 
-func GetAuthFromKeyring() (*Auth, error) {
-	// read the auth from keyring
+func getAuthFromKeyring() (*Auth, error) {
 	authJson, err := keyring.Get(keyringService, authKey)
 	if err != nil {
 		if errors.Is(err, keyring.ErrNotFound) {
@@ -36,11 +35,11 @@ func GetAuthFromKeyring() (*Auth, error) {
 	if err != nil {
 		// this is an unlikely state. Remove the entry from the keyring and
 		// allow the user to log in again.
-		return nil, DeleteAuthFromKeyring()
+		return nil, deleteAuthFromKeyring()
 	}
 	return &auth, nil
 }
 
-func DeleteAuthFromKeyring() error {
+func deleteAuthFromKeyring() error {
 	return keyring.Delete(keyringService, authKey)
 }
