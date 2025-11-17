@@ -12,8 +12,9 @@ import (
 type AuthSource string
 
 const (
-	ConfigAuthSource  AuthSource = "config"
-	KeyringAuthSource AuthSource = "keyring"
+	ConfigAuthSource    AuthSource = "config"
+	KeyringAuthSource   AuthSource = "keyring"
+	PlainTextAuthSource AuthSource = "plaintext"
 )
 
 type Auth struct {
@@ -72,7 +73,25 @@ func loadAuth() (*ResolvedAuth, error) {
 		}, nil
 	}
 
-	auth, err := GetAuthFromKeyring()
+	// try keyring first
+	keyringStorage := NewKeyringStorage()
+	auth, err := keyringStorage.Get()
+	if err != nil {
+		// If keyring is not available (e.g., in Docker without dbus),
+		// treat it as if keyring has no credentials and fall back to plain text
+		// Only return error if we have no fallback option
+		auth = nil
+	}
+	if auth != nil {
+		return &ResolvedAuth{
+			Source: keyringStorage.Source(),
+			Auth:   *auth,
+		}, nil
+	}
+
+	// fall back to plain text file
+	plainTextStorage := NewPlainTextStorage()
+	auth, err = plainTextStorage.Get()
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +99,7 @@ func loadAuth() (*ResolvedAuth, error) {
 		return nil, nil
 	}
 	return &ResolvedAuth{
-		Source: KeyringAuthSource,
+		Source: plainTextStorage.Source(),
 		Auth:   *auth,
 	}, nil
 }

@@ -155,8 +155,14 @@ func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAut
 		ExpiresAt:    &expiresAt,
 	}
 
-	// Store updated auth in keyring
-	if err := auth.StoreAuthInKeyring(&newAuthInfo); err != nil {
+	// Store updated auth in the same location as the original
+	var storage auth.Storage
+	if authInfo.Source == auth.PlainTextAuthSource {
+		storage = auth.NewPlainTextStorage()
+	} else {
+		storage = auth.NewKeyringStorage()
+	}
+	if err := storage.Store(&newAuthInfo); err != nil {
 		return nil, fmt.Errorf("failed to store refreshed auth: %w", err)
 	}
 

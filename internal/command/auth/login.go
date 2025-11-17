@@ -65,11 +65,17 @@ func apiKeyLogin(cfg *config.AuthLogin, out io.Writer) error {
 	}
 
 	// store the auth info
-	err = auth.StoreAuthInKeyring(&auth.Auth{
+	authInfo := &auth.Auth{
 		APIKey:  cfg.WithAPIKey,
 		OrgName: org.Name,
-	})
-	if err != nil {
+	}
+	var storage auth.Storage
+	if cfg.PlainText {
+		storage = auth.NewPlainTextStorage()
+	} else {
+		storage = auth.NewKeyringStorage()
+	}
+	if err := storage.Store(authInfo); err != nil {
 		spin.StopFail()
 		return fmt.Errorf("failed to store auth info: %w", err)
 	}
@@ -107,13 +113,19 @@ func bearerTokenLogin(cfg *config.AuthLogin, out io.Writer) error {
 
 	// store the auth info
 	expiresAt := time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
-	err = auth.StoreAuthInKeyring(&auth.Auth{
+	authInfo := &auth.Auth{
 		BearerToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
 		OrgName:      org.Name,
 		ExpiresAt:    &expiresAt,
-	})
-	if err != nil {
+	}
+	var storage auth.Storage
+	if cfg.PlainText {
+		storage = auth.NewPlainTextStorage()
+	} else {
+		storage = auth.NewKeyringStorage()
+	}
+	if err := storage.Store(authInfo); err != nil {
 		return fmt.Errorf("failed to store auth info: %w", err)
 	}
 	return nil

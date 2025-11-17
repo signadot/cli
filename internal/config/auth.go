@@ -10,10 +10,12 @@ type AuthLogin struct {
 	*Auth
 
 	WithAPIKey string
+	PlainText  bool
 }
 
 func (c *AuthLogin) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.WithAPIKey, "with-api-key", "", "log in using the provided API key.")
+	cmd.Flags().BoolVar(&c.PlainText, "insecure-storage", false, "store credentials in plain text file instead of keyring")
 }
 
 type AuthStatus struct {
