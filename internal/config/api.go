@@ -31,6 +31,7 @@ type API struct {
 	APIURL          string
 	ArtifactsAPIURL string
 	ProxyURL        string
+	MCPURL          string
 
 	// Runtime values
 	Client *client.SignadotAPI `json:"-"`
@@ -183,6 +184,12 @@ func (a *API) basicInit() error {
 		a.ProxyURL = proxyURL
 	} else {
 		a.ProxyURL = "https://proxy.signadot.com"
+	}
+
+	if mcpURL := viper.GetString("mcp_url"); mcpURL != "" {
+		a.MCPURL = mcpURL
+	} else {
+		a.MCPURL = "https://mcp.signadot.com"
 	}
 
 	// Allow defining a custom URL for artifacts (useful for local development).
