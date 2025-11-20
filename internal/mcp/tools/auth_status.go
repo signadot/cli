@@ -9,13 +9,13 @@ import (
 	authcmd "github.com/signadot/cli/internal/command/auth"
 )
 
-type AuthStatusIn struct{}
+type GetAuthenticationStatusInput struct{}
 
-type AuthStatusOut struct{}
+type GetAuthenticationStatusOutput struct{}
 
-func signadotAuthStatus(ctx context.Context, req *mcp.CallToolRequest, in AuthStatusIn,
-) (*mcp.CallToolResult, AuthStatusOut, error) {
-	out := AuthStatusOut{}
+func getAuthenticationStatus(ctx context.Context, req *mcp.CallToolRequest, in GetAuthenticationStatusInput,
+) (*mcp.CallToolResult, GetAuthenticationStatusOutput, error) {
+	out := GetAuthenticationStatusOutput{}
 
 	authInfo, err := auth.ResolveAuth()
 	if err != nil {
