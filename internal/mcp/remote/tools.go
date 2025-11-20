@@ -21,9 +21,8 @@ type ToolOutput map[string]any
 // the remote tool.
 func (r *Remote) ToolHandler(toolName string) func(ctx context.Context, req *mcp.CallToolRequest, in ToolInput) (*mcp.CallToolResult, ToolOutput, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, in ToolInput) (*mcp.CallToolResult, ToolOutput, error) {
-		// Get or create a remote session (handles health checks and
-		// reconnection)
-		sess, err := r.Session(ctx)
+		// Get or create a remote session
+		sess, err := r.Session()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -40,7 +39,28 @@ func (r *Remote) ToolHandler(toolName string) func(ctx context.Context, req *mcp
 		// Call the remote tool using the session
 		result, err := sess.CallTool(ctx, params)
 		if err != nil {
-			return nil, nil, err
+			// If the connection was closed (e.g., by KeepAlive), recreate the
+			// session and retry once
+			if errors.Is(err, mcp.ErrConnectionClosed) {
+				// Clear the session so it will be recreated on next call
+				r.mu.Lock()
+				if r.session == sess {
+					r.session = nil
+				}
+				r.mu.Unlock()
+
+				// Get a new session and retry
+				sess, err = r.Session()
+				if err != nil {
+					return nil, nil, err
+				}
+				result, err = sess.CallTool(ctx, params)
+				if err != nil {
+					return nil, nil, err
+				}
+			} else {
+				return nil, nil, err
+			}
 		}
 		if result.IsError {
 			return nil, nil, errors.New(result.Content[0].(*mcp.TextContent).Text)

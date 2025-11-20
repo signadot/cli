@@ -37,7 +37,9 @@ func NewRemoteManager(log *slog.Logger, cfg *config.API) *Remote {
 		cfg: cfg,
 		client: mcp.NewClient(&mcp.Implementation{
 			Name: "signadot-mcp-proxy",
-		}, nil),
+		}, &mcp.ClientOptions{
+			KeepAlive: 10 * time.Second,
+		}),
 	}
 }
 
@@ -54,29 +56,18 @@ func (r *Remote) Meta() *Meta {
 }
 
 // Session returns the existing session or creates a new one if needed.
-// It performs a health check on existing sessions and automatically reconnects
-// if the session is unhealthy. The session is authenticated using the current
-// auth configuration.
-func (r *Remote) Session(ctx context.Context) (*mcp.ClientSession, error) {
+// When KeepAlive is enabled, it automatically handles health checks and closes
+// the session if pings fail. This method will recreate the session if it was
+// closed by KeepAlive or if no session exists.
+func (r *Remote) Session() (*mcp.ClientSession, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Check if we have an existing session and verify it's healthy
+	// If we have a session, return it. KeepAlive handles health checks automatically
+	// and will close the session if pings fail. If the session was closed by KeepAlive,
+	// operations will fail with ErrConnectionClosed and the tool handler will recreate it.
 	if r.session != nil {
-		// Perform a lightweight health check using ping with a short timeout
-		healthCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		err := r.session.Ping(healthCtx, nil)
-		if err != nil {
-			r.log.Debug("remote session is unhealthy, recreating", "error", err)
-			// Session is unhealthy, close it and create a new one
-			r.session.Close()
-			r.session = nil
-		} else {
-			// Session is healthy, return it
-			return r.session, nil
-		}
+		return r.session, nil
 	}
 
 	// Resolve authentication information
@@ -99,8 +90,10 @@ func (r *Remote) Session(ctx context.Context) (*mcp.ClientSession, error) {
 		},
 	}
 
-	// Connect to the remote MCP server
-	sess, err := r.client.Connect(ctx, transport, nil)
+	// Connect to the remote MCP server (use background context to avoid context
+	// cancellation errors, this session will be used across multiple tool
+	// calls)
+	sess, err := r.client.Connect(context.Background(), transport, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to remote server: %w", err)
 	}
