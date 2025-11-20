@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -40,6 +41,9 @@ func (r *Remote) ToolHandler(toolName string) func(ctx context.Context, req *mcp
 		result, err := sess.CallTool(ctx, params)
 		if err != nil {
 			return nil, nil, err
+		}
+		if result.IsError {
+			return nil, nil, errors.New(result.Content[0].(*mcp.TextContent).Text)
 		}
 
 		// Extract structured content from the remote tool result
