@@ -97,6 +97,7 @@ type LocalConnect struct {
 
 	// Flags
 	Cluster      string
+	Devbox       string
 	Unprivileged bool
 	Wait         ConnectWait
 	WaitTimeout  time.Duration
@@ -108,6 +109,7 @@ type LocalConnect struct {
 
 func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
+	cmd.Flags().StringVar(&c.Devbox, "devbox", "", "specify devbox name to use for this connection")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root privileges")
 	cmd.Flags().Var(&c.Wait, "wait", "status to wait for while connecting {none,connect,sandboxes}")
