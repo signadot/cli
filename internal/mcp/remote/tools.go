@@ -3,8 +3,11 @@ package remote
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/utils/system"
 )
 
 // ToolInput is a generic input type for proxied tools that maps parameter names
@@ -21,6 +24,11 @@ type ToolOutput map[string]any
 // the remote tool.
 func (r *Remote) ToolHandler(toolName string) func(ctx context.Context, req *mcp.CallToolRequest, in ToolInput) (*mcp.CallToolResult, ToolOutput, error) {
 	return func(ctx context.Context, req *mcp.CallToolRequest, in ToolInput) (*mcp.CallToolResult, ToolOutput, error) {
+		// Set localMachineID if needed for sandbox tools
+		if err := setLocalMachineIDIfNeeded(toolName, in); err != nil {
+			return nil, nil, err
+		}
+
 		// Get or create a remote session
 		sess, err := r.Session()
 		if err != nil {
@@ -84,4 +92,65 @@ func (r *Remote) ToolHandler(toolName string) func(ctx context.Context, req *mcp
 		// Return the result with the extracted structured output
 		return result, output, nil
 	}
+}
+
+// setLocalMachineIDIfNeeded sets the localMachineID in the spec for create_sandbox
+// and update_sandbox tools when local workloads or routing forwards are present.
+// It also validates that sandboxmanager is running and connected to the right cluster.
+func setLocalMachineIDIfNeeded(toolName string, in ToolInput) error {
+	// only apply to create_sandbox and update_sandbox tools
+	if toolName != "create_sandbox" && toolName != "update_sandbox" {
+		return nil
+	}
+
+	// get the spec from the input
+	spec, ok := in["spec"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	// check if we have local workloads or routing forwards
+	var (
+		hasLocal           bool
+		hasRoutingForwards bool
+	)
+	if local, ok := spec["local"].([]any); ok && len(local) > 0 {
+		hasLocal = true
+	}
+	if routing, ok := spec["routing"].(map[string]any); ok && routing != nil {
+		if forwards, ok := routing["forwards"].([]any); ok && len(forwards) > 0 {
+			hasRoutingForwards = true
+		}
+	}
+
+	if hasLocal || hasRoutingForwards {
+		// extract cluster from spec
+		var cluster string
+		if clusterVal, ok := spec["cluster"]; ok {
+			switch v := clusterVal.(type) {
+			case string:
+				cluster = v
+			default:
+				return fmt.Errorf("invalid cluster type in spec")
+			}
+		}
+		if cluster == "" {
+			return fmt.Errorf("sandbox spec must specify cluster")
+		}
+
+		// validate sandboxmanager is running and connected to the right cluster
+		_, err := sbmgr.ValidateSandboxManager(&cluster)
+		if err != nil {
+			return err
+		}
+
+		// Set machine ID for local sandboxes
+		machineID, err := system.GetMachineID()
+		if err != nil {
+			return err
+		}
+		spec["localMachineID"] = machineID
+	}
+
+	return nil
 }
