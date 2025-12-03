@@ -37,6 +37,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 		ControlPlaneProxy any `json:"controlPlaneProxy,omitempty"`
 		SandboxesWatcher  any `json:"sandboxesWatcher,omitempty"`
 		Sandboxes         any `json:"sandboxes,omitempty"`
+		DevboxSession     any `json:"devboxSession,omitempty"`
 	}
 
 	rawSt := rawStatus{
@@ -48,6 +49,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 		ControlPlaneProxy: getRawControlPlaneProxy(cfg, ciConfig, status.ControlPlaneProxy, statusMap),
 		SandboxesWatcher:  getRawWatcher(cfg, status.Watcher, statusMap),
 		Sandboxes:         statusMap["sandboxes"],
+		DevboxSession:     getRawDevboxSession(cfg, status.DevboxSession, statusMap),
 	}
 
 	return printer(out, rawSt)
@@ -325,6 +327,40 @@ func getRawWatcher(cfg *config.LocalStatus, watcher *commonapi.WatcherStatus,
 	return result
 }
 
+func getRawDevboxSession(cfg *config.LocalStatus, devboxSession *commonapi.DevboxSessionStatus,
+	statusMap map[string]any) any {
+	if devboxSession == nil {
+		return nil
+	}
+
+	if cfg.Details {
+		// Details view - return full status from map
+		return statusMap["devboxSession"]
+	}
+
+	// Standard view
+	type PrintableDevboxSession struct {
+		Healthy         bool   `json:"healthy"`
+		SessionReleased bool   `json:"sessionReleased"`
+		DevboxId        string `json:"devboxId,omitempty"`
+		SessionId       string `json:"sessionId,omitempty"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintableDevboxSession{
+		Healthy:         devboxSession.Healthy,
+		SessionReleased: devboxSession.SessionReleased,
+		DevboxId:        devboxSession.DevboxId,
+		SessionId:       devboxSession.SessionId,
+	}
+
+	if devboxSession.LastErrorReason != "" {
+		result.LastErrorReason = devboxSession.LastErrorReason
+	}
+
+	return result
+}
+
 func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.StatusResponse) error {
 	ciConfig, err := sbmapi.ToCIConfig(status.CiConfig)
 	if err != nil {
@@ -344,6 +380,12 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 	}
 	// runtime config
 	printer.printRuntimeConfig()
+	// Check devbox session status
+	if status.DevboxSession != nil && status.DevboxSession.SessionReleased {
+		printer.printErrors(append(connectErrs, fmt.Errorf("devbox session no longer available (released by another process)")))
+		return nil
+	}
+	
 	// print status
 	if len(connectErrs) == 0 {
 		printer.printSuccess()
@@ -392,6 +434,7 @@ func (p *statusPrinter) printSuccess() {
 	if p.status.OperatorInfo != nil {
 		p.printOperatorInfo()
 	}
+	p.printDevboxSessionStatus()
 	switch p.ciConfig.ConnectionConfig.Type {
 	case connectcfg.PortForwardLinkType:
 		p.printPortforwardStatus()
@@ -413,6 +456,37 @@ func (p *statusPrinter) printOperatorInfo() {
 			p.status.OperatorInfo.GitCommit, p.status.OperatorInfo.BuildDate)
 	}
 	p.printLine(p.out, 1, msg, "*")
+}
+
+func (p *statusPrinter) printDevboxSessionStatus() {
+	if p.status.DevboxSession == nil {
+		return
+	}
+	
+	ds := p.status.DevboxSession
+	if ds.SessionReleased {
+		msg := "devbox session no longer available"
+		if ds.LastErrorReason != "" {
+			msg += fmt.Sprintf(": %s", ds.LastErrorReason)
+		}
+		p.printLine(p.out, 1, msg, p.red("✗"))
+	} else if ds.Healthy {
+		msg := fmt.Sprintf("devbox session active (devbox: %s, session: %s)", ds.DevboxId, ds.SessionId)
+		if p.cfg.Details && ds.SessionId != "" {
+			msg = fmt.Sprintf("devbox session active")
+			p.printLine(p.out, 1, msg, p.green("✓"))
+			p.printLine(p.out, 2, fmt.Sprintf("Devbox ID: %s", ds.DevboxId), "*")
+			p.printLine(p.out, 2, fmt.Sprintf("Session ID: %s", ds.SessionId), "*")
+		} else {
+			p.printLine(p.out, 1, msg, p.green("✓"))
+		}
+	} else {
+		msg := "devbox session unhealthy"
+		if ds.LastErrorReason != "" {
+			msg += fmt.Sprintf(": %s", ds.LastErrorReason)
+		}
+		p.printLine(p.out, 1, msg, p.red("✗"))
+	}
 }
 
 func (p *statusPrinter) printPortforwardStatus() {
