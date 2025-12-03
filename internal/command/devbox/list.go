@@ -24,6 +24,7 @@ func newList(devbox *config.Devbox) *cobra.Command {
 		},
 	}
 
+	cfg.AddFlags(cmd)
 	return cmd
 }
 
@@ -37,18 +38,24 @@ func list(cfg *config.DevboxList, out io.Writer) error {
 	params := devboxes.NewGetDevboxesParams().
 		WithContext(ctx).
 		WithOrgName(cfg.Org)
+	if cfg.ShowAll {
+		all := "true"
+		params = params.WithAll(&all)
+	}
 	resp, err := cfg.Client.Devboxes.GetDevboxes(params)
 	if err != nil {
 		return err
 	}
 
+	devboxes := resp.Payload
+
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printDevboxTable(out, resp.Payload)
+		return printDevboxTable(out, devboxes)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, resp.Payload)
+		return print.RawJSON(out, devboxes)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, resp.Payload)
+		return print.RawYAML(out, devboxes)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}

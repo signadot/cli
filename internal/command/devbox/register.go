@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/signadot/cli/internal/config"
+	devboxpkg "github.com/signadot/cli/internal/devbox"
 	"github.com/spf13/cobra"
 )
 
@@ -42,59 +43,51 @@ func register(cfg *config.DevboxRegister, out, log io.Writer) error {
 		return err
 	}
 
-	// TODO: Get machine metadata (localMachineID, hostName, OS, CLIVersion)
-	// This should come from system info utilities
-	// Example:
-	// machineID := getMachineID()
-	// hostName, _ := os.Hostname()
-	// osInfo := runtime.GOOS
+	// Check if a devbox ID file already exists
+	idFile, err := devboxpkg.IDFile()
+	if err != nil {
+		return fmt.Errorf("failed to get devbox ID file path: %w", err)
+	}
 
-	// TODO: Implement API call to claim/register devbox
-	// Example:
-	// claimReq := &models.DevboxClaimRequest{
-	//     Machine: &models.Machine{
-	//         Name:    cfg.Name, // Optional, may be empty
-	//         Primary: cfg.Primary,
-	//         Meta: &models.MachineMeta{
-	//             LocalMachineID: machineID,
-	//             HostName:       hostName,
-	//             OS:             osInfo,
-	//             CLIVersion:     version.Version,
-	//         },
-	//     },
-	// }
-	//
-	// resp, err := cfg.Client.Devboxes.ClaimDevbox(
-	//     devboxes.NewClaimDevboxParams().
-	//         WithContext(ctx).
-	//         WithOrgName(cfg.Org).
-	//         WithUser(cfg.User).
-	//         WithBody(claimReq),
-	//     nil,
-	// )
-	// if err != nil {
-	//     return err
-	// }
+	existingID := ""
+	if _, err := os.Stat(idFile); err == nil {
+		// File exists, read the existing ID
+		data, err := os.ReadFile(idFile)
+		if err == nil {
+			existingID = string(data)
+			fmt.Fprintf(log, "Warning: devbox ID file already exists (ID: %s). It will be overwritten.\n", existingID)
+		}
+	}
 
-	// TODO: Store the machine info in ~/.signadot/default-devbox
-	// Example:
-	// if err := saveDefaultDevbox(resp.Payload.Machine); err != nil {
-	//     return err
-	// }
+	// Register the devbox
+	devboxID, err := devboxpkg.RegisterDevbox(ctx, cfg.API, cfg.Claim, cfg.Name)
+	if err != nil {
+		return fmt.Errorf("failed to register devbox: %w", err)
+	}
 
-	// For now, return a placeholder
-	_ = ctx
-	fmt.Fprintln(log, "TODO: Implement devbox register API call")
-	if cfg.Name != "" {
-		fmt.Fprintf(out, "Registered devbox with name: %s\n", cfg.Name)
+	// Save the devbox ID to file
+	if err := os.WriteFile(idFile, []byte(devboxID), 0600); err != nil {
+		return fmt.Errorf("failed to save devbox ID: %w", err)
+	}
+
+	// Get the devbox name that was used (might be hostname if not provided)
+	devboxName := cfg.Name
+	if devboxName == "" {
+		hostname, err := os.Hostname()
+		if err == nil {
+			devboxName = hostname
+		} else {
+			devboxName = "unknown"
+		}
+	}
+
+	// Print success message
+	if existingID != "" && existingID != devboxID {
+		fmt.Fprintf(out, "Successfully registered devbox (ID: %s, name: %s)\n", devboxID, devboxName)
+		fmt.Fprintf(out, "Previous devbox ID (%s) has been replaced.\n", existingID)
 	} else {
-		fmt.Fprintln(out, "Registered devbox (name will be auto-generated)")
+		fmt.Fprintf(out, "Successfully registered devbox (ID: %s, name: %s)\n", devboxID, devboxName)
 	}
 
 	return nil
 }
-
-// TODO: Implement helper functions
-// func getMachineID() string { ... }
-// func saveDefaultDevbox(machine *models.Machine) error { ... }
-// func loadDefaultDevbox() (*models.Machine, error) { ... }

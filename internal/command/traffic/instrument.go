@@ -2,6 +2,7 @@ package traffic
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -100,16 +101,16 @@ func applyWithLocal(ctx context.Context, cfg *config.TrafficWatch,
 		hasLocal = true
 	}
 	if hasLocal {
-		_, err := sbmgr.ValidateSandboxManager(sb.Spec.Cluster)
+		connectStatus, err := sbmgr.ValidateSandboxManager(sb.Spec.Cluster)
 		if err != nil {
 			return err
 		}
-		machineID, err := system.GetMachineID()
-		if err != nil {
-			return err
+		if connectStatus.DevboxSession == nil {
+			return errors.New("no devbox session")
 		}
-		//sb.Spec.LocalMachineID = machineID
-		_ = machineID
+		sb.Spec.Connection = &models.Connection{
+			DevboxID: connectStatus.DevboxSession.DevboxId,
+		}
 	}
 	// remove deprecated
 	sb.Spec.Endpoints = nil

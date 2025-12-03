@@ -12,7 +12,7 @@ import (
 // devboxRow represents a row in the devbox table output.
 type devboxRow struct {
 	ID         string `sdtab:"ID"`
-	HostName   string `sdtab:"HOSTNAME,trunc"`
+	Name       string `sdtab:"NAME,trunc"`
 	OS         string `sdtab:"OS"`
 	MachineID  string `sdtab:"MACHINE ID,trunc"`
 	LastActive string `sdtab:"LAST ACTIVE"`
@@ -41,9 +41,11 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox) error {
 			}
 		}
 
-		hostName := db.Labels["host"]
+		name := db.IDMeta["name"]
 		os := db.Labels["goos"]
 		machineID := db.IDMeta["machine-id"]
+		// Truncate machine ID to 12 characters with "..." suffix
+		machineID = sdtab.Truncate(machineID, 12)
 		if db.Status.Session != nil {
 			ses := db.Status.Session
 			_ = ses
@@ -51,7 +53,7 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox) error {
 
 		t.AddRow(devboxRow{
 			ID:         db.ID,
-			HostName:   hostName,
+			Name:       name,
 			OS:         os,
 			MachineID:  machineID,
 			LastActive: lastActive,

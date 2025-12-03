@@ -17,7 +17,6 @@ import (
 	"github.com/signadot/cli/internal/devbox"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
-	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/transport"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/controlplaneproxy"
@@ -40,7 +39,6 @@ type sandboxManager struct {
 	ciConfig      *config.ConnectInvocationConfig
 	connConfig    *connectcfg.ConnectionConfig
 	hostname      string
-	machineID     string
 	grpcServer    *grpc.Server
 	portForward   *portforward.PortForward
 	ctlPlaneProxy *controlplaneproxy.Proxy
@@ -68,12 +66,6 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 		return nil, err
 	}
 
-	// Resolve the machine ID
-	machineID, err := system.GetMachineID()
-	if err != nil {
-		return nil, err
-	}
-
 	ciConfig := cfg.ConnectInvocationConfig
 
 	// Create devbox session manager
@@ -87,7 +79,6 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 		ciConfig:         ciConfig,
 		connConfig:       ciConfig.ConnectionConfig,
 		hostname:         hostname,
-		machineID:        machineID,
 		grpcServer:       grpcServer,
 		shutdownCh:       shutdownCh,
 		devboxSessionMgr: devboxSessionMgr,
@@ -165,7 +156,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	}
 
 	// Create the watcher
-	sbmWatcher := newSandboxManagerWatcher(m.log, m.machineID, m.revtunClient, oiu, m.shutdownCh)
+	sbmWatcher := newSandboxManagerWatcher(m.log, m.ciConfig.DevboxSessionID, m.revtunClient, oiu, m.shutdownCh)
 
 	// Register our service in gRPC server
 	m.sbmServer = newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward, m.ctlPlaneProxy,

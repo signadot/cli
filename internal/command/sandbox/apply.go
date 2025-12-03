@@ -66,10 +66,10 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 			return err
 		}
 
-		// Set machine ID for local sandboxes
+		// Set devbox ID for local sandboxes
 		sb, err := builder.
 			BuildSandbox(req.Name, builder.WithData(*req)).
-			SetMachineID().
+			SetDevboxID(status.DevboxSession.DevboxId).
 			Build()
 		if err != nil {
 			return err

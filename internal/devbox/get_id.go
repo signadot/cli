@@ -40,6 +40,7 @@ func GetSessionID(ctx context.Context, apiConfig *config.API, devboxID string) (
 }
 
 func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) (string, error) {
+	fmt.Printf("name is %q\n", name)
 	file, err := IDFile()
 	if err != nil {
 		return "", err
@@ -58,6 +59,36 @@ func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) 
 			return id, nil
 		}
 		return "", err
+	}
+	if name != "" {
+		// get devbox, check name equals input.  if not,
+		// call getIDByAPI with the new name to get the updated id
+		// which will fall through to the claim code below
+		params := devboxes.NewGetDevboxParams().
+			WithContext(ctx).
+			WithOrgName(apiConfig.Org).
+			WithDevboxID(id)
+
+		resp, err := apiConfig.Client.Devboxes.GetDevbox(params)
+		if err != nil {
+			return "", err
+		}
+		if resp.Code() == http.StatusOK && resp.Payload != nil {
+			devboxName := ""
+			if resp.Payload.IDMeta != nil {
+				devboxName = resp.Payload.IDMeta["name"]
+			}
+			if devboxName != name {
+				// Name doesn't match, get new ID with the updated name
+				newID, err := getIDByAPI(ctx, apiConfig, claim, name)
+				if err != nil {
+					return "", err
+				}
+				return newID, nil
+			}
+		} else {
+			return "", fmt.Errorf("unable to get devbox: status %d %s", resp.Code(), http.StatusText(resp.Code()))
+		}
 	}
 	if !claim {
 		return id, nil
@@ -80,6 +111,12 @@ func IDFile() (string, error) {
 		return "", err
 	}
 	return filepath.Join(sdir, ".devbox-id"), nil
+}
+
+// RegisterDevbox registers a devbox with the API and returns the devbox ID.
+// If name is empty, it will use the hostname. If claim is true, it will also claim a session.
+func RegisterDevbox(ctx context.Context, cfg *config.API, claim bool, name string) (string, error) {
+	return getIDByAPI(ctx, cfg, claim, name)
 }
 
 func getIDByAPI(ctx context.Context, cfg *config.API, claim bool, name string) (string, error) {
