@@ -85,7 +85,8 @@ func (sb *SandboxBuilder) SetMachineID() *SandboxBuilder {
 		if err != nil {
 			return err
 		}
-		sb.internal.Spec.LocalMachineID = machineID
+		//sb.internal.Spec.LocalMachineID = machineID
+		_ = machineID
 		return nil
 	})
 }

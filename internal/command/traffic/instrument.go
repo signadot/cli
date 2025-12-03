@@ -108,7 +108,8 @@ func applyWithLocal(ctx context.Context, cfg *config.TrafficWatch,
 		if err != nil {
 			return err
 		}
-		sb.Spec.LocalMachineID = machineID
+		//sb.Spec.LocalMachineID = machineID
+		_ = machineID
 	}
 	// remove deprecated
 	sb.Spec.Endpoints = nil

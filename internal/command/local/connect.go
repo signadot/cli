@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
@@ -48,6 +50,18 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 
 	if cfg.OutputFormat != config.OutputFormatDefault {
 		return fmt.Errorf("output format %s not supported for connect", cfg.OutputFormat)
+	}
+
+	// get devbox claim and session
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	devboxID, err := devbox.GetID(ctx, cfg.API, true, cfg.Devbox)
+	if err != nil {
+		return err
+	}
+	devboxSessionID, err := devbox.GetSessionID(ctx, cfg.API, devboxID)
+	if err != nil {
+		return err
 	}
 
 	// we will pass the connConfig to rootmanager and sandboxmanager
@@ -98,6 +112,8 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		APIKey:           cfg.GetAPIKey(),
 		Debug:            cfg.LocalConfig.Debug,
 		ConnectTimeout:   cfg.WaitTimeout.String(),
+		DevboxID:         devboxID,
+		DevboxSessionID:  devboxSessionID,
 	}
 	if cfg.DumpCIConfig {
 		d, _ := yaml.Marshal(ciConfig)

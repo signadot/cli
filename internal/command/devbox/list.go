@@ -1,11 +1,14 @@
 package devbox
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
+	"github.com/signadot/go-sdk/client/devboxes"
 	"github.com/spf13/cobra"
 )
 
@@ -29,32 +32,23 @@ func list(cfg *config.DevboxList, out io.Writer) error {
 		return err
 	}
 
-	// TODO: Implement API call to list devboxes
-	// Example:
-	// resp, err := cfg.Client.Devboxes.ListDevboxes(
-	//     devboxes.NewListDevboxesParams().
-	//         WithOrgName(cfg.Org).
-	//         WithUser(cfg.User),
-	//     nil,
-	// )
-	// if err != nil {
-	//     return err
-	// }
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	params := devboxes.NewGetDevboxesParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org)
+	resp, err := cfg.Client.Devboxes.GetDevboxes(params)
+	if err != nil {
+		return err
+	}
 
-	// For now, return a placeholder
-	fmt.Fprintln(out, "TODO: Implement devbox list API call")
-
-	// TODO: Handle output format
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		// return printDevboxTable(out, resp.Payload)
-		return nil
+		return printDevboxTable(out, resp.Payload)
 	case config.OutputFormatJSON:
-		// return print.RawJSON(out, resp.Payload)
-		return print.RawJSON(out, []interface{}{})
+		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
-		// return print.RawYAML(out, resp.Payload)
-		return print.RawYAML(out, []interface{}{})
+		return print.RawYAML(out, resp.Payload)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}

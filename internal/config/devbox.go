@@ -19,14 +19,14 @@ type DevboxList struct {
 // DevboxRegister contains configuration for registering a devbox.
 type DevboxRegister struct {
 	*Devbox
-	Name    string
-	Primary bool
+	Name  string
+	Claim bool
 }
 
 // AddFlags adds flags for devbox register command.
 func (c *DevboxRegister) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Name, "name", "", "name for the devbox (optional, will be generated if not provided)")
-	cmd.Flags().BoolVar(&c.Primary, "primary", true, "mark this devbox as primary")
+	cmd.Flags().BoolVar(&c.Claim, "claim", false, "claim connect session during registration")
 }
 
 // DevboxDelete contains configuration for deleting a devbox.

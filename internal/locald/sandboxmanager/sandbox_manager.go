@@ -13,6 +13,7 @@ import (
 
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/transport"
@@ -46,6 +47,9 @@ type sandboxManager struct {
 	// tunnel API
 	tunAPIClient tunapiclient.Client
 	proxyAddress string
+
+	// devbox session management
+	devboxSessionMgr *devbox.SessionManager
 }
 
 func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*sandboxManager, error) {
@@ -66,14 +70,21 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 
 	ciConfig := cfg.ConnectInvocationConfig
 
+	// Create devbox session manager
+	devboxSessionMgr, err := devbox.NewSessionManager(log, ciConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create devbox session manager: %w", err)
+	}
+
 	return &sandboxManager{
-		log:        log,
-		ciConfig:   ciConfig,
-		connConfig: ciConfig.ConnectionConfig,
-		hostname:   hostname,
-		machineID:  machineID,
-		grpcServer: grpcServer,
-		shutdownCh: shutdownCh,
+		log:              log,
+		ciConfig:         ciConfig,
+		connConfig:       ciConfig.ConnectionConfig,
+		hostname:         hostname,
+		machineID:        machineID,
+		grpcServer:       grpcServer,
+		shutdownCh:       shutdownCh,
+		devboxSessionMgr: devboxSessionMgr,
 	}, nil
 }
 
@@ -194,6 +205,9 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		}
 	}
 
+	// Start devbox session manager
+	m.devboxSessionMgr.Start(runCtx)
+
 	// Run the sandboxes watcher
 	sbmWatcher.run(runCtx, m.tunAPIClient)
 
@@ -204,6 +218,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	m.log.Info("Shutting down")
 	m.grpcServer.GracefulStop()
 	sbmWatcher.stop()
+	m.devboxSessionMgr.Stop(ctx)
 	if m.portForward != nil {
 		m.portForward.Close()
 	} else if m.ctlPlaneProxy != nil {
