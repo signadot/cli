@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
+	"time"
 
-	devboxpkg "github.com/signadot/cli/internal/devbox"
 	"github.com/signadot/cli/internal/config"
+	devboxpkg "github.com/signadot/cli/internal/devbox"
 	"github.com/signadot/go-sdk/client/devboxes"
 	"github.com/spf13/cobra"
 )
@@ -38,8 +37,7 @@ This will remove the devbox registration and any associated local state.`,
 }
 
 func deleteDevbox(cfg *config.DevboxDelete, log io.Writer) error {
-	ctx, cancel := signal.NotifyContext(context.Background(),
-		os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := cfg.InitAPIConfig(); err != nil {
@@ -50,20 +48,20 @@ func deleteDevbox(cfg *config.DevboxDelete, log io.Writer) error {
 		return errors.New("devbox ID is required")
 	}
 
-	// Check if this is the local devbox and clean up the ID file if so
-	if err := cleanupLocalDevboxID(cfg.ID, log); err != nil {
-		// Log warning but continue with deletion
-		fmt.Fprintf(log, "Warning: failed to check local devbox ID file: %v\n", err)
-	}
-
 	// Delete the devbox
 	params := devboxes.NewDeleteDevboxParams().
 		WithContext(ctx).
 		WithOrgName(cfg.Org).
 		WithDevboxID(cfg.ID)
-	_, err := cfg.Client.Devboxes.DeleteDevbox(params, nil)
+	_, err := cfg.Client.Devboxes.DeleteDevbox(params)
 	if err != nil {
 		return fmt.Errorf("failed to delete devbox: %w", err)
+	}
+
+	// Check if this is the local devbox and clean up the ID file if so
+	if err := cleanupLocalDevboxID(cfg.ID, log); err != nil {
+		// Log warning but continue with deletion
+		fmt.Fprintf(log, "Warning: failed to check local devbox ID file: %v\n", err)
 	}
 
 	fmt.Fprintf(log, "Deleted devbox (ID: %s).\n", cfg.ID)

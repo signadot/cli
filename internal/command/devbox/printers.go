@@ -15,8 +15,8 @@ type devboxRow struct {
 	Name       string `sdtab:"NAME,trunc"`
 	OS         string `sdtab:"OS"`
 	MachineID  string `sdtab:"MACHINE ID,trunc"`
-	LastActive string `sdtab:"LAST ACTIVE"`
 	Status     string `sdtab:"STATUS"`
+	ValidUntil string `sdtab:"VALID UNTIL"`
 }
 
 // printDevboxTable prints devboxes in a table format.
@@ -25,11 +25,11 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox) error {
 	t.AddHeader()
 
 	for _, db := range devboxes {
-		lastActive := ""
-		if db.Status != nil && db.Status.Session != nil && db.Status.Session.RenewedAt != "" {
-			renewedAt, err := time.Parse(time.RFC3339, db.Status.Session.RenewedAt)
+		validUntil := "-"
+		if db.Status != nil && db.Status.Session != nil && db.Status.Session.ValidUntil != "" {
+			vu, err := time.Parse(time.RFC3339, db.Status.Session.ValidUntil)
 			if err == nil {
-				lastActive = timeago.NoMax(timeago.English).Format(renewedAt)
+				validUntil = timeago.NoMax(timeago.English).Format(vu)
 			}
 		}
 
@@ -56,7 +56,7 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox) error {
 			Name:       name,
 			OS:         os,
 			MachineID:  machineID,
-			LastActive: lastActive,
+			ValidUntil: validUntil,
 			Status:     status,
 		})
 	}

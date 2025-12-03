@@ -40,7 +40,6 @@ func GetSessionID(ctx context.Context, apiConfig *config.API, devboxID string) (
 }
 
 func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) (string, error) {
-	fmt.Printf("name is %q\n", name)
 	file, err := IDFile()
 	if err != nil {
 		return "", err
