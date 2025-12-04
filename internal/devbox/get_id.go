@@ -74,8 +74,8 @@ func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) 
 		}
 		if resp.Code() == http.StatusOK && resp.Payload != nil {
 			devboxName := ""
-			if resp.Payload.IDMeta != nil {
-				devboxName = resp.Payload.IDMeta["name"]
+			if resp.Payload.Metadata != nil {
+				devboxName = resp.Payload.Metadata["name"]
 			}
 			if devboxName != name {
 				// Name doesn't match, get new ID with the updated name
@@ -119,18 +119,13 @@ func RegisterDevbox(ctx context.Context, cfg *config.API, claim bool, name strin
 }
 
 func getIDByAPI(ctx context.Context, cfg *config.API, claim bool, name string) (string, error) {
-	idMeta, err := getDevboxIDMeta(name)
-	if err != nil {
-		return "", err
-	}
-	labels, err := getDevboxLabels()
+	meta, err := getDevboxMeta(name)
 	if err != nil {
 		return "", err
 	}
 	req := &models.DevboxRegistration{
-		IDMeta: idMeta,
-		Labels: labels,
-		Claim:  claim,
+		Metadata: meta,
+		Claim:    claim,
 	}
 	params := devboxes.NewRegisterDevboxParams().
 		WithContext(ctx).
@@ -149,13 +144,13 @@ func getIDByAPI(ctx context.Context, cfg *config.API, claim bool, name string) (
 	return reg.ID, nil
 }
 
-func getDevboxIDMeta(name string) (map[string]string, error) {
+func getDevboxMeta(name string) (map[string]string, error) {
+	host, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
 	if name == "" {
-		h, err := os.Hostname()
-		if err != nil {
-			return nil, err
-		}
-		name = h
+		name = host
 	}
 	mid, err := system.GetMachineID()
 	if err != nil {
@@ -164,17 +159,8 @@ func getDevboxIDMeta(name string) (map[string]string, error) {
 	return map[string]string{
 		"name":       name,
 		"machine-id": mid,
-	}, nil
-}
-
-func getDevboxLabels() (map[string]string, error) {
-	h, err := os.Hostname()
-	if err != nil {
-		return nil, err
-	}
-	return map[string]string{
-		"goos":   runtime.GOOS,
-		"goarch": runtime.GOARCH,
-		"host":   h,
+		"goos":       runtime.GOOS,
+		"goarch":     runtime.GOARCH,
+		"host":       host,
 	}, nil
 }

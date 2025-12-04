@@ -41,9 +41,9 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox) error {
 			}
 		}
 
-		name := db.IDMeta["name"]
-		os := db.Labels["goos"]
-		machineID := db.IDMeta["machine-id"]
+		name := db.Metadata["name"]
+		os := db.Metadata["goos"]
+		machineID := db.Metadata["machine-id"]
 		// Truncate machine ID to 12 characters with "..." suffix
 		machineID = sdtab.Truncate(machineID, 12)
 		if db.Status.Session != nil {
