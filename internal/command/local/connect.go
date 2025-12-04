@@ -22,6 +22,7 @@ import (
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	clusters "github.com/signadot/go-sdk/client/cluster"
+	"github.com/signadot/go-sdk/client/devboxes"
 	"github.com/signadot/libconnect/common/processes"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
@@ -55,10 +56,33 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	// get devbox claim and session
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	devboxID, err := devbox.GetID(ctx, cfg.API, true, cfg.Devbox)
-	if err != nil {
-		return err
+	
+	var devboxID string
+	if cfg.Devbox != "" {
+		// If devbox ID is provided, validate it exists
+		if err := devbox.ValidateDevboxID(ctx, cfg.API, cfg.Devbox); err != nil {
+			return err
+		}
+		devboxID = cfg.Devbox
+	} else {
+		// If no devbox ID provided, use the stored ID from file
+		var err error
+		devboxID, err = devbox.GetID(ctx, cfg.API, true, "")
+		if err != nil {
+			return err
+		}
 	}
+	
+	// Claim the session for the devbox
+	params := devboxes.NewClaimDevboxParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithDevboxID(devboxID)
+	_, err := cfg.Client.Devboxes.ClaimDevbox(params)
+	if err != nil {
+		return fmt.Errorf("failed to claim devbox session: %w", err)
+	}
+	
 	devboxSessionID, err := devbox.GetSessionID(ctx, cfg.API, devboxID)
 	if err != nil {
 		return err

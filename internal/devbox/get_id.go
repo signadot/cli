@@ -14,6 +14,23 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
+// ValidateDevboxID validates that a devbox ID exists and returns an error if it doesn't.
+func ValidateDevboxID(ctx context.Context, apiConfig *config.API, devboxID string) error {
+	params := devboxes.NewGetDevboxParams().
+		WithContext(ctx).
+		WithOrgName(apiConfig.Org).
+		WithDevboxID(devboxID)
+
+	resp, err := apiConfig.Client.Devboxes.GetDevbox(params)
+	if err != nil {
+		return fmt.Errorf("failed to validate devbox ID: %w", err)
+	}
+	if resp.Code() != http.StatusOK {
+		return fmt.Errorf("devbox ID %q not found: status %d %s", devboxID, resp.Code(), http.StatusText(resp.Code()))
+	}
+	return nil
+}
+
 // GetSessionID tries to get the session id of devbox indicated by devboxID.  Upon success err is nil and
 // if the devbox is connected, a non-empty string id is returned.  If the devbox is not connected, the
 // empty string is returned.

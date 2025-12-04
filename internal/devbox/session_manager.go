@@ -28,22 +28,21 @@ const (
 )
 
 type SessionManager struct {
-	log            *slog.Logger
-	ciConfig       *config.ConnectInvocationConfig
-	apiClient      *client.SignadotAPI
-	renewalTicker  *time.Ticker
-	doneCh         chan struct{}
-	shutdownCh     chan struct{}
+	log             *slog.Logger
+	ciConfig        *config.ConnectInvocationConfig
+	apiClient       *client.SignadotAPI
+	renewalTicker   *time.Ticker
+	doneCh          chan struct{}
+	shutdownCh      chan struct{}
 	sessionReleased bool
-	lastError      error
-	lastErrorTime  time.Time
-	mu             sync.RWMutex
+	lastError       error
+	lastErrorTime   time.Time
+	mu              sync.RWMutex
 }
 
 func NewSessionManager(log *slog.Logger, ciConfig *config.ConnectInvocationConfig, shutdownCh chan struct{}) (*SessionManager, error) {
 	if ciConfig.DevboxID == "" || ciConfig.DevboxSessionID == "" {
-		// No devbox session to manage
-		return nil, nil
+		return nil, fmt.Errorf("incomplete or absent  devbox session info")
 	}
 
 	// Resolve auth dynamically
@@ -157,7 +156,7 @@ func refreshBearerToken(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error)
 	}
 
 	expiresAt := time.Now().Add(time.Duration(resp.Payload.ExpiresIn) * time.Second)
-	
+
 	// Update auth info with new tokens
 	newAuthInfo := &auth.ResolvedAuth{
 		Source: authInfo.Source,
@@ -430,11 +429,11 @@ func (dsm *SessionManager) WasSessionReleased() bool {
 func (dsm *SessionManager) GetStatus() (healthy bool, sessionReleased bool, devboxID string, sessionID string, lastError error, lastErrorTime time.Time) {
 	dsm.mu.RLock()
 	defer dsm.mu.RUnlock()
-	
+
 	if dsm.ciConfig == nil {
 		return false, false, "", "", nil, time.Time{}
 	}
-	
+
 	healthy = !dsm.sessionReleased && dsm.lastError == nil
 	return healthy, dsm.sessionReleased, dsm.ciConfig.DevboxID, dsm.ciConfig.DevboxSessionID, dsm.lastError, dsm.lastErrorTime
 }
