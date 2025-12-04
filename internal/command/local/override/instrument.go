@@ -21,7 +21,7 @@ func hasSandboxOverride(sb *models.Sandbox) bool {
 }
 
 func applyOverrideToSandbox(ctx context.Context, cfg *config.LocalOverrideCreate,
-	baseSandbox *models.Sandbox, workloadName string, logPort int,
+	baseSandbox *models.Sandbox, workloadName, devboxID string, logPort int,
 ) (*models.Sandbox, string, undoFunc, error) {
 	// generate the override mw policy arg
 	policyArg, err := builder.NewOverrideArgPolicy(cfg.ExcludedStatusCodes)
@@ -39,10 +39,6 @@ func applyOverrideToSandbox(ctx context.Context, cfg *config.LocalOverrideCreate
 	}
 
 	// build the sandbox
-	devboxID, err := devbox.GetID(ctx, cfg.API, false, "")
-	if err != nil {
-		return nil, "", noOpUndo, err
-	}
 	sbBuilder := builder.
 		BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox)).
 		AddOverrideMiddleware(cfg.Port, cfg.To, []string{workloadName}, policyArg, log).
