@@ -50,7 +50,7 @@ type sandboxManager struct {
 
 	// devbox session management
 	devboxSessionMgr *devbox.SessionManager
-	
+
 	// session released state (deadend mode)
 	sessionReleased bool
 	sbmServer       *sbmServer
@@ -212,13 +212,13 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	<-runCtx.Done()
 
 	// Check if shutdown was triggered by devbox session release
-	if m.devboxSessionMgr != nil && m.devboxSessionMgr.WasSessionReleased() {
+	if m.devboxSessionMgr.WasSessionReleased() {
 		m.log.Info("Devbox session was released, entering deadend state")
 		m.sessionReleased = true
-		
+
 		// Shutdown root manager (tunnel, localnet, etchosts)
 		m.shutdownRootManager()
-		
+
 		// Stop all active work but keep gRPC server running
 		sbmWatcher.stop()
 		m.devboxSessionMgr.Stop(ctx)
@@ -227,7 +227,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		} else if m.ctlPlaneProxy != nil {
 			m.ctlPlaneProxy.Close(ctx)
 		}
-		
+
 		// Keep gRPC server running in deadend state
 		// Wait forever (until process is killed externally)
 		select {}
