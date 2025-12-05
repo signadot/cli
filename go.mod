@@ -21,7 +21,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/signadot/go-sdk v0.3.8-0.20251204135517-652cdb5127f0
+	github.com/signadot/go-sdk v0.3.8-0.20251205121950-c0d29d694826
 	github.com/signadot/libconnect v0.1.1-0.20251105071521-21dfbecb25cc
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
