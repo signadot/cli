@@ -23,7 +23,7 @@ type sbmWatcher struct {
 	log *slog.Logger
 	oiu *operatorInfoUpdater
 
-	machineID string
+	devboxSessionID string
 
 	// sandbox controllers
 	sbMu          sync.Mutex
@@ -37,12 +37,12 @@ type sbmWatcher struct {
 	shutdownCh chan struct{}
 }
 
-func newSandboxManagerWatcher(log *slog.Logger, machineID string, revtunClient func() revtun.Client,
+func newSandboxManagerWatcher(log *slog.Logger, devboxSessionID string, revtunClient func() revtun.Client,
 	oiu *operatorInfoUpdater, shutdownCh chan struct{}) *sbmWatcher {
 	srv := &sbmWatcher{
-		log:       log,
-		oiu:       oiu,
-		machineID: machineID,
+		log:            log,
+		oiu:            oiu,
+		devboxSessionID: devboxSessionID,
 		status: svchealth.ServiceHealth{
 			Healthy:         false,
 			LastErrorReason: "Starting",
@@ -64,7 +64,7 @@ func (sbw *sbmWatcher) watchSandboxes(ctx context.Context, tunAPIClient tunapicl
 	// watch loop
 	for {
 		sbwClient, err := tunAPIClient.WatchLocalSandboxes(ctx, &tunapiv1.WatchLocalSandboxesRequest{
-			MachineId: sbw.machineID,
+			MachineId: sbw.devboxSessionID,
 		})
 		if err != nil {
 			// don't retry if the context has been cancelled

@@ -55,9 +55,12 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 
 	// Make sure sandbox manager is running against the sandbox cluster
 	// (signadot local connect has been executed)
-	_, err = sbmgr.ValidateSandboxManager(sb.Spec.Cluster)
+	stResp, err := sbmgr.ValidateSandboxManager(sb.Spec.Cluster)
 	if err != nil {
 		return err
+	}
+	if stResp.DevboxSession == nil {
+		return errors.New("not connected with a devbox session (CLI locald version mismatch) please disconnect and reconnect")
 	}
 
 	// Create the log server (if needed)
@@ -72,7 +75,8 @@ func runOverride(rootCtx context.Context, out, errOut io.Writer,
 
 	// Apply the override to the sandbox
 	printOverrideProgress(out, fmt.Sprintf("Applying override to %s", cfg.Sandbox))
-	_, overrideName, undo, err := applyOverrideToSandbox(ctx, cfg, sb, cfg.Workload, logPort)
+	_, overrideName, undo, err := applyOverrideToSandbox(ctx, cfg, sb, cfg.Workload,
+		stResp.DevboxSession.DevboxId, logPort)
 	if err != nil {
 		return err
 	}

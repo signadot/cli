@@ -100,6 +100,7 @@ func run(cfg *config.LocalDaemon, args []string) error {
 	if err := os.Chown(pidFile, ciConfig.User.UID, ciConfig.User.GID); err != nil {
 		log.Warn("couldn't change ownership of pidfile", "error", err)
 	}
+	// Clean up PID file on exit (normal shutdown, error, or panic)
 	defer func() {
 		os.Remove(pidFile)
 	}()

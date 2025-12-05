@@ -8,6 +8,7 @@ import (
 
 	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
@@ -20,7 +21,7 @@ func hasSandboxOverride(sb *models.Sandbox) bool {
 }
 
 func applyOverrideToSandbox(ctx context.Context, cfg *config.LocalOverrideCreate,
-	baseSandbox *models.Sandbox, workloadName string, logPort int,
+	baseSandbox *models.Sandbox, workloadName, devboxID string, logPort int,
 ) (*models.Sandbox, string, undoFunc, error) {
 	// generate the override mw policy arg
 	policyArg, err := builder.NewOverrideArgPolicy(cfg.ExcludedStatusCodes)
@@ -37,11 +38,11 @@ func applyOverrideToSandbox(ctx context.Context, cfg *config.LocalOverrideCreate
 		}
 	}
 
-	// build the snadbox
+	// build the sandbox
 	sbBuilder := builder.
 		BuildSandbox(cfg.Sandbox, builder.WithData(*baseSandbox)).
 		AddOverrideMiddleware(cfg.Port, cfg.To, []string{workloadName}, policyArg, log).
-		SetMachineID()
+		SetDevboxID(devboxID)
 
 	sb, err := sbBuilder.Build()
 	if err != nil {
@@ -73,9 +74,13 @@ func applyOverrideToSandbox(ctx context.Context, cfg *config.LocalOverrideCreate
 func deleteOverrideFromSandbox(ctx context.Context, cfg *config.API,
 	sandbox *models.Sandbox, overrideName string) error {
 	// Use the sandbox builder to delete the override
+	devboxID, err := devbox.GetID(ctx, cfg, false, "")
+	if err != nil {
+		return err
+	}
 	sbBuilder := builder.
 		BuildSandbox(sandbox.Name, builder.WithData(*sandbox)).
-		SetMachineID().
+		SetDevboxID(devboxID).
 		DeleteOverrideMiddleware(overrideName)
 
 	sb, err := sbBuilder.Build()

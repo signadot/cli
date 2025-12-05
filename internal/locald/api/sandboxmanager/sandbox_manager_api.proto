@@ -42,6 +42,7 @@ message StatusResponse {
   apicommon.ControlPlaneProxyStatus control_plane_proxy = 8;
   apicommon.WatcherStatus watcher = 6;
   repeated apicommon.SandboxStatus sandboxes = 5;
+  apicommon.DevboxSessionStatus devbox_session = 9;
 }
 
 // Shutdown

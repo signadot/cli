@@ -37,7 +37,6 @@ func (ld *LocalDaemon) InitLocalDaemon() error {
 		ciBytes []byte
 		err     error
 	)
-
 	if ld.ConnectInvocationConfigFile != "" {
 		ciBytes, err = os.ReadFile(ld.ConnectInvocationConfigFile)
 		if err != nil {
@@ -79,6 +78,8 @@ type ConnectInvocationConfig struct {
 	APIKey           string                       `json:"apiKey"`
 	Debug            bool                         `json:"debug"`
 	ConnectTimeout   string                       `json:"connectTimeout"`
+	DevboxID         string                       `json:"devboxID"`
+	DevboxSessionID  string                       `json:"devboxSessionID"`
 }
 
 type ConnectInvocationUser struct {

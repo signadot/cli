@@ -8,13 +8,15 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"log/slog"
 
 	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
+	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
-	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/transport"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/controlplaneproxy"
@@ -37,7 +39,6 @@ type sandboxManager struct {
 	ciConfig      *config.ConnectInvocationConfig
 	connConfig    *connectcfg.ConnectionConfig
 	hostname      string
-	machineID     string
 	grpcServer    *grpc.Server
 	portForward   *portforward.PortForward
 	ctlPlaneProxy *controlplaneproxy.Proxy
@@ -46,6 +47,13 @@ type sandboxManager struct {
 	// tunnel API
 	tunAPIClient tunapiclient.Client
 	proxyAddress string
+
+	// devbox session management
+	devboxSessionMgr *devbox.SessionManager
+
+	// session released state (deadend mode)
+	sessionReleased bool
+	sbmServer       *sbmServer
 }
 
 func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*sandboxManager, error) {
@@ -58,22 +66,22 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 		return nil, err
 	}
 
-	// Resolve the machine ID
-	machineID, err := system.GetMachineID()
-	if err != nil {
-		return nil, err
-	}
-
 	ciConfig := cfg.ConnectInvocationConfig
 
+	// Create devbox session manager
+	devboxSessionMgr, err := devbox.NewSessionManager(log, ciConfig, shutdownCh)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create devbox session manager: %w", err)
+	}
+
 	return &sandboxManager{
-		log:        log,
-		ciConfig:   ciConfig,
-		connConfig: ciConfig.ConnectionConfig,
-		hostname:   hostname,
-		machineID:  machineID,
-		grpcServer: grpcServer,
-		shutdownCh: shutdownCh,
+		log:              log,
+		ciConfig:         ciConfig,
+		connConfig:       ciConfig.ConnectionConfig,
+		hostname:         hostname,
+		grpcServer:       grpcServer,
+		shutdownCh:       shutdownCh,
+		devboxSessionMgr: devboxSessionMgr,
 	}, nil
 }
 
@@ -148,12 +156,12 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 	}
 
 	// Create the watcher
-	sbmWatcher := newSandboxManagerWatcher(m.log, m.machineID, m.revtunClient, oiu, m.shutdownCh)
+	sbmWatcher := newSandboxManagerWatcher(m.log, m.ciConfig.DevboxSessionID, m.revtunClient, oiu, m.shutdownCh)
 
 	// Register our service in gRPC server
-	sbmServer := newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward, m.ctlPlaneProxy,
-		sbmWatcher, oiu, m.shutdownCh)
-	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, sbmServer)
+	m.sbmServer = newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward, m.ctlPlaneProxy,
+		sbmWatcher, oiu, m.shutdownCh, m.devboxSessionMgr)
+	sbapi.RegisterSandboxManagerAPIServer(m.grpcServer, m.sbmServer)
 
 	// Run the gRPC server
 	if err := m.runAPIServer(); err != nil {
@@ -194,16 +202,42 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		}
 	}
 
+	// Start devbox session manager
+	m.devboxSessionMgr.Start(runCtx)
+
 	// Run the sandboxes watcher
 	sbmWatcher.run(runCtx, m.tunAPIClient)
 
 	// Wait until termination
 	<-runCtx.Done()
 
-	// Clean up
+	// Check if shutdown was triggered by devbox session release
+	if m.devboxSessionMgr.WasSessionReleased() {
+		m.log.Info("Devbox session was released, entering deadend state")
+		m.sessionReleased = true
+
+		// Shutdown root manager (tunnel, localnet, etchosts)
+		m.shutdownRootManager()
+
+		// Stop all active work but keep gRPC server running
+		sbmWatcher.stop()
+		m.devboxSessionMgr.Stop(ctx)
+		if m.portForward != nil {
+			m.portForward.Close()
+		} else if m.ctlPlaneProxy != nil {
+			m.ctlPlaneProxy.Close(ctx)
+		}
+
+		// Keep gRPC server running in deadend state
+		// Wait forever (until process is killed externally)
+		select {}
+	}
+
+	// Normal shutdown
 	m.log.Info("Shutting down")
 	m.grpcServer.GracefulStop()
 	sbmWatcher.stop()
+	m.devboxSessionMgr.Stop(ctx)
 	if m.portForward != nil {
 		m.portForward.Close()
 	} else if m.ctlPlaneProxy != nil {
@@ -258,5 +292,25 @@ func (m *sandboxManager) revtunClient() revtun.Client {
 	default:
 		// already validated
 		panic(fmt.Errorf("invalid inbound protocol: %s", m.connConfig.Inbound.Protocol))
+	}
+}
+
+// shutdownRootManager calls the root manager's Shutdown API to shut down tunnel and services
+func (m *sandboxManager) shutdownRootManager() {
+	if m.sbmServer == nil {
+		return
+	}
+	rootClient := m.sbmServer.getRootClient()
+	if rootClient == nil {
+		m.log.Warn("Could not get root manager client to shutdown")
+		return
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_, err := rootClient.Shutdown(shutdownCtx, &rootapi.ShutdownRequest{})
+	if err != nil {
+		m.log.Warn("Failed to shutdown root manager", "error", err)
+	} else {
+		m.log.Info("Root manager shutdown requested")
 	}
 }
