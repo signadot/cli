@@ -83,3 +83,19 @@ message OperatorInfo {
   string git_commit = 2;
   string build_date = 3;
 }
+
+// Devbox session status (produced by local controller)
+message DevboxSessionStatus {
+  // Whether the devbox session is active and healthy
+  bool healthy = 1;
+  // Whether the session was released by another process
+  bool session_released = 2;
+  // Devbox ID
+  string devbox_id = 3;
+  // Session ID
+  string session_id = 4;
+  // Last error reason if unhealthy
+  string last_error_reason = 5;
+  // Last error time if unhealthy
+  google.protobuf.Timestamp last_error_time = 6;
+}

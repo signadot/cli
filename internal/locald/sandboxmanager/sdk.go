@@ -209,7 +209,7 @@ func connectSandboxManager() (*grpc.ClientConn, error) {
 }
 
 // ValidateSandboxManager validates that sandboxmanager is running, connected to the right cluster,
-// and returns the status and a sandbox with machine ID set if needed.
+// and returns the status and a sandbox with devbox session ID set if needed.
 // This function is useful for operations that require local sandbox functionality.
 func ValidateSandboxManager(expectedCluster *string) (*sbmapi.StatusResponse, error) {
 	// Get sandboxmanager status

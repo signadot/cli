@@ -11,6 +11,7 @@ import (
 
 	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/print"
@@ -65,10 +66,10 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 			return err
 		}
 
-		// Set machine ID for local sandboxes
+		// Set devbox ID for local sandboxes
 		sb, err := builder.
 			BuildSandbox(req.Name, builder.WithData(*req)).
-			SetMachineID().
+			SetDevboxID(status.DevboxSession.DevboxId).
 			Build()
 		if err != nil {
 			return err
@@ -92,11 +93,11 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		req.Name, resp.RoutingKey, *req.Spec.Cluster)
 
 	if len(req.Spec.Local) > 0 && status.OperatorInfo == nil {
-		// we are dealing with an old operator that doesn't support sandboxes
-		// watcher, go ahead and register the sandbox in sandboxmanager.
-		if err = sbmgr.RegisterSandbox(resp.Name, resp.RoutingKey); err != nil {
-			return fmt.Errorf("couldn't register sandbox in sandboxmanager, %v", err)
+		id, err := devbox.GetID(ctx, cfg.API, false, "" /* name set on connect */)
+		if err != nil {
+			return err
 		}
+		_ = id
 	}
 
 	if cfg.Wait {
