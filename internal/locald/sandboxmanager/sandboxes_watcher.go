@@ -258,24 +258,6 @@ func (sbw *sbmWatcher) setError(errMsg string, err error) {
 	sbw.oiu.Reset()
 }
 
-func (sbw *sbmWatcher) registerSandbox(sandboxName, routingKey string) {
-	sbw.sbMu.Lock()
-	defer sbw.sbMu.Unlock()
-
-	if sbw.status.Healthy {
-		// the sandbox watcher is running, no need to register this sandbox (it
-		// should happen via WatchLocalSandboxes stream)
-		return
-	}
-
-	// create a sandbox monitor (that will watch events specific to that sandbox)
-	if sbm := sbw.sbMonitors[sandboxName]; sbm != nil {
-		sbm.stop()
-	}
-	sbw.sbMonitors[sandboxName] = newSBMonitor(sbw.log, sandboxName, routingKey,
-		sbw.tunAPIClient, sbw.monitorUpdatedSandbox)
-}
-
 func (sbw *sbmWatcher) monitorUpdatedSandbox(routingKey string, event *tunapiv1.WatchSandboxResponse) {
 	sbw.sbMu.Lock()
 	defer sbw.sbMu.Unlock()

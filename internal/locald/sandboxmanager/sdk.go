@@ -149,26 +149,6 @@ func IsWatcherRunning(status *sbmapi.StatusResponse) (bool, string) {
 	return status.Watcher.Health.Healthy, status.Watcher.Health.LastErrorReason
 }
 
-func RegisterSandbox(sandboxName, routingKey string) error {
-	// get a sandbox manager API client
-	grpcConn, err := connectSandboxManager()
-	if err != nil {
-		return err
-	}
-	defer grpcConn.Close()
-
-	// register the sandbox
-	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
-	_, err = sbManagerClient.RegisterSandbox(context.Background(), &sbmapi.RegisterSandboxRequest{
-		SandboxName: sandboxName,
-		RoutingKey:  routingKey,
-	})
-	if err != nil {
-		return processGRPCError("unable to register sandbox in sandboxmanager", err)
-	}
-	return nil
-}
-
 type ResourceOutput struct {
 	Resource string `json:"resource"`
 	Output   string `json:"output"`

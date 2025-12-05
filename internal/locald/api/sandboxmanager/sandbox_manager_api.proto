@@ -15,11 +15,6 @@ service SandboxManagerAPI {
   // This method requests the root controller to shutdown
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
 
-  // This method is used to register sandboxes in the local controller. It is
-  // mainly used in the context of old operators (the ones that don't support
-  // WatchLocalSandboxes in tunnel-api)
-  rpc RegisterSandbox(RegisterSandboxRequest) returns (RegisterSandboxResponse) {}
-
   // This method returns all the available resource outputs for a sandbox given
   // its routing key.
   rpc GetResourceOutputs(GetResourceOutputsRequest) returns (GetResourceOutputsResponse) {}
@@ -52,17 +47,6 @@ message ShutdownRequest {
 }
 
 message ShutdownResponse {
-}
-
-// RegisterSandbox
-// ----------------------------------------------------------------------------
-
-message RegisterSandboxRequest {
-  string sandbox_name = 1;
-  string routing_key = 2;
-}
-
-message RegisterSandboxResponse {
 }
 
 // Resource outputs
