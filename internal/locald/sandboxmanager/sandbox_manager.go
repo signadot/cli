@@ -12,12 +12,11 @@ import (
 
 	"log/slog"
 
-	"github.com/signadot/cli/internal/auth"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/devbox"
+	"github.com/signadot/cli/internal/locald/sandboxmanager/apiclient"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
-	"github.com/signadot/go-sdk/transport"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"google.golang.org/grpc"
@@ -117,16 +116,9 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 			m.log, 0, "signadot", "tunnel-proxy", 1080,
 		)
 	case connectcfg.ControlPlaneProxyLinkType:
+		// Use unified API client mechanism for getting auth headers
 		getHeaders := func() (http.Header, error) {
-			headers, err := auth.GetHeaders()
-			if err != nil {
-				return nil, fmt.Errorf("error getting auth headers: %w", err)
-			}
-			if len(headers) == 0 && m.ciConfig.APIKey != "" {
-				// give precedence to auth info coming from the keying store
-				headers.Set(transport.APIKeyHeader, m.ciConfig.APIKey)
-			}
-			return headers, nil
+			return apiclient.GetAuthHeaders(m.ciConfig)
 		}
 
 		// Start a control-plane proxy
