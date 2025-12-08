@@ -9,7 +9,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 )
 
-type MonitorOnChangeFunc func(ctx context.Context, authenticated bool) error
+type MonitorOnChangeFunc func(ctx context.Context, authenticated bool)
 
 // Monitor tracks authentication status and invokes a callback when it changes.
 type Monitor struct {
@@ -68,11 +68,7 @@ func (m *Monitor) Check(ctx context.Context) {
 
 	// Only update if state changed
 	if currentState != m.lastState {
-		err := m.onChange(ctx, currentState)
-		if err != nil {
-			// don't update the state if the callback fails
-			return
-		}
 		m.lastState = currentState
+		m.onChange(ctx, currentState)
 	}
 }

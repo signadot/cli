@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"reflect"
 	"sync"
@@ -47,9 +46,10 @@ When requested, ask the user to run the provided command in a terminal to authen
 	}, getAuthenticationStatus)
 }
 
-func (t *Tools) Update(ctx context.Context, meta *remote.Meta) error {
+func (t *Tools) Update(ctx context.Context, meta *remote.Meta) {
 	if meta == nil {
-		return fmt.Errorf("remote metadata is not available")
+		t.log.Warn("remote metadata is not available")
+		return
 	}
 
 	t.Lock()
@@ -117,8 +117,6 @@ func (t *Tools) Update(ctx context.Context, meta *remote.Meta) error {
 		originalCopy := *tool
 		t.registeredTools[tool.Name] = &originalCopy
 	}
-
-	return nil
 }
 
 // toolEqual compares two tools to determine if they're functionally equivalent.

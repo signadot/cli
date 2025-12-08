@@ -44,8 +44,8 @@ func (r *Remote) ToolHandler(toolName string) func(ctx context.Context, req *mcp
 			if errors.Is(err, mcp.ErrConnectionClosed) {
 				// Clear the session so it will be recreated on next call
 				r.mu.Lock()
-				if r.session == sess {
-					r.session = nil
+				if r.remoteSession == sess {
+					r.remoteSession = nil
 				}
 				r.mu.Unlock()
 

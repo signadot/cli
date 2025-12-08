@@ -24,29 +24,21 @@ func (r *Remote) updateMeta(ctx context.Context) error {
 		return err
 	}
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	// Check if metadata has changed
 	hasChanged := !reflect.DeepEqual(r.meta, meta)
 	if !hasChanged {
 		return nil
 	}
 
-	// Invoke callback if set (unlock mutex during callback to avoid deadlock)
-	if r.onChange != nil {
-		r.mu.Unlock()
-		err = r.onChange(ctx, meta)
-		r.mu.Lock()
-
-		if err != nil {
-			// Don't update the state if the callback fails
-			return fmt.Errorf("failed to invoke onChange callback: %w", err)
-		}
-	}
-
 	// Update metadata state
+	r.mu.Lock()
 	r.meta = meta
+	r.mu.Unlock()
+
+	// Invoke callback if set
+	if r.onChange != nil {
+		r.onChange(ctx, meta)
+	}
 	return nil
 }
 
