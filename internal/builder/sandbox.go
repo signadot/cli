@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/models"
 )
 
@@ -79,13 +78,11 @@ func (sb *SandboxBuilder) GetLastAddedOverrideName() *string {
 	return sb.lastAddedOverrideName
 }
 
-func (sb *SandboxBuilder) SetMachineID() *SandboxBuilder {
+func (sb *SandboxBuilder) SetDevboxID(id string) *SandboxBuilder {
 	return sb.withError(func() error {
-		machineID, err := system.GetMachineID()
-		if err != nil {
-			return err
+		sb.internal.Spec.Connection = &models.Connection{
+			DevboxID: id,
 		}
-		sb.internal.Spec.LocalMachineID = machineID
 		return nil
 	})
 }

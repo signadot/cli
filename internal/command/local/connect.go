@@ -1,6 +1,7 @@
 package local
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,10 +17,12 @@ import (
 	"github.com/Masterminds/semver"
 	"github.com/fatih/color"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	clusters "github.com/signadot/go-sdk/client/cluster"
+	"github.com/signadot/go-sdk/client/devboxes"
 	"github.com/signadot/libconnect/common/processes"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
@@ -48,6 +51,41 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 
 	if cfg.OutputFormat != config.OutputFormatDefault {
 		return fmt.Errorf("output format %s not supported for connect", cfg.OutputFormat)
+	}
+
+	// get devbox claim and session
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	var devboxID string
+	if cfg.Devbox != "" {
+		// If devbox ID is provided, validate it exists
+		if err := devbox.ValidateDevboxID(ctx, cfg.API, cfg.Devbox); err != nil {
+			return err
+		}
+		devboxID = cfg.Devbox
+	} else {
+		// If no devbox ID provided, use the stored ID from file
+		var err error
+		devboxID, err = devbox.GetID(ctx, cfg.API, true, "")
+		if err != nil {
+			return err
+		}
+	}
+	
+	// Claim the session for the devbox
+	params := devboxes.NewClaimDevboxParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithDevboxID(devboxID)
+	_, err := cfg.Client.Devboxes.ClaimDevbox(params)
+	if err != nil {
+		return fmt.Errorf("failed to claim devbox session: %w", err)
+	}
+	
+	devboxSessionID, err := devbox.GetSessionID(ctx, cfg.API, devboxID)
+	if err != nil {
+		return err
 	}
 
 	// we will pass the connConfig to rootmanager and sandboxmanager
@@ -98,6 +136,8 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		APIKey:           cfg.GetAPIKey(),
 		Debug:            cfg.LocalConfig.Debug,
 		ConnectTimeout:   cfg.WaitTimeout.String(),
+		DevboxID:         devboxID,
+		DevboxSessionID:  devboxSessionID,
 	}
 	if cfg.DumpCIConfig {
 		d, _ := yaml.Marshal(ciConfig)

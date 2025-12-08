@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
@@ -19,6 +20,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type sbmServer struct {
@@ -45,20 +47,24 @@ type sbmServer struct {
 
 	// shutdown
 	shutdownCh chan struct{}
+	
+	// devbox session manager
+	devboxSessionMgr *devbox.SessionManager
 }
 
 func newSandboxManagerGRPCServer(log *slog.Logger, ciConfig *config.ConnectInvocationConfig,
 	portForward *portforward.PortForward, ctlPlaneProxy *controlplaneproxy.Proxy,
 	sbmWatcher *sbmWatcher, oiu *operatorInfoUpdater,
-	shutdownCh chan struct{}) *sbmServer {
+	shutdownCh chan struct{}, devboxSessionMgr *devbox.SessionManager) *sbmServer {
 	srv := &sbmServer{
-		log:           log,
-		oiu:           oiu,
-		ciConfig:      ciConfig,
-		portForward:   portForward,
-		ctlPlaneProxy: ctlPlaneProxy,
-		sbmWatcher:    sbmWatcher,
-		shutdownCh:    shutdownCh,
+		log:              log,
+		oiu:              oiu,
+		ciConfig:         ciConfig,
+		portForward:      portForward,
+		ctlPlaneProxy:    ctlPlaneProxy,
+		sbmWatcher:       sbmWatcher,
+		shutdownCh:       shutdownCh,
+		devboxSessionMgr: devboxSessionMgr,
 	}
 	return srv
 }
@@ -79,6 +85,7 @@ func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbap
 		ControlPlaneProxy: s.controlPlaneProxyStatus(),
 		Watcher:           s.watcherStatus(),
 		Sandboxes:         s.sbStatuses(),
+		DevboxSession:     s.devboxSessionStatus(),
 	}
 	resp.Hosts, resp.Localnet = s.rootStatus()
 	return resp, nil
@@ -196,6 +203,32 @@ func (s *sbmServer) watcherStatus() *commonapi.WatcherStatus {
 	return &commonapi.WatcherStatus{
 		Health: commonapi.ToGRPCServiceHealth(s.sbmWatcher.getStatus()),
 	}
+}
+
+func (s *sbmServer) devboxSessionStatus() *commonapi.DevboxSessionStatus {
+	if s.devboxSessionMgr == nil {
+		return &commonapi.DevboxSessionStatus{
+			Healthy: false,
+		}
+	}
+	
+	healthy, sessionReleased, devboxID, sessionID, lastError, lastErrorTime := s.devboxSessionMgr.GetStatus()
+	
+	status := &commonapi.DevboxSessionStatus{
+		Healthy:         healthy && !sessionReleased,
+		SessionReleased: sessionReleased,
+		DevboxId:        devboxID,
+		SessionId:       sessionID,
+	}
+	
+	if lastError != nil {
+		status.LastErrorReason = lastError.Error()
+		if !lastErrorTime.IsZero() {
+			status.LastErrorTime = timestamppb.New(lastErrorTime)
+		}
+	}
+	
+	return status
 }
 
 func (s *sbmServer) sbStatuses() []*commonapi.SandboxStatus {
