@@ -36,17 +36,17 @@ func runStatus(cfg *config.AuthStatus, out io.Writer) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printAuthInfo(cfg, out, authInfo)
+		return PrintAuthInfo(out, authInfo)
 	case config.OutputFormatJSON:
-		return printRawAuthInfo(cfg, out, print.RawJSON, authInfo)
+		return printRawAuthInfo(out, print.RawJSON, authInfo)
 	case config.OutputFormatYAML:
-		return printRawAuthInfo(cfg, out, print.RawK8SYAML, authInfo)
+		return printRawAuthInfo(out, print.RawK8SYAML, authInfo)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
 }
 
-func printAuthInfo(cfg *config.AuthStatus, out io.Writer, authInfo *auth.ResolvedAuth) error {
+func PrintAuthInfo(out io.Writer, authInfo *auth.ResolvedAuth) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	// display status
@@ -100,8 +100,8 @@ func printAuthInfo(cfg *config.AuthStatus, out io.Writer, authInfo *auth.Resolve
 	return tw.Flush()
 }
 
-func printRawAuthInfo(cfg *config.AuthStatus, out io.Writer,
-	printer func(out io.Writer, v any) error, authInfo *auth.ResolvedAuth) error {
+func printRawAuthInfo(out io.Writer, printer func(out io.Writer, v any) error,
+	authInfo *auth.ResolvedAuth) error {
 	if authInfo != nil {
 		if len(authInfo.BearerToken) > 32 {
 			authInfo.BearerToken = authInfo.BearerToken[:32] + "..."
