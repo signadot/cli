@@ -100,12 +100,6 @@ func (s *sbmServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (*
 	return &sbapi.ShutdownResponse{}, nil
 }
 
-func (s *sbmServer) RegisterSandbox(ctx context.Context, req *sbapi.RegisterSandboxRequest) (
-	*sbapi.RegisterSandboxResponse, error) {
-	s.sbmWatcher.registerSandbox(req.SandboxName, req.RoutingKey)
-	return &sbapi.RegisterSandboxResponse{}, nil
-}
-
 func (s *sbmServer) GetResourceOutputs(ctx context.Context, req *sbapi.GetResourceOutputsRequest) (*sbapi.GetResourceOutputsResponse, error) {
 	tac := s.sbmWatcher.tunAPIClient
 	tunReq := &apiv1.GetResourceOutputsRequest{
