@@ -13,6 +13,16 @@ import (
 )
 
 func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) error {
+	// Initialize viper with the same config file used by the CLI
+	// This ensures auth.ResolveAuth() reads from the correct config file
+	var configFile string
+	if cfg.ConnectInvocationConfig != nil {
+		configFile = cfg.ConnectInvocationConfig.ConfigFile
+	}
+	if err := config.InitViper(configFile); err != nil {
+		log.Warn("Failed to initialize viper from ciConfig, auth may resolve incorrectly", "error", err)
+	}
+
 	ctx := context.Background()
 	sbMgr, err := sbmgr.NewSandboxManager(cfg, args, log.With(
 		"locald-component", "sandbox-manager",

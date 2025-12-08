@@ -20,19 +20,12 @@ type Root struct {
 	OutputFormat OutputFormat
 }
 
-func (c *Root) AddFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().BoolVar(&c.Debug, "debug", false, "enable debug output")
-	cmd.PersistentFlags().StringVar(&c.ConfigFile, "config", "", "config file (default is $HOME/.signadot/config.yaml)")
-	cmd.PersistentFlags().VarP(&c.OutputFormat, "output", "o", "output format (json|yaml)")
-}
-
-func (c *Root) Init() {
-	cobra.CheckErr(c.init())
-}
-
-func (c *Root) init() error {
-	if c.ConfigFile != "" {
-		viper.SetConfigFile(c.ConfigFile)
+// InitViper initializes viper with the provided config file path.
+// If configFile is empty, it uses the default location ($HOME/.signadot/config.yaml).
+// The config file is optional - if it doesn't exist, viper will still work with env vars.
+func InitViper(configFile string) error {
+	if configFile != "" {
+		viper.SetConfigFile(configFile)
 	} else {
 		signadotDir, err := system.GetSignadotDir()
 		if err != nil {
@@ -53,6 +46,24 @@ func (c *Root) init() error {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return fmt.Errorf("error reading config file: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func (c *Root) AddFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().BoolVar(&c.Debug, "debug", false, "enable debug output")
+	cmd.PersistentFlags().StringVar(&c.ConfigFile, "config", "", "config file (default is $HOME/.signadot/config.yaml)")
+	cmd.PersistentFlags().VarP(&c.OutputFormat, "output", "o", "output format (json|yaml)")
+}
+
+func (c *Root) Init() {
+	cobra.CheckErr(c.init())
+}
+
+func (c *Root) init() error {
+	if err := InitViper(c.ConfigFile); err != nil {
+		return err
 	}
 
 	if !c.Debug {

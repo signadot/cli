@@ -75,7 +75,9 @@ type ConnectInvocationConfig struct {
 	VirtualIPNet     string                       `json:"virtualIPNet"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
 	ProxyURL         string                       `json:"proxyURL"`
+	APIURL           string                       `json:"apiURL"`
 	APIKey           string                       `json:"apiKey"`
+	ConfigFile       string                       `json:"configFile"`
 	Debug            bool                         `json:"debug"`
 	ConnectTimeout   string                       `json:"connectTimeout"`
 	DevboxID         string                       `json:"devboxID"`

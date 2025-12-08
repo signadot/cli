@@ -11,13 +11,10 @@ import (
 	"log/slog"
 
 	"github.com/signadot/cli/internal/auth"
-	"github.com/signadot/cli/internal/buildinfo"
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/locald/sandboxmanager/apiclient"
 	"github.com/signadot/go-sdk/client"
-	sdkauth "github.com/signadot/go-sdk/client/auth"
 	"github.com/signadot/go-sdk/client/devboxes"
-	"github.com/signadot/go-sdk/transport"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -54,8 +51,16 @@ func NewSessionManager(log *slog.Logger, ciConfig *config.ConnectInvocationConfi
 		return nil, fmt.Errorf("no auth found")
 	}
 
-	// Create API client with dynamic auth resolution
-	apiClient, err := createAPIClient(ciConfig, authInfo)
+	log.Debug("NewSessionManager: auth resolved",
+		"source", authInfo.Source,
+		"orgName", authInfo.OrgName,
+		"hasAPIKey", authInfo.APIKey != "",
+		"hasBearerToken", authInfo.BearerToken != "",
+		"hasExpiresAt", authInfo.ExpiresAt != nil,
+		"expiresAt", authInfo.ExpiresAt)
+
+	// Create API client with dynamic auth resolution using unified mechanism
+	apiClient, err := apiclient.CreateAPIClientWithLogger(ciConfig, authInfo, log.With("component", "devbox-session-manager"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create API client: %w", err)
 	}
@@ -71,127 +76,6 @@ func NewSessionManager(log *slog.Logger, ciConfig *config.ConnectInvocationConfi
 	return dsm, nil
 }
 
-func createAPIClient(ciConfig *config.ConnectInvocationConfig, authInfo *auth.ResolvedAuth) (*client.SignadotAPI, error) {
-	// Check if bearer token is expired and refresh if needed
-	if authInfo != nil && authInfo.BearerToken != "" && authInfo.APIKey == "" {
-		if authInfo.ExpiresAt != nil && time.Now().After(*authInfo.ExpiresAt) {
-			if authInfo.RefreshToken != "" {
-				// Refresh the token
-				refreshedAuth, err := refreshBearerToken(authInfo)
-				if err != nil {
-					return nil, fmt.Errorf("failed to refresh bearer token: %w", err)
-				}
-				authInfo = refreshedAuth
-			} else {
-				return nil, fmt.Errorf("bearer token expired and no refresh token available")
-			}
-		}
-	}
-
-	// Get API URL from viper (similar to config.API.basicInit)
-	apiURL := "https://api.signadot.com"
-	if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
-		apiURL = apiURLFromViper
-	}
-
-	// Create transport config
-	cfg := &transport.APIConfig{
-		APIURL:    apiURL,
-		UserAgent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
-		Debug:     false,
-	}
-
-	// Set auth - prefer resolved auth, but fall back to CI config API key if available
-	// (similar to how control plane proxy handles it)
-	if authInfo != nil && authInfo.APIKey != "" {
-		cfg.APIKey = authInfo.APIKey
-	} else if authInfo != nil && authInfo.BearerToken != "" {
-		cfg.BearerToken = authInfo.BearerToken
-	} else if ciConfig.APIKey != "" {
-		// Fall back to API key from CI config
-		cfg.APIKey = ciConfig.APIKey
-	} else {
-		return nil, fmt.Errorf("no API key or bearer token found")
-	}
-
-	// Initialize transport
-	t, err := transport.InitAPITransport(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init API transport: %w", err)
-	}
-
-	// Create client
-	return client.New(t, nil), nil
-}
-
-// refreshBearerToken refreshes an expired bearer token using the refresh token
-func refreshBearerToken(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error) {
-	// Create an unauthenticated API client for the refresh call
-	apiURL := "https://api.signadot.com"
-	if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
-		apiURL = apiURLFromViper
-	}
-
-	cfg := &transport.APIConfig{
-		APIURL:    apiURL,
-		UserAgent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
-		Debug:     false,
-	}
-
-	t, err := transport.InitAPITransport(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to init unauthenticated API transport: %w", err)
-	}
-
-	unauthClient := client.New(t, nil)
-
-	// Call the refresh endpoint
-	params := &sdkauth.AuthDeviceRefreshTokenParams{
-		Data: authInfo.RefreshToken,
-	}
-
-	resp, err := unauthClient.Auth.AuthDeviceRefreshToken(params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to refresh token: %w", err)
-	}
-
-	expiresAt := time.Now().Add(time.Duration(resp.Payload.ExpiresIn) * time.Second)
-
-	// Update auth info with new tokens
-	newAuthInfo := &auth.ResolvedAuth{
-		Source: authInfo.Source,
-		Auth: auth.Auth{
-			APIKey:       authInfo.APIKey,
-			BearerToken:  resp.Payload.AccessToken,
-			RefreshToken: resp.Payload.RefreshToken,
-			OrgName:      authInfo.OrgName,
-			ExpiresAt:    &expiresAt,
-		},
-	}
-
-	// Save the refreshed token back to storage
-	if err := saveRefreshedAuth(newAuthInfo); err != nil {
-		// Log but don't fail - we can still use the refreshed token for this request
-		// The next ResolveAuth() call will get the old token, but it will be refreshed again
-	}
-
-	return newAuthInfo, nil
-}
-
-// saveRefreshedAuth saves the refreshed auth back to the storage (keyring or plaintext)
-func saveRefreshedAuth(authInfo *auth.ResolvedAuth) error {
-	switch authInfo.Source {
-	case auth.KeyringAuthSource:
-		keyringStorage := auth.NewKeyringStorage()
-		return keyringStorage.Store(&authInfo.Auth)
-	case auth.PlainTextAuthSource:
-		plainTextStorage := auth.NewPlainTextStorage()
-		return plainTextStorage.Store(&authInfo.Auth)
-	default:
-		// Config source doesn't need saving (it's in viper)
-		return nil
-	}
-}
 
 func (dsm *SessionManager) Start(ctx context.Context) {
 	dsm.log.Info("Starting devbox session manager",
@@ -245,8 +129,16 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 		return
 	}
 
+	dsm.log.Debug("renewSession: auth resolved",
+		"source", authInfo.Source,
+		"orgName", authInfo.OrgName,
+		"hasAPIKey", authInfo.APIKey != "",
+		"hasBearerToken", authInfo.BearerToken != "",
+		"hasExpiresAt", authInfo.ExpiresAt != nil,
+		"expiresAt", authInfo.ExpiresAt)
+
 	// Recreate API client if needed (in case auth changed or token expired)
-	apiClient, err := createAPIClient(dsm.ciConfig, authInfo)
+	apiClient, err := apiclient.CreateAPIClientWithLogger(dsm.ciConfig, authInfo, dsm.log)
 	if err != nil {
 		dsm.log.Error("Failed to recreate API client", "error", err)
 		return
@@ -258,8 +150,16 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 		WithOrgName(authInfo.OrgName).
 		WithDevboxID(dsm.ciConfig.DevboxID)
 
+	dsm.log.Debug("renewSession: calling RenewDevbox",
+		"orgName", authInfo.OrgName,
+		"devboxID", dsm.ciConfig.DevboxID,
+		"sessionID", dsm.ciConfig.DevboxSessionID)
+
 	resp, err := dsm.apiClient.Devboxes.RenewDevbox(params)
 	if err != nil {
+		dsm.log.Debug("renewSession: RenewDevbox call failed",
+			"error", err,
+			"errorType", fmt.Sprintf("%T", err))
 		// Check if the error indicates the session was released by another process
 		if dsm.isSessionReleasedError(err) {
 			dsm.log.Warn("Devbox session was released by another process",
@@ -273,6 +173,9 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 		dsm.setError(err)
 		return
 	}
+
+	dsm.log.Debug("renewSession: RenewDevbox call succeeded",
+		"statusCode", resp.Code())
 
 	// Check response status code - 404 or similar might indicate session was released
 	if resp.Code() == http.StatusNotFound {
@@ -324,7 +227,7 @@ func (dsm *SessionManager) releaseSession() {
 	}
 
 	// Recreate API client if needed (in case auth changed or token expired)
-	apiClient, err := createAPIClient(dsm.ciConfig, authInfo)
+	apiClient, err := apiclient.CreateAPIClient(dsm.ciConfig, authInfo)
 	if err != nil {
 		dsm.log.Error("Failed to recreate API client for release", "error", err)
 		return
