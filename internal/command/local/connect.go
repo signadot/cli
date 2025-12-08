@@ -26,6 +26,7 @@ import (
 	"github.com/signadot/libconnect/common/processes"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"sigs.k8s.io/yaml"
 )
 
@@ -139,7 +140,9 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		Env:              os.Environ(),
 		ConnectionConfig: connConfig,
 		ProxyURL:         cfg.ProxyURL,
+		APIURL:           cfg.API.APIURL,
 		APIKey:           cfg.GetAPIKey(),
+		ConfigFile:       viper.ConfigFileUsed(),
 		Debug:            cfg.LocalConfig.Debug,
 		ConnectTimeout:   cfg.WaitTimeout.String(),
 		DevboxID:         devboxID,
@@ -301,9 +304,14 @@ func waitConnect(localConfig *config.LocalConnect, out, errOut io.Writer) error 
 	}
 doneWaiting:
 
-	printLocalStatus(&config.LocalStatus{
-		Local: localConfig.Local,
-	}, out, status)
+	if status != nil {
+
+		printLocalStatus(&config.LocalStatus{
+			Local: localConfig.Local,
+		}, out, status)
+	} else {
+		fmt.Fprintf(out, "could not get local status.\n")
+	}
 
 	if len(connectErrs) == 0 {
 		switch localConfig.Wait {

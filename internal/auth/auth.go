@@ -51,6 +51,7 @@ func loadAuth() (*ResolvedAuth, error) {
 	// give precedence to config
 	apiKey := viper.GetString("api_key")
 	if apiKey != "" {
+		// Note: No logger available here, but we can add one if needed
 		return &ResolvedAuth{
 			Source: ConfigAuthSource,
 			Auth: Auth{

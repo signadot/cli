@@ -51,8 +51,16 @@ func NewSessionManager(log *slog.Logger, ciConfig *config.ConnectInvocationConfi
 		return nil, fmt.Errorf("no auth found")
 	}
 
+	log.Debug("NewSessionManager: auth resolved",
+		"source", authInfo.Source,
+		"orgName", authInfo.OrgName,
+		"hasAPIKey", authInfo.APIKey != "",
+		"hasBearerToken", authInfo.BearerToken != "",
+		"hasExpiresAt", authInfo.ExpiresAt != nil,
+		"expiresAt", authInfo.ExpiresAt)
+
 	// Create API client with dynamic auth resolution using unified mechanism
-	apiClient, err := apiclient.CreateAPIClient(ciConfig, authInfo)
+	apiClient, err := apiclient.CreateAPIClientWithLogger(ciConfig, authInfo, log.With("component", "devbox-session-manager"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create API client: %w", err)
 	}
@@ -121,8 +129,16 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 		return
 	}
 
+	dsm.log.Debug("renewSession: auth resolved",
+		"source", authInfo.Source,
+		"orgName", authInfo.OrgName,
+		"hasAPIKey", authInfo.APIKey != "",
+		"hasBearerToken", authInfo.BearerToken != "",
+		"hasExpiresAt", authInfo.ExpiresAt != nil,
+		"expiresAt", authInfo.ExpiresAt)
+
 	// Recreate API client if needed (in case auth changed or token expired)
-	apiClient, err := apiclient.CreateAPIClient(dsm.ciConfig, authInfo)
+	apiClient, err := apiclient.CreateAPIClientWithLogger(dsm.ciConfig, authInfo, dsm.log)
 	if err != nil {
 		dsm.log.Error("Failed to recreate API client", "error", err)
 		return
@@ -134,8 +150,16 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 		WithOrgName(authInfo.OrgName).
 		WithDevboxID(dsm.ciConfig.DevboxID)
 
+	dsm.log.Debug("renewSession: calling RenewDevbox",
+		"orgName", authInfo.OrgName,
+		"devboxID", dsm.ciConfig.DevboxID,
+		"sessionID", dsm.ciConfig.DevboxSessionID)
+
 	resp, err := dsm.apiClient.Devboxes.RenewDevbox(params)
 	if err != nil {
+		dsm.log.Debug("renewSession: RenewDevbox call failed",
+			"error", err,
+			"errorType", fmt.Sprintf("%T", err))
 		// Check if the error indicates the session was released by another process
 		if dsm.isSessionReleasedError(err) {
 			dsm.log.Warn("Devbox session was released by another process",
@@ -149,6 +173,9 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 		dsm.setError(err)
 		return
 	}
+
+	dsm.log.Debug("renewSession: RenewDevbox call succeeded",
+		"statusCode", resp.Code())
 
 	// Check response status code - 404 or similar might indicate session was released
 	if resp.Code() == http.StatusNotFound {

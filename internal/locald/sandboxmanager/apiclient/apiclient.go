@@ -2,6 +2,7 @@ package apiclient
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -22,27 +23,79 @@ import (
 // - Proper API URL configuration
 // - Fallback to CI config API key
 func CreateAPIClient(ciConfig *config.ConnectInvocationConfig, authInfo *auth.ResolvedAuth) (*client.SignadotAPI, error) {
-	// Check if bearer token is expired and refresh if needed
-	if authInfo != nil && authInfo.BearerToken != "" && authInfo.APIKey == "" {
-		if authInfo.ExpiresAt != nil && time.Now().After(*authInfo.ExpiresAt) {
-			if authInfo.RefreshToken != "" {
-				// Refresh the token
-				refreshedAuth, err := refreshBearerToken(authInfo)
-				if err != nil {
-					return nil, fmt.Errorf("failed to refresh bearer token: %w", err)
-				}
-				authInfo = refreshedAuth
-			} else {
-				return nil, fmt.Errorf("bearer token expired and no refresh token available")
-			}
-		}
+	return CreateAPIClientWithLogger(ciConfig, authInfo, nil)
+}
+
+// getLogger returns the provided logger or slog.Default() if nil
+func getLogger(log *slog.Logger) *slog.Logger {
+	if log != nil {
+		return log
+	}
+	return slog.Default()
+}
+
+// CreateAPIClientWithLogger creates a unified API client with logging support
+func CreateAPIClientWithLogger(ciConfig *config.ConnectInvocationConfig, authInfo *auth.ResolvedAuth, log *slog.Logger) (*client.SignadotAPI, error) {
+	log = getLogger(log)
+
+	if authInfo == nil {
+		log.Error("CreateAPIClient: authInfo is nil")
+		return nil, fmt.Errorf("authInfo is required")
 	}
 
-	// Get API URL from viper (similar to config.API.basicInit)
-	apiURL := "https://api.signadot.com"
-	if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
-		apiURL = apiURLFromViper
+	// Log auth info resolution
+	authType := "none"
+	if authInfo.APIKey != "" {
+		authType = "api-key"
+	} else if authInfo.BearerToken != "" {
+		authType = "bearer-token"
+		if authInfo.ExpiresAt != nil {
+			now := time.Now()
+			expired := now.After(*authInfo.ExpiresAt)
+			log.Debug("CreateAPIClient: bearer token expiration check",
+				"expiresAt", authInfo.ExpiresAt,
+				"now", now,
+				"expired", expired,
+				"hasRefreshToken", authInfo.RefreshToken != "")
+		}
 	}
+	log.Debug("CreateAPIClient: auth info resolved",
+		"source", authInfo.Source,
+		"authType", authType,
+		"orgName", authInfo.OrgName)
+
+	// Check if bearer token is expired and refresh if needed
+	if authInfo.BearerToken != "" && authInfo.APIKey == "" && authInfo.ExpiresAt != nil && time.Now().After(*authInfo.ExpiresAt) {
+		if authInfo.RefreshToken == "" {
+			log.Error("CreateAPIClient: bearer token expired but no refresh token available")
+			return nil, fmt.Errorf("bearer token expired and no refresh token available")
+		}
+		log.Debug("CreateAPIClient: bearer token expired, attempting refresh")
+		refreshedAuth, err := refreshBearerToken(authInfo, log)
+		if err != nil {
+			log.Error("CreateAPIClient: failed to refresh bearer token", "error", err)
+			return nil, fmt.Errorf("failed to refresh bearer token: %w", err)
+		}
+		log.Debug("CreateAPIClient: bearer token refreshed successfully")
+		authInfo = refreshedAuth
+	}
+
+	// Get API URL - prefer ciConfig (passed from connect command), then viper, then default
+	// Note: In daemon context, viper may not be initialized, so ciConfig.APIURL is preferred
+	apiURL := "https://api.signadot.com"
+	apiURLSource := "default"
+	if ciConfig != nil && ciConfig.APIURL != "" {
+		apiURL = ciConfig.APIURL
+		apiURLSource = "ciConfig"
+	} else if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
+		apiURL = apiURLFromViper
+		apiURLSource = "viper"
+	}
+	log.Debug("CreateAPIClient: API URL resolved",
+		"apiURL", apiURL,
+		"source", apiURLSource,
+		"ciConfigHasAPIURL", ciConfig != nil && ciConfig.APIURL != "",
+		"viperHasAPIURL", viper.GetString("api_url") != "")
 
 	// Create transport config
 	cfg := &transport.APIConfig{
@@ -53,20 +106,32 @@ func CreateAPIClient(ciConfig *config.ConnectInvocationConfig, authInfo *auth.Re
 
 	// Set auth - prefer resolved auth, but fall back to CI config API key if available
 	// (similar to how control plane proxy handles it)
-	if authInfo != nil && authInfo.APIKey != "" {
+	var authType string
+	switch {
+	case authInfo.APIKey != "":
 		cfg.APIKey = authInfo.APIKey
-	} else if authInfo != nil && authInfo.BearerToken != "" {
+		authType = "resolved-api-key"
+	case authInfo.BearerToken != "":
 		cfg.BearerToken = authInfo.BearerToken
-	} else if ciConfig != nil && ciConfig.APIKey != "" {
-		// Fall back to API key from CI config
+		authType = "resolved-bearer-token"
+	case ciConfig != nil && ciConfig.APIKey != "":
 		cfg.APIKey = ciConfig.APIKey
-	} else {
+		authType = "ciConfig-api-key"
+	default:
+		log.Error("CreateAPIClient: no API key or bearer token found")
 		return nil, fmt.Errorf("no API key or bearer token found")
 	}
+
+	log.Debug("CreateAPIClient: transport config created",
+		"apiURL", cfg.APIURL,
+		"authType", authType,
+		"hasAPIKey", cfg.APIKey != "",
+		"hasBearerToken", cfg.BearerToken != "")
 
 	// Initialize transport
 	t, err := transport.InitAPITransport(cfg)
 	if err != nil {
+		log.Error("CreateAPIClient: failed to init API transport", "error", err)
 		return nil, fmt.Errorf("failed to init API transport: %w", err)
 	}
 
@@ -75,12 +140,21 @@ func CreateAPIClient(ciConfig *config.ConnectInvocationConfig, authInfo *auth.Re
 }
 
 // refreshBearerToken refreshes an expired bearer token using the refresh token
-func refreshBearerToken(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error) {
+func refreshBearerToken(authInfo *auth.ResolvedAuth, log *slog.Logger) (*auth.ResolvedAuth, error) {
+	log = getLogger(log)
+
 	// Create an unauthenticated API client for the refresh call
 	apiURL := "https://api.signadot.com"
+	apiURLSource := "default"
 	if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
 		apiURL = apiURLFromViper
+		apiURLSource = "viper"
 	}
+
+	log.Debug("refreshBearerToken: using API URL for refresh",
+		"apiURL", apiURL,
+		"source", apiURLSource,
+		"hasRefreshToken", authInfo.RefreshToken != "")
 
 	cfg := &transport.APIConfig{
 		APIURL:    apiURL,
@@ -90,6 +164,7 @@ func refreshBearerToken(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error)
 
 	t, err := transport.InitAPITransport(cfg)
 	if err != nil {
+		log.Error("refreshBearerToken: failed to init unauthenticated API transport", "error", err)
 		return nil, fmt.Errorf("failed to init unauthenticated API transport: %w", err)
 	}
 
@@ -100,12 +175,19 @@ func refreshBearerToken(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error)
 		Data: authInfo.RefreshToken,
 	}
 
+	log.Debug("refreshBearerToken: calling refresh endpoint", "apiURL", apiURL)
 	resp, err := unauthClient.Auth.AuthDeviceRefreshToken(params)
 	if err != nil {
+		log.Error("refreshBearerToken: refresh call failed", "error", err, "apiURL", apiURL)
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
 
 	expiresAt := time.Now().Add(time.Duration(resp.Payload.ExpiresIn) * time.Second)
+
+	log.Debug("refreshBearerToken: refresh successful",
+		"expiresIn", resp.Payload.ExpiresIn,
+		"expiresAt", expiresAt,
+		"hasNewRefreshToken", resp.Payload.RefreshToken != "")
 
 	// Update auth info with new tokens
 	newAuthInfo := &auth.ResolvedAuth{
@@ -121,8 +203,11 @@ func refreshBearerToken(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error)
 
 	// Save the refreshed token back to storage
 	if err := saveRefreshedAuth(newAuthInfo); err != nil {
+		log.Error("refreshBearerToken: failed to save refreshed auth", "error", err, "source", authInfo.Source)
 		// Log but don't fail - we can still use the refreshed token for this request
 		// The next ResolveAuth() call will get the old token, but it will be refreshed again
+	} else {
+		log.Debug("refreshBearerToken: saved refreshed auth to storage", "source", authInfo.Source)
 	}
 
 	return newAuthInfo, nil
