@@ -26,12 +26,35 @@ func CreateAPIClient(ciConfig *config.ConnectInvocationConfig, authInfo *auth.Re
 	return CreateAPIClientWithLogger(ciConfig, authInfo, nil)
 }
 
+const defaultAPIURL = "https://api.signadot.com"
+
 // getLogger returns the provided logger or slog.Default() if nil
 func getLogger(log *slog.Logger) *slog.Logger {
 	if log != nil {
 		return log
 	}
 	return slog.Default()
+}
+
+// resolveAPIURL resolves the API URL with priority: ciConfig > viper > default.
+// Returns the resolved URL and its source for logging purposes.
+func resolveAPIURL(ciConfig *config.ConnectInvocationConfig) (url, source string) {
+	if ciConfig != nil && ciConfig.APIURL != "" {
+		return ciConfig.APIURL, "ciConfig"
+	}
+	if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
+		return apiURLFromViper, "viper"
+	}
+	return defaultAPIURL, "default"
+}
+
+// createTransportConfig creates a transport.APIConfig with the given API URL.
+func createTransportConfig(apiURL string) *transport.APIConfig {
+	return &transport.APIConfig{
+		APIURL:    apiURL,
+		UserAgent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
+		Debug:     false,
+	}
 }
 
 // CreateAPIClientWithLogger creates a unified API client with logging support
@@ -82,15 +105,7 @@ func CreateAPIClientWithLogger(ciConfig *config.ConnectInvocationConfig, authInf
 
 	// Get API URL - prefer ciConfig (passed from connect command), then viper, then default
 	// Note: In daemon context, viper may not be initialized, so ciConfig.APIURL is preferred
-	apiURL := "https://api.signadot.com"
-	apiURLSource := "default"
-	if ciConfig != nil && ciConfig.APIURL != "" {
-		apiURL = ciConfig.APIURL
-		apiURLSource = "ciConfig"
-	} else if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
-		apiURL = apiURLFromViper
-		apiURLSource = "viper"
-	}
+	apiURL, apiURLSource := resolveAPIURL(ciConfig)
 	log.Debug("CreateAPIClient: API URL resolved",
 		"apiURL", apiURL,
 		"source", apiURLSource,
@@ -98,25 +113,21 @@ func CreateAPIClientWithLogger(ciConfig *config.ConnectInvocationConfig, authInf
 		"viperHasAPIURL", viper.GetString("api_url") != "")
 
 	// Create transport config
-	cfg := &transport.APIConfig{
-		APIURL:    apiURL,
-		UserAgent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
-		Debug:     false,
-	}
+	cfg := createTransportConfig(apiURL)
 
 	// Set auth - prefer resolved auth, but fall back to CI config API key if available
 	// (similar to how control plane proxy handles it)
-	var authType string
+	var transportAuthType string
 	switch {
 	case authInfo.APIKey != "":
 		cfg.APIKey = authInfo.APIKey
-		authType = "resolved-api-key"
+		transportAuthType = "resolved-api-key"
 	case authInfo.BearerToken != "":
 		cfg.BearerToken = authInfo.BearerToken
-		authType = "resolved-bearer-token"
+		transportAuthType = "resolved-bearer-token"
 	case ciConfig != nil && ciConfig.APIKey != "":
 		cfg.APIKey = ciConfig.APIKey
-		authType = "ciConfig-api-key"
+		transportAuthType = "ciConfig-api-key"
 	default:
 		log.Error("CreateAPIClient: no API key or bearer token found")
 		return nil, fmt.Errorf("no API key or bearer token found")
@@ -124,7 +135,7 @@ func CreateAPIClientWithLogger(ciConfig *config.ConnectInvocationConfig, authInf
 
 	log.Debug("CreateAPIClient: transport config created",
 		"apiURL", cfg.APIURL,
-		"authType", authType,
+		"authType", transportAuthType,
 		"hasAPIKey", cfg.APIKey != "",
 		"hasBearerToken", cfg.BearerToken != "")
 
@@ -144,23 +155,15 @@ func refreshBearerToken(authInfo *auth.ResolvedAuth, log *slog.Logger) (*auth.Re
 	log = getLogger(log)
 
 	// Create an unauthenticated API client for the refresh call
-	apiURL := "https://api.signadot.com"
-	apiURLSource := "default"
-	if apiURLFromViper := viper.GetString("api_url"); apiURLFromViper != "" {
-		apiURL = apiURLFromViper
-		apiURLSource = "viper"
-	}
-
+	// Note: We don't use ciConfig here since this is a refresh call that happens
+	// independently of the connect command context
+	apiURL, apiURLSource := resolveAPIURL(nil)
 	log.Debug("refreshBearerToken: using API URL for refresh",
 		"apiURL", apiURL,
 		"source", apiURLSource,
 		"hasRefreshToken", authInfo.RefreshToken != "")
 
-	cfg := &transport.APIConfig{
-		APIURL:    apiURL,
-		UserAgent: fmt.Sprintf("signadot-cli:%s", buildinfo.Version),
-		Debug:     false,
-	}
+	cfg := createTransportConfig(apiURL)
 
 	t, err := transport.InitAPITransport(cfg)
 	if err != nil {
