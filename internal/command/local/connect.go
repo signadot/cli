@@ -26,6 +26,7 @@ import (
 	"github.com/signadot/libconnect/common/processes"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"sigs.k8s.io/yaml"
 )
 
@@ -56,8 +57,11 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	// get devbox claim and session
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
-	var devboxID string
+
+	var (
+		devboxID string
+		claimed  bool
+	)
 	if cfg.Devbox != "" {
 		// If devbox ID is provided, validate it exists
 		if err := devbox.ValidateDevboxID(ctx, cfg.API, cfg.Devbox); err != nil {
@@ -71,18 +75,21 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		if err != nil {
 			return err
 		}
+		claimed = true
 	}
-	
-	// Claim the session for the devbox
-	params := devboxes.NewClaimDevboxParams().
-		WithContext(ctx).
-		WithOrgName(cfg.Org).
-		WithDevboxID(devboxID)
-	_, err := cfg.Client.Devboxes.ClaimDevbox(params)
-	if err != nil {
-		return fmt.Errorf("failed to claim devbox session: %w", err)
+
+	if !claimed {
+		// Claim the session for the devbox
+		params := devboxes.NewClaimDevboxParams().
+			WithContext(ctx).
+			WithOrgName(cfg.Org).
+			WithDevboxID(devboxID)
+		_, err := cfg.Client.Devboxes.ClaimDevbox(params)
+		if err != nil {
+			return fmt.Errorf("failed to claim devbox session: %w", err)
+		}
 	}
-	
+
 	devboxSessionID, err := devbox.GetSessionID(ctx, cfg.API, devboxID)
 	if err != nil {
 		return err
@@ -133,7 +140,9 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		Env:              os.Environ(),
 		ConnectionConfig: connConfig,
 		ProxyURL:         cfg.ProxyURL,
+		APIURL:           cfg.API.APIURL,
 		APIKey:           cfg.GetAPIKey(),
+		ConfigFile:       viper.ConfigFileUsed(),
 		Debug:            cfg.LocalConfig.Debug,
 		ConnectTimeout:   cfg.WaitTimeout.String(),
 		DevboxID:         devboxID,
@@ -295,9 +304,14 @@ func waitConnect(localConfig *config.LocalConnect, out, errOut io.Writer) error 
 	}
 doneWaiting:
 
-	printLocalStatus(&config.LocalStatus{
-		Local: localConfig.Local,
-	}, out, status)
+	if status != nil {
+
+		printLocalStatus(&config.LocalStatus{
+			Local: localConfig.Local,
+		}, out, status)
+	} else {
+		fmt.Fprintf(out, "could not get local status.\n")
+	}
 
 	if len(connectErrs) == 0 {
 		switch localConfig.Wait {
