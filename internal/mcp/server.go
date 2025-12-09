@@ -25,7 +25,7 @@ type Server struct {
 // Authentication is checked at startup and monitored continuously in the background.
 // Authenticated tools are dynamically added/removed based on authentication status,
 // and clients are automatically notified via tools/list_changed notifications.
-func NewServer(cfg *config.MCPRun) *Server {
+func NewServer(cfg *config.MCP) *Server {
 	// write logs to sterr (for an mcp server in stdio mode).
 	logLevel := slog.LevelInfo
 	if cfg.Debug {
@@ -73,10 +73,6 @@ func (s *Server) Run(ctx context.Context) error {
 	// Setup tools
 	s.tools.Setup()
 
-	// Start authentication monitoring in the background
-	s.authMonitor.SetCallback(s.OnAuthChange)
-	go s.authMonitor.Run(ctx, 5*time.Second)
-
 	// Start remote metadata monitoring in the background
 	initCh := make(chan struct{})
 	s.remoteManager.SetCallback(func(ctx context.Context, meta *remote.Meta) {
@@ -89,13 +85,18 @@ func (s *Server) Run(ctx context.Context) error {
 	})
 	go s.remoteManager.Run(ctx, 30*time.Second)
 
-	// Give some time for the remote metadata to be initialized
+	// Wait until the remote metadata is initialized to run the mcp server
+	// (avoid sending tools/list_changed notifications before the remote
+	// metadata is available)
 	select {
 	case <-initCh:
-	case <-time.After(500 * time.Millisecond):
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+
+	// Start authentication monitoring in the background
+	s.authMonitor.SetCallback(s.OnAuthChange)
+	go s.authMonitor.Run(ctx, 5*time.Second)
 
 	// Run the mcp server
 	return s.mcpServer.Run(ctx, &mcp.StdioTransport{})
