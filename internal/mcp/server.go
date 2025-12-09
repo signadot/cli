@@ -37,17 +37,32 @@ func NewServer(cfg *config.MCPRun) *Server {
 		}),
 	)
 
+	// Create Server struct first (partial initialization)
 	srv := &Server{
 		log: log,
-		// Create MCP server
-		mcpServer: mcp.NewServer(&mcp.Implementation{Name: "signadot-mcp-server"}, nil),
 	}
+
+	// Create remote manager (needed for the handler)
+	srv.remoteManager = remote.NewRemoteManager(log, cfg.API)
+
+	// Create MCP server with InitializedHandler to initilize the remote
+	// manager. Note that in a stdio server, there's only one client session.
+	serverOptions := &mcp.ServerOptions{
+		InitializedHandler: func(ctx context.Context, req *mcp.InitializedRequest) {
+			err := srv.remoteManager.Init(req.Session)
+			if err != nil {
+				log.Error("failed to initialize remote manager", "error", err)
+			}
+		},
+		HasTools: true,
+	}
+
+	srv.mcpServer = mcp.NewServer(&mcp.Implementation{
+		Name: "signadot-mcp-server",
+	}, serverOptions)
 
 	// Create authentication monitor
 	srv.authMonitor = authmonitor.NewMonitor(cfg.API)
-
-	// Create remote manager
-	srv.remoteManager = remote.NewRemoteManager(log, cfg.API)
 
 	// Create and setup tools
 	srv.tools = tools.NewTools(log, srv.mcpServer, srv.remoteManager)
@@ -64,14 +79,13 @@ func (s *Server) Run(ctx context.Context) error {
 
 	// Start remote metadata monitoring in the background
 	initCh := make(chan struct{})
-	s.remoteManager.SetCallback(func(ctx context.Context, meta *remote.Meta) error {
-		err := s.OnMetaChange(ctx, meta)
+	s.remoteManager.SetCallback(func(ctx context.Context, meta *remote.Meta) {
+		s.OnMetaChange(ctx, meta)
 		select {
 		case <-initCh:
 		default:
 			close(initCh)
 		}
-		return err
 	})
 	go s.remoteManager.Run(ctx, 30*time.Second)
 
@@ -87,12 +101,12 @@ func (s *Server) Run(ctx context.Context) error {
 	return s.mcpServer.Run(ctx, &mcp.StdioTransport{})
 }
 
-func (s *Server) OnMetaChange(ctx context.Context, meta *remote.Meta) error {
+func (s *Server) OnMetaChange(ctx context.Context, meta *remote.Meta) {
 	// Update tools
-	return s.tools.Update(ctx, meta)
+	s.tools.Update(ctx, meta)
 }
 
-func (s *Server) OnAuthChange(ctx context.Context, _ bool) error {
+func (s *Server) OnAuthChange(ctx context.Context, _ bool) {
 	// Update tools
-	return s.tools.Update(ctx, s.remoteManager.Meta())
+	s.tools.Update(ctx, s.remoteManager.Meta())
 }

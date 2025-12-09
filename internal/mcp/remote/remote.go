@@ -2,6 +2,7 @@ package remote
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,37 +15,76 @@ import (
 )
 
 // MetaOnChangeFunc is a callback function invoked when metadata changes.
-type MetaOnChangeFunc func(ctx context.Context, meta *Meta) error
+type MetaOnChangeFunc func(ctx context.Context, meta *Meta)
 
 // Remote manages a single connection to a remote MCP server over HTTP.
 // It maintains one client session and handles health checking and reconnection.
 type Remote struct {
 	mu sync.Mutex
 
-	log      *slog.Logger
-	cfg      *config.API
-	client   *mcp.Client
-	session  *mcp.ClientSession
-	meta     *Meta // Cached metadata from the remote server
-	onChange MetaOnChangeFunc
+	log           *slog.Logger
+	cfg           *config.API
+	remoteClient  *mcp.Client
+	remoteSession *mcp.ClientSession
+	localSession  *mcp.ServerSession
+	meta          *Meta // Cached metadata from the remote server
+	onChange      MetaOnChangeFunc
 }
 
 // NewRemoteManager creates a new Remote instance for managing connections
-// to the remote MCP server.
+// to the remote MCP server. The client is created lazily when capabilities are known.
 func NewRemoteManager(log *slog.Logger, cfg *config.API) *Remote {
 	return &Remote{
 		log: log.With("component", "remote-manager"),
 		cfg: cfg,
-		client: mcp.NewClient(&mcp.Implementation{
-			Name: "signadot-mcp-proxy",
-		}, &mcp.ClientOptions{
-			KeepAlive: 10 * time.Second,
-		}),
 	}
 }
 
 func (r *Remote) SetCallback(onChange MetaOnChangeFunc) {
 	r.onChange = onChange
+}
+
+func (r *Remote) Init(localSession *mcp.ServerSession) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.remoteClient != nil {
+		return errors.New("remote client already initialized")
+	}
+
+	// get the initialize params from the local session
+	initParams := localSession.InitializeParams()
+
+	// lets create the remote client
+
+	// define the implementation
+	var impl *mcp.Implementation
+	if initParams.ClientInfo != nil {
+		impl = initParams.ClientInfo
+	} else {
+		// provide a default implementation if not provided
+		impl = &mcp.Implementation{
+			Name: "signadot-mcp-proxy",
+		}
+	}
+
+	// create the client options
+	opts := &mcp.ClientOptions{
+		KeepAlive: 10 * time.Second,
+	}
+	if initParams.Capabilities != nil {
+		clientCaps := initParams.Capabilities
+		// If the local client supports elicitation, set up a handler to proxy
+		// elicitation requests
+		if clientCaps.Elicitation != nil {
+			opts.ElicitationHandler = r.proxyElicitation
+			r.log.Debug("elicitation handler configured for remote client")
+		}
+	}
+
+	r.localSession = localSession
+	r.remoteClient = mcp.NewClient(impl, opts)
+	return nil
 }
 
 // Meta returns the cached metadata. Returns nil if metadata hasn't been loaded
@@ -66,8 +106,13 @@ func (r *Remote) Session() (*mcp.ClientSession, error) {
 	// If we have a session, return it. KeepAlive handles health checks automatically
 	// and will close the session if pings fail. If the session was closed by KeepAlive,
 	// operations will fail with ErrConnectionClosed and the tool handler will recreate it.
-	if r.session != nil {
-		return r.session, nil
+	if r.remoteSession != nil {
+		return r.remoteSession, nil
+	}
+
+	// Ensure client is initialized
+	if r.remoteClient == nil {
+		return nil, fmt.Errorf("client hasn't been initialized, cannot create remote session")
 	}
 
 	// Resolve authentication information
@@ -93,14 +138,14 @@ func (r *Remote) Session() (*mcp.ClientSession, error) {
 	// Connect to the remote MCP server (use background context to avoid context
 	// cancellation errors, this session will be used across multiple tool
 	// calls)
-	sess, err := r.client.Connect(context.Background(), transport, nil)
+	sess, err := r.remoteClient.Connect(context.Background(), transport, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to remote server: %w", err)
 	}
 
 	// Store the session for future use
 	r.log.Debug("remote session created", "sessionID", sess.ID())
-	r.session = sess
+	r.remoteSession = sess
 	return sess, nil
 }
 
@@ -110,9 +155,9 @@ func (r *Remote) Close() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.session != nil {
-		r.session.Close()
-		r.session = nil
+	if r.remoteSession != nil {
+		r.remoteSession.Close()
+		r.remoteSession = nil
 	}
 }
 
@@ -140,4 +185,21 @@ func (r *Remote) Run(ctx context.Context, checkInterval time.Duration) error {
 			}
 		}
 	}
+}
+
+func (r *Remote) proxyElicitation(ctx context.Context, req *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+	// Proxy the elicitation request from the remote server to the local client
+	r.log.Debug("proxying elicitation request to local client",
+		"message", req.Params.Message)
+
+	// Forward the elicitation request to the local client
+	result, err := r.localSession.Elicit(ctx, req.Params)
+	if err != nil {
+		r.log.Error("failed to proxy elicitation to local client", "error", err)
+		return nil, err
+	}
+
+	r.log.Debug("elicitation response received from local client",
+		"action", result.Action)
+	return result, nil
 }
