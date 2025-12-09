@@ -7,10 +7,10 @@ import (
 	"io"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/devbox"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/trafficwatch"
 	"github.com/signadot/cli/internal/utils"
-	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
 )
@@ -38,11 +38,11 @@ func ensureTrafficWatchMW(ctx context.Context, cfg *config.TrafficWatch,
 	if sb.Spec.Labels == nil {
 		sb.Spec.Labels = map[string]string{}
 	}
-	machineID, err := system.GetMachineID()
+	devboxID, err := devbox.GetID(ctx, cfg.API, false, "")
 	if err != nil {
 		return noOpUndo, err
 	}
-	sb.Spec.Labels[fmt.Sprintf("instrumentation.signadot.com/add-%s", trafficwatch.MiddlewareName)] = machineID
+	sb.Spec.Labels[trafficwatch.InstrumentationKey] = devboxID
 	if err := applyWithLocal(ctx, cfg, sb); err != nil {
 		return noOpUndo, err
 	}
