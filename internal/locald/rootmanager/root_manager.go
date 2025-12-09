@@ -1,6 +1,7 @@
 package rootmanager
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -18,7 +19,6 @@ import (
 	"github.com/signadot/libconnect/fwdtun/etchosts"
 	"github.com/signadot/libconnect/fwdtun/ipmap"
 	"github.com/signadot/libconnect/fwdtun/localnet"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
 

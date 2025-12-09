@@ -76,7 +76,6 @@ func NewSessionManager(log *slog.Logger, ciConfig *config.ConnectInvocationConfi
 	return dsm, nil
 }
 
-
 func (dsm *SessionManager) Start(ctx context.Context) {
 	dsm.log.Info("Starting devbox session manager",
 		"devboxID", dsm.ciConfig.DevboxID,
@@ -329,16 +328,16 @@ func (dsm *SessionManager) WasSessionReleased() bool {
 }
 
 // GetStatus returns the current session status
-func (dsm *SessionManager) GetStatus() (healthy bool, sessionReleased bool, devboxID string, sessionID string, lastError error, lastErrorTime time.Time) {
+func (dsm *SessionManager) GetStatus() (healthy bool, sessionReleased bool, devboxID string, sessionID string, lastErrorTime time.Time, lastError error) {
 	dsm.mu.RLock()
 	defer dsm.mu.RUnlock()
 
 	if dsm.ciConfig == nil {
-		return false, false, "", "", nil, time.Time{}
+		return false, false, "", "", time.Time{}, nil
 	}
 
 	healthy = !dsm.sessionReleased && dsm.lastError == nil
-	return healthy, dsm.sessionReleased, dsm.ciConfig.DevboxID, dsm.ciConfig.DevboxSessionID, dsm.lastError, dsm.lastErrorTime
+	return healthy, dsm.sessionReleased, dsm.ciConfig.DevboxID, dsm.ciConfig.DevboxSessionID, dsm.lastErrorTime, dsm.lastError
 }
 
 // triggerShutdown closes the shutdown channel to trigger sandbox manager shutdown
