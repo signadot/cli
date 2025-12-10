@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/goccy/go-yaml"
@@ -23,6 +24,7 @@ type TrafficWatchScanner struct {
 
 	resumeCh chan struct{}
 	closeCh  chan struct{}
+	closeOnce sync.Once
 
 	pendingRequests map[string]*RequestMetadata
 }
@@ -87,12 +89,13 @@ func (tw *TrafficWatchScanner) Resume() {
 }
 
 func (tw *TrafficWatchScanner) Close() {
-	select {
-	case <-tw.closeCh:
-		return
-	default:
-		close(tw.closeCh)
-	}
+	tw.closeOnce.Do(func() {
+		select {
+		case <-tw.closeCh:
+		default:
+			close(tw.closeCh)
+		}
+	})
 }
 
 func (tw *TrafficWatchScanner) run(ctx context.Context) {

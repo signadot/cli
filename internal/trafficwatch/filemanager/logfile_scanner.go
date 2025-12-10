@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,7 @@ type LogFileScanner struct {
 
 	resumeCh chan struct{}
 	closeCh  chan struct{}
+	closeOnce sync.Once
 }
 
 // LogFileScannerConfig holds configuration for the log file scanner
@@ -57,12 +59,13 @@ func (lfs *LogFileScanner) Resume() {
 
 // Close closes the scanner
 func (lfs *LogFileScanner) Close() {
-	select {
-	case <-lfs.closeCh:
-		return
-	default:
-		close(lfs.closeCh)
-	}
+	lfs.closeOnce.Do(func() {
+		select {
+		case <-lfs.closeCh:
+		default:
+			close(lfs.closeCh)
+		}
+	})
 }
 
 func (lfs *LogFileScanner) Start(ctx context.Context) error {
