@@ -13,12 +13,11 @@ const (
 )
 
 func storeAuthInPlainText(auth *Auth) error {
+	// Get the sigandot dir and ensure it exists
 	signadotDir, err := system.GetSignadotDir()
 	if err != nil {
 		return err
 	}
-
-	// Ensure the directory exists
 	if err := system.CreateDirIfNotExist(signadotDir); err != nil {
 		return err
 	}

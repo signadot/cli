@@ -1,6 +1,7 @@
 package rootmanager
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,7 +11,6 @@ import (
 	sbmanagerapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/fwdtun/ipmap"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

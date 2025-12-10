@@ -385,7 +385,7 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 		printer.printErrors(append(connectErrs, fmt.Errorf("devbox session no longer available (released by another process)")))
 		return nil
 	}
-	
+
 	// print status
 	if len(connectErrs) == 0 {
 		printer.printSuccess()
@@ -462,7 +462,7 @@ func (p *statusPrinter) printDevboxSessionStatus() {
 	if p.status.DevboxSession == nil {
 		return
 	}
-	
+
 	ds := p.status.DevboxSession
 	if ds.SessionReleased {
 		msg := "devbox session no longer available"
@@ -473,7 +473,7 @@ func (p *statusPrinter) printDevboxSessionStatus() {
 	} else if ds.Healthy {
 		msg := fmt.Sprintf("devbox session active (devbox: %s, session: %s)", ds.DevboxId, ds.SessionId)
 		if p.cfg.Details && ds.SessionId != "" {
-			msg = fmt.Sprintf("devbox session active")
+			msg = "devbox session active"
 			p.printLine(p.out, 1, msg, p.green("✓"))
 			p.printLine(p.out, 2, fmt.Sprintf("Devbox ID: %s", ds.DevboxId), "*")
 			p.printLine(p.out, 2, fmt.Sprintf("Session ID: %s", ds.SessionId), "*")

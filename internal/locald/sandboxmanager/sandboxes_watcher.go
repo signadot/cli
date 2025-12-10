@@ -29,7 +29,6 @@ type sbmWatcher struct {
 	sbMu          sync.Mutex
 	status        svchealth.ServiceHealth
 	sbControllers map[string]*sbController
-	sbMonitors    map[string]*sbMonitor
 	revtunClient  func() revtun.Client
 	tunAPIClient  tunapiclient.Client
 
@@ -40,15 +39,14 @@ type sbmWatcher struct {
 func newSandboxManagerWatcher(log *slog.Logger, devboxSessionID string, revtunClient func() revtun.Client,
 	oiu *operatorInfoUpdater, shutdownCh chan struct{}) *sbmWatcher {
 	srv := &sbmWatcher{
-		log:            log,
-		oiu:            oiu,
+		log:             log,
+		oiu:             oiu,
 		devboxSessionID: devboxSessionID,
 		status: svchealth.ServiceHealth{
 			Healthy:         false,
 			LastErrorReason: "Starting",
 		},
 		sbControllers: map[string]*sbController{},
-		sbMonitors:    map[string]*sbMonitor{},
 		revtunClient:  revtunClient,
 		shutdownCh:    shutdownCh,
 	}
@@ -186,9 +184,6 @@ func (sbw *sbmWatcher) stop() {
 	var wg sync.WaitGroup
 
 	sbw.sbMu.Lock()
-	// stop all sandbox monitor (if any)
-	sbw.stopMonitors()
-
 	// stop all sandbox controllers:
 	//
 	// - the grpcserver has called graceful stop, so no new sandboxes will be
@@ -211,15 +206,6 @@ func (sbw *sbmWatcher) stop() {
 	wg.Wait()
 }
 
-// This function does not perform any locking, thus so the lock should acquired
-// by the caller.
-func (sbw *sbmWatcher) stopMonitors() {
-	for sandboxName, sbm := range sbw.sbMonitors {
-		sbm.stop()
-		delete(sbw.sbMonitors, sandboxName)
-	}
-}
-
 func (sbw *sbmWatcher) setSuccess(ctx context.Context) {
 	sbw.sbMu.Lock()
 	defer sbw.sbMu.Unlock()
@@ -229,9 +215,6 @@ func (sbw *sbmWatcher) setSuccess(ctx context.Context) {
 
 	// try loading the operator info
 	sbw.oiu.Reload(ctx, sbw.tunAPIClient, false)
-
-	// stop all sandbox monitor (if any)
-	sbw.stopMonitors()
 }
 
 func (sbw *sbmWatcher) setError(errMsg string, err error) {
@@ -256,38 +239,4 @@ func (sbw *sbmWatcher) setError(errMsg string, err error) {
 
 	// reset the operator info
 	sbw.oiu.Reset()
-}
-
-func (sbw *sbmWatcher) monitorUpdatedSandbox(routingKey string, event *tunapiv1.WatchSandboxResponse) {
-	sbw.sbMu.Lock()
-	defer sbw.sbMu.Unlock()
-
-	if _, ok := sbw.sbMonitors[event.SandboxName]; !ok {
-		// this could only happen while the sandbox monitor is being deleted,
-		// just ignore this event
-		return
-	}
-
-	if event == nil {
-		// the sandbox has been deleted, the monitor will automatically stop,
-		// lets stop its controller here
-		ctrl := sbw.sbControllers[event.SandboxName]
-		if ctrl != nil {
-			sbw.log.Debug("removing sandbox", "sandboxName", event.SandboxName)
-			ctrl.stop()
-		}
-
-		// remove the reference to the monitor
-		delete(sbw.sbMonitors, event.SandboxName)
-		return
-	}
-
-	// a sandbox has been added/updated
-	sds := &tunapiv1.Sandbox{
-		SandboxName:       event.SandboxName,
-		RoutingKey:        routingKey,
-		ExternalWorkloads: event.ExternalWorkloads,
-		Resources:         event.Resources,
-	}
-	sbw.processSDS(sds)
 }

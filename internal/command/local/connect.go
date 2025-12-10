@@ -54,7 +54,17 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return fmt.Errorf("output format %s not supported for connect", cfg.OutputFormat)
 	}
 
-	// get devbox claim and session
+	// Get the sigandot dir and ensure it exists
+	signadotDir, err := system.GetSignadotDir()
+	if err != nil {
+		return err
+	}
+	err = system.CreateDirIfNotExist(signadotDir)
+	if err != nil {
+		return err
+	}
+
+	// Get devbox claim and session
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -95,18 +105,8 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	// we will pass the connConfig to rootmanager and sandboxmanager
+	// We will pass the connConfig to rootmanager and sandboxmanager
 	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
-	if err != nil {
-		return err
-	}
-
-	// Get the sigandot dir
-	signadotDir, err := system.GetSignadotDir()
-	if err != nil {
-		return err
-	}
-	err = system.CreateDirIfNotExist(signadotDir)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		connConfig.KubeConfigPath = &kcp
 	}
 
-	// compute ConnectInvocationConfig
+	// Compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
 		WithRootManager: !cfg.Unprivileged,
 		SignadotDir:     signadotDir,
