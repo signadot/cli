@@ -98,16 +98,11 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 
 	// define output dir
 	if !cfg.Short && cfg.OutputDir == "" {
-		signadotDir, err := system.GetSignadotDir()
+		outDir, err := outDir(cfg.OutputFormat)
 		if err != nil {
 			return err
 		}
-		dirSuffix := trafficwatch.FormatSuffix(cfg)
-		if dirSuffix != "" {
-			dirSuffix = "-" + dirSuffix[1:]
-		}
-		relDir := trafficwatch.DefaultDirRelative + dirSuffix
-		cfg.OutputDir = filepath.Join(signadotDir, relDir)
+		cfg.OutputDir = outDir
 		if cfg.Clean {
 			if err := os.RemoveAll(cfg.OutputDir); err != nil {
 				return fmt.Errorf("unable to clean up %s: %w", cfg.OutputDir, err)

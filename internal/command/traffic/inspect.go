@@ -5,13 +5,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/poll"
-	"github.com/signadot/cli/internal/trafficwatch"
 	"github.com/signadot/cli/internal/tui"
-	"github.com/signadot/cli/internal/utils/system"
 	"github.com/spf13/cobra"
 )
 
@@ -45,14 +42,11 @@ becomes available in the specified directory.`,
 // TODO: Fix validation for the meta file
 func inspectTraffic(ctx context.Context, cfg *config.TrafficInspect, w, wErr io.Writer) error {
 	if cfg.Directory == "" {
-		signadotDir, err := system.GetSignadotDir()
+		outDir, err := outDir(config.OutputFormatJSON)
 		if err != nil {
 			return err
 		}
-		// default to traffic record default with json
-		dirSuffix := "-json"
-		relDir := trafficwatch.DefaultDirRelative + dirSuffix
-		cfg.Directory = filepath.Join(signadotDir, relDir)
+		cfg.Directory = outDir
 	}
 	// Check if directory exists
 	directoryInfo, err := os.Stat(cfg.Directory)

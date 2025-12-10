@@ -8,13 +8,13 @@ const (
 	InstrumentationKey = "instrumentation.signadot.com/add-" + MiddlewareName
 )
 
-func FormatSuffix(cfg *config.TrafficWatch) string {
-	if cfg.OutputFormat == config.OutputFormatYAML {
+func FormatSuffix(oFmt config.OutputFormat) string {
+	if oFmt == config.OutputFormatYAML {
 		return ".yaml"
 	}
 	return ".json"
 }
 
 func StreamFormatSuffix(cfg *config.TrafficWatch) string {
-	return FormatSuffix(cfg) + "s"
+	return FormatSuffix(cfg.OutputFormat) + "s"
 }
