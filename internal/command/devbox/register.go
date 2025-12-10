@@ -60,7 +60,7 @@ func register(cfg *config.DevboxRegister, out, log io.Writer) error {
 	}
 
 	// Register the devbox
-	devboxID, err := devboxpkg.RegisterDevbox(ctx, cfg.API, cfg.Claim, cfg.Name)
+	devboxID, err := devboxpkg.RegisterDevbox(ctx, cfg.API, false, cfg.Name)
 	if err != nil {
 		return fmt.Errorf("failed to register devbox: %w", err)
 	}
