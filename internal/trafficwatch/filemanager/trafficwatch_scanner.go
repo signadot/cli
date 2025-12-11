@@ -90,11 +90,7 @@ func (tw *TrafficWatchScanner) Resume() {
 
 func (tw *TrafficWatchScanner) Close() {
 	tw.closeOnce.Do(func() {
-		select {
-		case <-tw.closeCh:
-		default:
-			close(tw.closeCh)
-		}
+		close(tw.closeCh)
 	})
 }
 

@@ -60,11 +60,7 @@ func (lfs *LogFileScanner) Resume() {
 // Close closes the scanner
 func (lfs *LogFileScanner) Close() {
 	lfs.closeOnce.Do(func() {
-		select {
-		case <-lfs.closeCh:
-		default:
-			close(lfs.closeCh)
-		}
+		close(lfs.closeCh)
 	})
 }
 
