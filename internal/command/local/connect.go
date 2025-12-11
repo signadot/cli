@@ -210,6 +210,9 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 			"--daemon",
 			"--root-manager",
 		}
+		if localConfig.GOPSAddrRoot != "" {
+			args = append(args, "--gops-root-addr", localConfig.GOPSAddrRoot)
+		}
 		if localConfig.PProfAddr != "" {
 			args = append(args, "--pprof", localConfig.PProfAddr)
 		}
@@ -221,6 +224,9 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 			"--daemon",
 			"--sandbox-manager",
 		)
+		if localConfig.GOPSAddrNonRoot != "" {
+			cmd.Args = append(cmd.Args, "--gops-non-root-addr", localConfig.GOPSAddrNonRoot)
+		}
 		cmd.Env = append(cmd.Env, ciConfig.Env...)
 	}
 	cmd.Env = append(cmd.Env,
