@@ -18,6 +18,8 @@ import (
 const (
 	checkingPeriodNotOK = time.Second
 	checkingPeriodOK    = 10 * time.Second
+	// maxStartingTime needs to be large enough for worst case startup time
+	maxStartingTime = 30 * time.Second
 )
 
 type tpMonitor struct {
@@ -27,6 +29,7 @@ type tpMonitor struct {
 	tpLocalAddr   string
 	ipMap         *ipmap.IPMap
 	starting      bool
+	beginStarting time.Time
 	sbClient      sbmanagerapi.SandboxManagerAPIClient
 	closeCh       chan struct{}
 }
@@ -38,6 +41,7 @@ func NewTunnelProxyMonitor(ctx context.Context, root *rootManager, ipMap *ipmap.
 		sbManagerAddr: fmt.Sprintf("127.0.0.1:%d", root.ciConfig.APIPort),
 		root:          root,
 		starting:      true,
+		beginStarting: time.Now(),
 		closeCh:       make(chan struct{}),
 	}
 	go mon.run(ctx)
@@ -57,9 +61,18 @@ func (mon *tpMonitor) run(ctx context.Context) {
 	ticker := time.NewTicker(checkingPeriodNotOK)
 	defer ticker.Stop()
 
+	mon.starting = true
+	mon.beginStarting = time.Now()
 	for {
 		if mon.checkTunnelProxyAccess(ctx) {
 			ticker.Reset(checkingPeriodOK)
+			mon.starting = false
+		} else {
+			ticker.Reset(checkingPeriodNotOK)
+			if !mon.starting {
+				mon.beginStarting = time.Now()
+			}
+			mon.starting = true
 		}
 		select {
 		case <-ctx.Done():
@@ -72,7 +85,6 @@ func (mon *tpMonitor) run(ctx context.Context) {
 			// Check ticker
 		}
 	}
-
 }
 
 func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
@@ -134,13 +146,30 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 		if rootMgr == nil {
 			return false
 		}
-		if rootMgr.localnetSVC == nil || !rootMgr.localnetSVC.Status().Healthy {
+		if rootMgr.localnetSVC == nil {
 			return false
 		}
-		if rootMgr.etcHostsSVC == nil || !rootMgr.etcHostsSVC.Status().Healthy {
+		if !rootMgr.localnetSVC.Status().Healthy {
+			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
+				restartSvcs = true
+			} else {
+				return false
+			}
+		}
+		if rootMgr.etcHostsSVC == nil {
 			return false
 		}
+
+		if !rootMgr.etcHostsSVC.Status().Healthy {
+			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
+				restartSvcs = true
+			} else {
+				return false
+			}
+		}
+
 		// the grpc check for connecting to the tunnel proxy does not suffice
+
 		// because it has built-in retries and may re-use a connection while
 		// we are unable to establish a new connection.  So, we also check
 		// the agent-metrics endpoint.
@@ -170,4 +199,18 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 	mon.root.stopEtcHostsService()
 	mon.root.runEtcHostsService(ctx, mon.tpLocalAddr, mon.ipMap)
 	return false
+}
+
+// shouldRestartDueToUnhealthy determines whether services should be restarted
+// when they become unhealthy. During the initial startup phase (first 10 seconds),
+// it waits to give services time to become healthy. After startup, it immediately
+// indicates that services should be restarted.
+func (mon *tpMonitor) shouldRestartDueToUnhealthy() bool {
+	if mon.starting {
+		if time.Since(mon.beginStarting) > maxStartingTime {
+			return true
+		}
+		return false
+	}
+	return true
 }
