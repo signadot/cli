@@ -29,7 +29,6 @@ require (
 	github.com/theckman/yacspin v0.13.12
 	github.com/xeonx/timeago v1.0.0-rc5
 	github.com/zalando/go-keyring v0.2.6
-	golang.org/x/net v0.47.0
 	golang.org/x/term v0.37.0
 	google.golang.org/grpc v1.72.2
 	google.golang.org/protobuf v1.36.6
@@ -97,6 +96,7 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
+	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250519155744-55703ea1f237 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
