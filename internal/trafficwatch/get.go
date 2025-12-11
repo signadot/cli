@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 
 	"github.com/signadot/cli/internal/auth"
@@ -182,19 +183,38 @@ func handleDataSource(cfg *config.TrafficWatch, s *trafficwatch.DataSource, errC
 	}
 }
 
+type safeCloser struct {
+	ch   chan struct{}
+	once sync.Once
+}
+
+func (sc *safeCloser) Close() {
+	if sc == nil || sc.ch == nil {
+		return
+	}
+	sc.once.Do(func() {
+		select {
+		case <-sc.ch:
+		default:
+			close(sc.ch)
+		}
+	})
+}
+
 func setupTW(ctx context.Context, tw *trafficwatch.TrafficWatch, log *slog.Logger) <-chan struct{} {
 	sigC := make(chan os.Signal, 1)
 	signal.Notify(sigC, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	res := make(chan struct{})
+	twCloser := &safeCloser{ch: tw.Close}
 	go func() {
 		select {
 		case <-sigC:
-			safeClose(tw.Close)
+			twCloser.Close()
 		case <-tw.Close:
 			log.Info("server closed connection")
 		case <-ctx.Done():
 			log.Info("session timed out")
-			safeClose(tw.Close)
+			twCloser.Close()
 		}
 		signal.Ignore(os.Interrupt)
 		close(res)
@@ -216,10 +236,3 @@ func ensureDir(p string) error {
 	return nil
 }
 
-func safeClose(c chan struct{}) {
-	select {
-	case <-c:
-	default:
-		close(c)
-	}
-}
