@@ -146,21 +146,14 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 		if rootMgr == nil {
 			return false
 		}
-		if rootMgr.localnetSVC == nil {
-			return false
-		}
-		if !rootMgr.localnetSVC.Status().Healthy {
+		if rootMgr.localnetSVC == nil || !rootMgr.localnetSVC.Status().Healthy {
 			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
 				restartSvcs = true
 			} else {
 				return false
 			}
 		}
-		if rootMgr.etcHostsSVC == nil {
-			return false
-		}
-
-		if !rootMgr.etcHostsSVC.Status().Healthy {
+		if rootMgr.etcHostsSVC == nil || !rootMgr.etcHostsSVC.Status().Healthy {
 			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
 				restartSvcs = true
 			} else {
