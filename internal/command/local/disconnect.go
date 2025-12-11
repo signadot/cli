@@ -12,6 +12,7 @@ import (
 	rmapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/libconnect/common/processes"
@@ -27,7 +28,11 @@ func newDisconnect(localConfig *config.Local) *cobra.Command {
 		Use:   "disconnect",
 		Short: "Disconnect local machine from cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDisconnect(cfg, args)
+			if err := runDisconnect(cfg, args); err != nil {
+				return print.Error(cmd.OutOrStdout(), err, cfg.OutputFormat)
+			}
+
+			return nil
 		},
 	}
 	cfg.AddFlags(cmd)
