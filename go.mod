@@ -16,6 +16,7 @@ require (
 	github.com/go-openapi/strfmt v0.25.0
 	github.com/goccy/go-yaml v1.10.0
 	github.com/golang/protobuf v1.5.4
+	github.com/google/gops v0.3.28
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jclem/sseparser v0.5.0
 	github.com/modelcontextprotocol/go-sdk v1.1.0
