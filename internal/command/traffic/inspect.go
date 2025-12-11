@@ -41,6 +41,13 @@ becomes available in the specified directory.`,
 // TODO: Add support for YAML format
 // TODO: Fix validation for the meta file
 func inspectTraffic(ctx context.Context, cfg *config.TrafficInspect, w, wErr io.Writer) error {
+	if cfg.Directory == "" {
+		outDir, err := outDir(config.OutputFormatJSON)
+		if err != nil {
+			return err
+		}
+		cfg.Directory = outDir
+	}
 	// Check if directory exists
 	directoryInfo, err := os.Stat(cfg.Directory)
 	if err != nil {
