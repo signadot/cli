@@ -23,13 +23,13 @@ const (
 )
 
 type SessionManager struct {
-	log             *slog.Logger
-	ciConfig        *config.ConnectInvocationConfig
-	renewalTicker   *time.Ticker
-	doneCh          chan struct{}
-	lastError       error
-	lastErrorTime   time.Time
-	mu              sync.RWMutex
+	log           *slog.Logger
+	ciConfig      *config.ConnectInvocationConfig
+	renewalTicker *time.Ticker
+	doneCh        chan struct{}
+	lastError     error
+	lastErrorTime time.Time
+	mu            sync.RWMutex
 	// currentSessionID tracks the current active session ID, which may change
 	currentSessionID string
 }
@@ -69,10 +69,15 @@ func NewSessionManager(log *slog.Logger, ciConfig *config.ConnectInvocationConfi
 	return dsm, nil
 }
 
-func (dsm *SessionManager) Start(ctx context.Context) {
+// getCurrentSessionID returns the current session ID in a thread-safe manner
+func (dsm *SessionManager) getCurrentSessionID() string {
 	dsm.mu.RLock()
-	currentSessionID := dsm.currentSessionID
-	dsm.mu.RUnlock()
+	defer dsm.mu.RUnlock()
+	return dsm.currentSessionID
+}
+
+func (dsm *SessionManager) Start(ctx context.Context) {
+	currentSessionID := dsm.getCurrentSessionID()
 
 	dsm.log.Info("Starting devbox session manager",
 		"devboxID", dsm.ciConfig.DevboxID,
@@ -130,9 +135,7 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 		WithOrgName(authInfo.OrgName).
 		WithDevboxID(dsm.ciConfig.DevboxID)
 
-	dsm.mu.RLock()
-	currentSessionID := dsm.currentSessionID
-	dsm.mu.RUnlock()
+	currentSessionID := dsm.getCurrentSessionID()
 
 	dsm.log.Debug("renewSession: calling RenewDevbox",
 		"orgName", authInfo.OrgName,
@@ -153,9 +156,7 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 	// Renewals automatically claim a new session if released
 	dsm.handleSessionChange(resp.Payload)
 
-	dsm.mu.RLock()
-	updatedSessionID := dsm.currentSessionID
-	dsm.mu.RUnlock()
+	updatedSessionID := dsm.getCurrentSessionID()
 
 	dsm.log.Debug("Renewed devbox session",
 		"devboxID", dsm.ciConfig.DevboxID,
@@ -164,9 +165,7 @@ func (dsm *SessionManager) renewSession(ctx context.Context) {
 }
 
 func (dsm *SessionManager) releaseSession() {
-	dsm.mu.RLock()
-	currentSessionID := dsm.currentSessionID
-	dsm.mu.RUnlock()
+	currentSessionID := dsm.getCurrentSessionID()
 
 	dsm.log.Info("Releasing devbox session",
 		"devboxID", dsm.ciConfig.DevboxID,
@@ -240,13 +239,12 @@ func (dsm *SessionManager) handleSessionChange(dbox *models.Devbox) {
 	// Check if session ID has changed and update if needed
 	dsm.mu.Lock()
 	currentID := dsm.currentSessionID
+	defer dsm.mu.Unlock()
 	if session.ID != currentID {
 		// Session ID changed - update our tracking and continue
-		oldID := dsm.currentSessionID
+		oldID := currentID
 		dsm.currentSessionID = session.ID
 		dsm.lastError = nil // Clear any previous errors since we're now tracking the new session
-		dsm.mu.Unlock()
-
 		dsm.log.Info("Devbox session ID changed, updating tracking",
 			"devboxID", dsm.ciConfig.DevboxID,
 			"oldSessionID", oldID,
@@ -254,7 +252,6 @@ func (dsm *SessionManager) handleSessionChange(dbox *models.Devbox) {
 	} else {
 		// Same session ID - clear any errors on successful renewal
 		dsm.lastError = nil
-		dsm.mu.Unlock()
 	}
 }
 
@@ -278,4 +275,3 @@ func (dsm *SessionManager) GetStatus() (healthy bool, devboxID string, sessionID
 	healthy = dsm.lastError == nil
 	return healthy, dsm.ciConfig.DevboxID, dsm.currentSessionID, dsm.lastErrorTime, dsm.lastError
 }
-

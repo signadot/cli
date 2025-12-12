@@ -105,10 +105,6 @@ func (mon *sbmgrMonitor) run() {
 		}
 		mon.setProcInfo(procDone, procPID)
 		
-		// Check status periodically while process is running
-		// If session is released, stop monitoring (don't restart)
-		go mon.checkStatusLoop(procDone)
-		
 		select {
 		case <-procDone:
 		case <-mon.done:
@@ -190,23 +186,4 @@ func (mon *sbmgrMonitor) stop() error {
 	}
 
 	return nil
-}
-
-// checkStatusLoop periodically checks sandbox manager status while it's running
-func (mon *sbmgrMonitor) checkStatusLoop(procDone <-chan struct{}) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-	
-	for {
-		select {
-		case <-procDone:
-			// Process exited, stop checking
-			return
-		case <-mon.done:
-			// Monitor is stopping
-			return
-		case <-ticker.C:
-			// Periodic status check (no longer checking for session release)
-		}
-	}
 }

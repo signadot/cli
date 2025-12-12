@@ -64,12 +64,13 @@ func (mon *tpMonitor) run(ctx context.Context) {
 	mon.starting = true
 	mon.beginStarting = time.Now()
 	for {
-		if mon.checkTunnelProxyAccess(ctx) {
+		success, restarted := mon.checkTunnelProxyAccess(ctx)
+		if success {
 			ticker.Reset(checkingPeriodOK)
 			mon.starting = false
 		} else {
 			ticker.Reset(checkingPeriodNotOK)
-			if !mon.starting {
+			if restarted || !mon.starting {
 				mon.beginStarting = time.Now()
 			}
 			mon.starting = true
@@ -87,7 +88,7 @@ func (mon *tpMonitor) run(ctx context.Context) {
 	}
 }
 
-func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
+func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) (success bool, restarted bool) {
 	mon.log.Debug("checking tunnel-proxy access")
 	if mon.sbClient == nil {
 		// Establish the connection if needed
@@ -98,7 +99,7 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 			} else {
 				mon.log.Warn("couldn't connect with sandbox manager", "error", err)
 			}
-			return false
+			return false, false
 		}
 		mon.sbClient = sbmanagerapi.NewSandboxManagerAPIClient(grpcConn)
 	}
@@ -112,79 +113,45 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 		} else {
 			mon.log.Warn("couldn't get status from sandbox manager", "error", err)
 		}
-		return false
+		return false, false
 	}
 
 	// Check the status
-	restartSvcs := false
-	switch mon.root.ciConfig.ConnectionConfig.Type {
-	case connectcfg.PortForwardLinkType:
-		if status.Portforward == nil || status.Portforward.Health == nil ||
-			!status.Portforward.Health.Healthy {
-			mon.log.Debug("port-forward not ready in sandbox manager")
-			return false
-		}
-		if status.Portforward.LocalAddress != mon.tpLocalAddr {
-			mon.log.Info("port forward is ready", "addr", status.Portforward.LocalAddress, "was", mon.tpLocalAddr)
-			mon.tpLocalAddr = status.Portforward.LocalAddress
-			restartSvcs = true
-		}
-	case connectcfg.ControlPlaneProxyLinkType:
-		if status.ControlPlaneProxy == nil || status.ControlPlaneProxy.Health == nil ||
-			!status.ControlPlaneProxy.Health.Healthy {
-			mon.log.Debug("control-plane proxy not ready in sandbox manager")
-			return false
-		}
-		if status.ControlPlaneProxy.LocalAddress != mon.tpLocalAddr {
-			mon.log.Info("control-plane proxy is ready", "addr", status.ControlPlaneProxy.LocalAddress, "was", mon.tpLocalAddr)
-			mon.tpLocalAddr = status.ControlPlaneProxy.LocalAddress
-			restartSvcs = true
+	ok, restart := mon.checkLinkStatus(status)
+	if !ok {
+		return false, restart
+	}
+	if !restart {
+		ok, restart = mon.checkRootServer(mon.root.root)
+		if !ok {
+			return false, restart
 		}
 	}
-	if !restartSvcs {
-		rootMgr := mon.root.root
-		if rootMgr == nil {
-			return false
-		}
-		if rootMgr.localnetSVC == nil || !rootMgr.localnetSVC.Status().Healthy {
-			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
-				restartSvcs = true
-			} else {
-				return false
-			}
-		}
-		if rootMgr.etcHostsSVC == nil || !rootMgr.etcHostsSVC.Status().Healthy {
-			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
-				restartSvcs = true
-			} else {
-				return false
-			}
-		}
-
-		// the grpc check for connecting to the tunnel proxy does not suffice
-
+	if !restart {
+		// things are looking ok but the grpc check for connecting to the tunnel proxy does not suffice
 		// because it has built-in retries and may re-use a connection while
 		// we are unable to establish a new connection.  So, we also check
 		// the agent-metrics endpoint.
 		cli := &http.Client{
+			// don't cache connections, use fresh transport
 			Transport: &http.Transport{},
 			Timeout:   10 * time.Second,
 		}
 		resp, err := cli.Get("http://agent-metrics.signadot.svc:9090/metrics")
 		if err != nil {
-			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
+			if mon.shouldRestartDueToUnhealthy() {
 				mon.log.Error("unable to reach agent-metrics, restarting services", "error", err)
-				restartSvcs = true
+				restart = true
 			} else {
 				mon.log.Debug("unable to reach agent-metrics, but still in startup grace period", "error", err)
+				return false, false
 			}
 		} else {
 			resp.Body.Close()
 		}
 	}
-	if !restartSvcs {
-		mon.starting = false
-		return true
+	if !restart {
+		return true, false
 	}
 
 	mon.log.Info("restarting localnet and etchosts services")
@@ -196,11 +163,55 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 	// Restart etc hosts
 	mon.root.stopEtcHostsService()
 	mon.root.runEtcHostsService(ctx, mon.tpLocalAddr, mon.ipMap)
-	
-	// After restarting, give services time to start up before checking again
-	mon.starting = true
-	mon.beginStarting = time.Now()
-	return false
+
+	return false, true
+}
+
+func (mon *tpMonitor) checkLinkStatus(status *sbmanagerapi.StatusResponse) (ok, restart bool) {
+	switch mon.root.ciConfig.ConnectionConfig.Type {
+	case connectcfg.PortForwardLinkType:
+		if status.Portforward == nil || status.Portforward.Health == nil ||
+			!status.Portforward.Health.Healthy {
+			mon.log.Debug("port-forward not ready in sandbox manager")
+			return false, false
+		}
+		if status.Portforward.LocalAddress != mon.tpLocalAddr {
+			mon.log.Info("port forward is ready", "addr", status.Portforward.LocalAddress, "was", mon.tpLocalAddr)
+			mon.tpLocalAddr = status.Portforward.LocalAddress
+			restart = true
+		}
+	case connectcfg.ControlPlaneProxyLinkType:
+		if status.ControlPlaneProxy == nil || status.ControlPlaneProxy.Health == nil ||
+			!status.ControlPlaneProxy.Health.Healthy {
+			mon.log.Debug("control-plane proxy not ready in sandbox manager")
+			return false, false
+		}
+		if status.ControlPlaneProxy.LocalAddress != mon.tpLocalAddr {
+			mon.log.Info("control-plane proxy is ready", "addr", status.ControlPlaneProxy.LocalAddress, "was", mon.tpLocalAddr)
+			mon.tpLocalAddr = status.ControlPlaneProxy.LocalAddress
+			restart = true
+		}
+	}
+	return true, restart
+}
+
+func (mon *tpMonitor) checkRootServer(r *rootServer) (ok, restart bool) {
+	if r.localnetSVC == nil || !r.localnetSVC.Status().Healthy {
+		if mon.shouldRestartDueToUnhealthy() {
+			return true, true
+		} else {
+			return false, false
+		}
+	}
+	// localnet ok, check etc hosts
+	if r.etcHostsSVC == nil || !r.etcHostsSVC.Status().Healthy {
+		if mon.shouldRestartDueToUnhealthy() {
+			return true, true
+		} else {
+			return false, false
+		}
+	}
+	return true, false
 }
 
 // shouldRestartDueToUnhealthy determines whether services should be restarted
