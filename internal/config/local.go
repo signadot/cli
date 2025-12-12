@@ -26,6 +26,10 @@ type Local struct {
 
 	// initialized from ~/.signadot/config.yaml
 	LocalConfig *config.Config
+
+	// hidden
+	GOPSAddrRoot    string
+	GOPSAddrNonRoot string
 }
 
 func (l *Local) InitLocalConfig() error {
@@ -120,6 +124,10 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Lookup("wait").NoOptDefVal = ConnectWaitConnect.String()
 	cmd.Flags().StringVar(&c.PProfAddr, "pprof", "", "pprof listen address")
 	cmd.Flags().MarkHidden("pprof")
+	cmd.Flags().StringVar(&c.GOPSAddrRoot, "gops-root-addr", "", "gops root address")
+	cmd.Flags().MarkHidden("gops-root-addr")
+	cmd.Flags().StringVar(&c.GOPSAddrNonRoot, "gops-non-root-addr", "", "gops root address")
+	cmd.Flags().MarkHidden("gops-non-root-addr")
 }
 
 type ConnectWait int

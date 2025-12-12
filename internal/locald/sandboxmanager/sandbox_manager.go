@@ -50,9 +50,7 @@ type sandboxManager struct {
 	// devbox session management
 	devboxSessionMgr *devbox.SessionManager
 
-	// session released state (deadend mode)
-	sessionReleased bool
-	sbmServer       *sbmServer
+	sbmServer *sbmServer
 }
 
 func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger) (*sandboxManager, error) {
@@ -68,7 +66,7 @@ func NewSandboxManager(cfg *config.LocalDaemon, args []string, log *slog.Logger)
 	ciConfig := cfg.ConnectInvocationConfig
 
 	// Create devbox session manager
-	devboxSessionMgr, err := devbox.NewSessionManager(log, ciConfig, shutdownCh)
+	devboxSessionMgr, err := devbox.NewSessionManager(log, ciConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create devbox session manager: %w", err)
 	}
@@ -147,8 +145,16 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		log: m.log,
 	}
 
-	// Create the watcher
-	sbmWatcher := newSandboxManagerWatcher(m.log, m.ciConfig.DevboxSessionID, m.revtunClient, oiu, m.shutdownCh)
+	// Create the watcher with a function to get the current session ID
+	// This allows the watcher to use the updated session ID if it changes
+	getSessionID := func() string {
+		if m.devboxSessionMgr == nil {
+			return m.ciConfig.DevboxSessionID
+		}
+		_, _, sessionID, _, _ := m.devboxSessionMgr.GetStatus()
+		return sessionID
+	}
+	sbmWatcher := newSandboxManagerWatcher(m.log, getSessionID, m.revtunClient, oiu, m.shutdownCh)
 
 	// Register our service in gRPC server
 	m.sbmServer = newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward, m.ctlPlaneProxy,
@@ -202,28 +208,6 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 
 	// Wait until termination
 	<-runCtx.Done()
-
-	// Check if shutdown was triggered by devbox session release
-	if m.devboxSessionMgr.WasSessionReleased() {
-		m.log.Info("Devbox session was released, entering deadend state")
-		m.sessionReleased = true
-
-		// Shutdown root manager (tunnel, localnet, etchosts)
-		m.shutdownRootManager()
-
-		// Stop all active work but keep gRPC server running
-		sbmWatcher.stop()
-		m.devboxSessionMgr.Stop(ctx)
-		if m.portForward != nil {
-			m.portForward.Close()
-		} else if m.ctlPlaneProxy != nil {
-			m.ctlPlaneProxy.Close(ctx)
-		}
-
-		// Keep gRPC server running in deadend state
-		// Wait forever (until process is killed externally)
-		select {}
-	}
 
 	// Normal shutdown
 	m.log.Info("Shutting down")
