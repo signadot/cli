@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/utils/system"
@@ -130,6 +131,26 @@ func IDFile() (string, error) {
 		return "", err
 	}
 	return filepath.Join(sdir, ".devbox-id"), nil
+}
+
+// GetDefaultDevboxID reads the devbox ID from ~/.signadot/.devbox-id.
+// If the file is not found, it returns an empty string and no error.
+// For other errors, it returns the error.
+func GetDefaultDevboxID() (string, error) {
+	file, err := IDFile()
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(file)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// File not found is not an error, just return empty string
+			return "", nil
+		}
+		// Other errors should be returned
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
 }
 
 // RegisterDevbox registers a devbox with the API and returns the devbox ID.
