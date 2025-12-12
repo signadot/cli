@@ -79,6 +79,12 @@ func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.Co
 		}
 	}
 
+	// check devbox session health
+	err := checkDevboxSessionStatus(status.DevboxSession)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
 	return errs
 }
 
@@ -140,6 +146,21 @@ func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 		}
 	}
 	return errors.New(errorMsg)
+}
+
+func checkDevboxSessionStatus(devboxSession *commonapi.DevboxSessionStatus) error {
+	if devboxSession == nil {
+		// Devbox session not initialized yet, not an error
+		return nil
+	}
+	if !devboxSession.Healthy {
+		errorMsg := "devbox session unhealthy"
+		if devboxSession.LastErrorReason != "" {
+			errorMsg += fmt.Sprintf(" (%q)", devboxSession.LastErrorReason)
+		}
+		return errors.New(errorMsg)
+	}
+	return nil
 }
 
 func IsWatcherRunning(status *sbmapi.StatusResponse) (bool, string) {

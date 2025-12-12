@@ -172,9 +172,12 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 		}
 		resp, err := cli.Get("http://agent-metrics.signadot.svc:9090/metrics")
 		if err != nil {
-			mon.log.Error("unable to reach agent-metrics, restarting services", "error", err)
-			//fmt.Printf("unable to reach agent-metrics: %v", err)
-			restartSvcs = true
+			if shouldRestart := mon.shouldRestartDueToUnhealthy(); shouldRestart {
+				mon.log.Error("unable to reach agent-metrics, restarting services", "error", err)
+				restartSvcs = true
+			} else {
+				mon.log.Debug("unable to reach agent-metrics, but still in startup grace period", "error", err)
+			}
 		} else {
 			resp.Body.Close()
 		}
@@ -184,6 +187,8 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 		return true
 	}
 
+	mon.log.Info("restarting localnet and etchosts services")
+
 	// Restart localnet
 	mon.root.stopLocalnetService()
 	mon.root.runLocalnetService(ctx, mon.tpLocalAddr, mon.ipMap)
@@ -191,6 +196,10 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) bool {
 	// Restart etc hosts
 	mon.root.stopEtcHostsService()
 	mon.root.runEtcHostsService(ctx, mon.tpLocalAddr, mon.ipMap)
+	
+	// After restarting, give services time to start up before checking again
+	mon.starting = true
+	mon.beginStarting = time.Now()
 	return false
 }
 

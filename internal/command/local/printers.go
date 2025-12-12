@@ -341,17 +341,15 @@ func getRawDevboxSession(cfg *config.LocalStatus, devboxSession *commonapi.Devbo
 	// Standard view
 	type PrintableDevboxSession struct {
 		Healthy         bool   `json:"healthy"`
-		SessionReleased bool   `json:"sessionReleased"`
 		DevboxId        string `json:"devboxId,omitempty"`
 		SessionId       string `json:"sessionId,omitempty"`
 		LastErrorReason string `json:"lastErrorReason,omitempty"`
 	}
 
 	result := &PrintableDevboxSession{
-		Healthy:         devboxSession.Healthy,
-		SessionReleased: devboxSession.SessionReleased,
-		DevboxId:        devboxSession.DevboxId,
-		SessionId:       devboxSession.SessionId,
+		Healthy:  devboxSession.Healthy,
+		DevboxId: devboxSession.DevboxId,
+		SessionId: devboxSession.SessionId,
 	}
 
 	if devboxSession.LastErrorReason != "" {
@@ -380,11 +378,7 @@ func printLocalStatus(cfg *config.LocalStatus, out io.Writer, status *sbmapi.Sta
 	}
 	// runtime config
 	printer.printRuntimeConfig()
-	// Check devbox session status
-	if status.DevboxSession != nil && status.DevboxSession.SessionReleased {
-		printer.printErrors(append(connectErrs, fmt.Errorf("devbox session no longer available (released by another process)")))
-		return nil
-	}
+	// Check devbox session status (no longer checking for session release)
 
 	// print status
 	if len(connectErrs) == 0 {
@@ -464,13 +458,13 @@ func (p *statusPrinter) printDevboxSessionStatus() {
 	}
 
 	ds := p.status.DevboxSession
-	if ds.SessionReleased {
-		msg := "devbox session no longer available"
+	if !ds.Healthy {
+		msg := "devbox session unhealthy"
 		if ds.LastErrorReason != "" {
 			msg += fmt.Sprintf(": %s", ds.LastErrorReason)
 		}
 		p.printLine(p.out, 1, msg, p.red("✗"))
-	} else if ds.Healthy {
+	} else {
 		msg := fmt.Sprintf("devbox session active (devbox: %s, session: %s)", ds.DevboxId, ds.SessionId)
 		if p.cfg.Details && ds.SessionId != "" {
 			msg = "devbox session active"
@@ -480,12 +474,6 @@ func (p *statusPrinter) printDevboxSessionStatus() {
 		} else {
 			p.printLine(p.out, 1, msg, p.green("✓"))
 		}
-	} else {
-		msg := "devbox session unhealthy"
-		if ds.LastErrorReason != "" {
-			msg += fmt.Sprintf(": %s", ds.LastErrorReason)
-		}
-		p.printLine(p.out, 1, msg, p.red("✗"))
 	}
 }
 
