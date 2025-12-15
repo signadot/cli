@@ -64,6 +64,12 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
+	// We will pass the connConfig to rootmanager and sandboxmanager
+	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
+	if err != nil {
+		return err
+	}
+
 	// Get devbox claim and session
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -101,12 +107,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	}
 
 	devboxSessionID, err := devbox.GetSessionID(ctx, cfg.API, devboxID)
-	if err != nil {
-		return err
-	}
-
-	// We will pass the connConfig to rootmanager and sandboxmanager
-	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 		return err
 	}
 	if isRunning {
-		return fmt.Errorf("signadot is already connected\n")
+		return fmt.Errorf("signadot is already connected")
 	}
 
 	// Check version skew

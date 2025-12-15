@@ -14,9 +14,9 @@ import (
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/devbox"
-	"github.com/signadot/cli/internal/locald/sandboxmanager/apiclient"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	sbapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
+	"github.com/signadot/cli/internal/locald/sandboxmanager/apiclient"
 	tunapiclient "github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/common/controlplaneproxy"
 	"google.golang.org/grpc"
@@ -145,16 +145,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 		log: m.log,
 	}
 
-	// Create the watcher with a function to get the current session ID
-	// This allows the watcher to use the updated session ID if it changes
-	getSessionID := func() string {
-		if m.devboxSessionMgr == nil {
-			return m.ciConfig.DevboxSessionID
-		}
-		_, _, sessionID, _, _ := m.devboxSessionMgr.GetStatus()
-		return sessionID
-	}
-	sbmWatcher := newSandboxManagerWatcher(m.log, getSessionID, m.revtunClient, oiu, m.shutdownCh)
+	sbmWatcher := newSandboxManagerWatcher(m.log, m.ciConfig.DevboxSessionID, m.revtunClient, oiu, m.shutdownCh)
 
 	// Register our service in gRPC server
 	m.sbmServer = newSandboxManagerGRPCServer(m.log, m.ciConfig, m.portForward, m.ctlPlaneProxy,

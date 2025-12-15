@@ -23,10 +23,6 @@ type sbmWatcher struct {
 	log *slog.Logger
 	oiu *operatorInfoUpdater
 
-	// getDevboxSessionID is a function that returns the current devbox session ID
-	// This allows the watcher to use the updated session ID if it changes
-	getDevboxSessionID func() string
-
 	// sandbox controllers
 	sbMu          sync.Mutex
 	status        svchealth.ServiceHealth
@@ -35,19 +31,18 @@ type sbmWatcher struct {
 	tunAPIClient  tunapiclient.Client
 
 	// current session ID being watched (to detect changes)
-	currentWatchedSessionID string
-	sessionIDMu            sync.RWMutex
+	devboxSessionID string
 
 	// shutdown
 	shutdownCh chan struct{}
 }
 
-func newSandboxManagerWatcher(log *slog.Logger, getDevboxSessionID func() string, revtunClient func() revtun.Client,
+func newSandboxManagerWatcher(log *slog.Logger, devboxSessionID string, revtunClient func() revtun.Client,
 	oiu *operatorInfoUpdater, shutdownCh chan struct{}) *sbmWatcher {
 	srv := &sbmWatcher{
-		log:                log,
-		oiu:                oiu,
-		getDevboxSessionID: getDevboxSessionID,
+		log:             log,
+		oiu:             oiu,
+		devboxSessionID: devboxSessionID,
 		status: svchealth.ServiceHealth{
 			Healthy:         false,
 			LastErrorReason: "Starting",
@@ -67,21 +62,8 @@ func (sbw *sbmWatcher) run(ctx context.Context, tunAPIClient tunapiclient.Client
 func (sbw *sbmWatcher) watchSandboxes(ctx context.Context, tunAPIClient tunapiclient.Client) {
 	// watch loop
 	for {
-		// Get the current session ID - it may have changed
-		currentSessionID := sbw.getDevboxSessionID()
-		if currentSessionID == "" {
-			sbw.setError("devbox session ID is empty", nil)
-			<-time.After(3 * time.Second)
-			continue
-		}
-
-		// Update the current watched session ID
-		sbw.sessionIDMu.Lock()
-		sbw.currentWatchedSessionID = currentSessionID
-		sbw.sessionIDMu.Unlock()
-
 		sbwClient, err := tunAPIClient.WatchLocalSandboxes(ctx, &tunapiv1.WatchLocalSandboxesRequest{
-			MachineId: currentSessionID,
+			MachineId: sbw.devboxSessionID,
 		})
 		if err != nil {
 			// don't retry if the context has been cancelled
@@ -95,7 +77,7 @@ func (sbw *sbmWatcher) watchSandboxes(ctx context.Context, tunAPIClient tunapicl
 			<-time.After(3 * time.Second)
 			continue
 		}
-		sbw.log.Debug("successfully got local sandboxes watch client", "sessionID", currentSessionID)
+		sbw.log.Debug("successfully got local sandboxes watch client", "sessionID", sbw.devboxSessionID)
 		sbw.readStream(ctx, sbwClient)
 	}
 }
@@ -129,24 +111,8 @@ func (sbw *sbmWatcher) readStream(ctx context.Context,
 		}
 	}()
 
-	// Main loop: select between ticker (session ID check) and stream events
 	for {
 		select {
-		case <-ticker.C:
-			// Check if session ID has changed - if so, restart the stream
-			currentSessionID := sbw.getDevboxSessionID()
-			sbw.sessionIDMu.RLock()
-			watchedSessionID := sbw.currentWatchedSessionID
-			sbw.sessionIDMu.RUnlock()
-
-			if currentSessionID != "" && currentSessionID != watchedSessionID {
-				sbw.log.Info("Devbox session ID changed, restarting watch stream",
-					"oldSessionID", watchedSessionID,
-					"newSessionID", currentSessionID)
-				// Close the current stream to force a restart
-				sbwClient.CloseSend()
-				return
-			}
 		case result, ok := <-streamCh:
 			if !ok {
 				// Channel closed, stream ended
