@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/signadot/cli/internal/command/logs"
 	"github.com/signadot/cli/internal/poll"
-	"golang.org/x/net/context"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/sdtab"

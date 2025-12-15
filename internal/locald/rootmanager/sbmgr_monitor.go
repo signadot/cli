@@ -105,10 +105,6 @@ func (mon *sbmgrMonitor) run() {
 		}
 		mon.setProcInfo(procDone, procPID)
 		
-		// Check status periodically while process is running
-		// If session is released, stop monitoring (don't restart)
-		go mon.checkStatusLoop(procDone)
-		
 		select {
 		case <-procDone:
 		case <-mon.done:
@@ -190,58 +186,4 @@ func (mon *sbmgrMonitor) stop() error {
 	}
 
 	return nil
-}
-
-// checkStatusLoop periodically checks sandbox manager status while it's running
-// If session is released, stops the monitor to prevent restart
-func (mon *sbmgrMonitor) checkStatusLoop(procDone <-chan struct{}) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-	
-	for {
-		select {
-		case <-procDone:
-			// Process exited, stop checking
-			return
-		case <-mon.done:
-			// Monitor is stopping
-			return
-		case <-ticker.C:
-			// Check status
-			if mon.checkSessionReleased() {
-				mon.log.Info("Devbox session was released, stopping sandbox manager monitor")
-				close(mon.done)
-				return
-			}
-		}
-	}
-}
-
-// checkSessionReleased checks if the sandbox manager reports session_released
-func (mon *sbmgrMonitor) checkSessionReleased() bool {
-	// Try to connect to sandbox manager
-	grpcConn, err := grpc.NewClient("127.0.0.1:6666", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		// Can't connect, assume not released (process might be starting)
-		return false
-	}
-	defer grpcConn.Close()
-	
-	// Get status
-	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	
-	status, err := sbManagerClient.Status(ctx, &sbmapi.StatusRequest{})
-	if err != nil {
-		// Can't get status, assume not released
-		return false
-	}
-	
-	// Check if session is released
-	if status.DevboxSession != nil && status.DevboxSession.SessionReleased {
-		return true
-	}
-	
-	return false
 }

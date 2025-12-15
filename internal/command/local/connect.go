@@ -54,7 +54,23 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return fmt.Errorf("output format %s not supported for connect", cfg.OutputFormat)
 	}
 
-	// get devbox claim and session
+	// Get the sigandot dir and ensure it exists
+	signadotDir, err := system.GetSignadotDir()
+	if err != nil {
+		return err
+	}
+	err = system.CreateDirIfNotExist(signadotDir)
+	if err != nil {
+		return err
+	}
+
+	// We will pass the connConfig to rootmanager and sandboxmanager
+	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
+	if err != nil {
+		return err
+	}
+
+	// Get devbox claim and session
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -95,22 +111,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	// we will pass the connConfig to rootmanager and sandboxmanager
-	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
-	if err != nil {
-		return err
-	}
-
-	// Get the sigandot dir
-	signadotDir, err := system.GetSignadotDir()
-	if err != nil {
-		return err
-	}
-	err = system.CreateDirIfNotExist(signadotDir)
-	if err != nil {
-		return err
-	}
-
 	// Resolve the user
 	user, err := user.Current()
 	if err != nil {
@@ -123,7 +123,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		connConfig.KubeConfigPath = &kcp
 	}
 
-	// compute ConnectInvocationConfig
+	// Compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
 		WithRootManager: !cfg.Unprivileged,
 		SignadotDir:     signadotDir,
@@ -174,7 +174,7 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 		return err
 	}
 	if isRunning {
-		return fmt.Errorf("signadot is already connected\n")
+		return fmt.Errorf("signadot is already connected")
 	}
 
 	// Check version skew
@@ -210,6 +210,9 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 			"--daemon",
 			"--root-manager",
 		}
+		if localConfig.GOPSAddrRoot != "" {
+			args = append(args, "--gops-root-addr", localConfig.GOPSAddrRoot)
+		}
 		if localConfig.PProfAddr != "" {
 			args = append(args, "--pprof", localConfig.PProfAddr)
 		}
@@ -221,6 +224,9 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 			"--daemon",
 			"--sandbox-manager",
 		)
+		if localConfig.GOPSAddrNonRoot != "" {
+			cmd.Args = append(cmd.Args, "--gops-non-root-addr", localConfig.GOPSAddrNonRoot)
+		}
 		cmd.Env = append(cmd.Env, ciConfig.Env...)
 	}
 	cmd.Env = append(cmd.Env,

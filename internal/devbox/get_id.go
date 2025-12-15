@@ -70,6 +70,9 @@ func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) 
 			if err != nil {
 				return "", err
 			}
+			if err := system.CreateDirIfNotExist(filepath.Dir(file)); err != nil {
+				return "", err
+			}
 			if err := os.WriteFile(file, []byte(id), 0600); err != nil {
 				return "", err
 			}

@@ -7,6 +7,7 @@ import (
 
 	"log/slog"
 
+	"github.com/google/gops/agent"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/locald/rootmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
@@ -30,6 +31,12 @@ func RunSandboxManager(cfg *config.LocalDaemon, log *slog.Logger, args []string)
 	if err != nil {
 		return fmt.Errorf("locald sandbox-manager error creating sandbox-manager: %w", err)
 	}
+	if cfg.GOPSAddrNonRoot != "" {
+		agent.Listen(agent.Options{
+			Addr: cfg.GOPSAddrNonRoot,
+		})
+		defer agent.Close()
+	}
 	return sbMgr.Run(ctx)
 }
 
@@ -41,6 +48,12 @@ func RunRootManager(cfg *config.LocalDaemon, log *slog.Logger, args []string) er
 	rootMgr, err := rootmanager.NewRootManager(cfg, args, log)
 	if err != nil {
 		return err
+	}
+	if cfg.GOPSAddrRoot != "" {
+		agent.Listen(agent.Options{
+			Addr: cfg.GOPSAddrRoot,
+		})
+		defer agent.Close()
 	}
 	return rootMgr.Run(ctx)
 }

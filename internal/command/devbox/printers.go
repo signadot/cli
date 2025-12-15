@@ -16,7 +16,7 @@ type devboxRow struct {
 	OS         string `sdtab:"OS"`
 	MachineID  string `sdtab:"MACHINE ID,trunc"`
 	Status     string `sdtab:"STATUS"`
-	ValidUntil string `sdtab:"VALID UNTIL"`
+	ValidUntil string `sdtab:"EXPIRES"`
 }
 
 // printDevboxTable prints devboxes in a table format.

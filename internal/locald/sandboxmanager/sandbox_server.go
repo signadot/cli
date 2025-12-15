@@ -47,7 +47,7 @@ type sbmServer struct {
 
 	// shutdown
 	shutdownCh chan struct{}
-	
+
 	// devbox session manager
 	devboxSessionMgr *devbox.SessionManager
 }
@@ -205,23 +205,22 @@ func (s *sbmServer) devboxSessionStatus() *commonapi.DevboxSessionStatus {
 			Healthy: false,
 		}
 	}
-	
-	healthy, sessionReleased, devboxID, sessionID, lastError, lastErrorTime := s.devboxSessionMgr.GetStatus()
-	
+
+	healthy, devboxID, sessionID, lastErrorTime, lastError := s.devboxSessionMgr.GetStatus()
+
 	status := &commonapi.DevboxSessionStatus{
-		Healthy:         healthy && !sessionReleased,
-		SessionReleased: sessionReleased,
-		DevboxId:        devboxID,
-		SessionId:       sessionID,
+		Healthy:  healthy,
+		DevboxId: devboxID,
+		SessionId: sessionID,
 	}
-	
+
 	if lastError != nil {
 		status.LastErrorReason = lastError.Error()
 		if !lastErrorTime.IsZero() {
 			status.LastErrorTime = timestamppb.New(lastErrorTime)
 		}
 	}
-	
+
 	return status
 }
 

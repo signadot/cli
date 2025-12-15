@@ -30,6 +30,8 @@ type LocalDaemon struct {
 	// Hidden Flags
 	ConnectInvocationConfigFile string
 	PProfAddr                   string
+	GOPSAddrRoot                string
+	GOPSAddrNonRoot             string
 }
 
 func (ld *LocalDaemon) InitLocalDaemon() error {
@@ -106,13 +108,17 @@ func (ciConfig *ConnectInvocationConfig) GetLogName(isRootManager bool) string {
 	return SandboxManagerLogFile
 }
 
-func (c *LocalDaemon) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&c.DaemonRun, "daemon", false, "run in background as daemon")
-	cmd.Flags().BoolVar(&c.RootManager, "root-manager", false, "run the root-manager (privileged daemon)")
-	cmd.Flags().BoolVar(&c.SandboxManager, "sandbox-manager", false, "run the sandbox-manager (unprivileged daemon)")
+func (ld *LocalDaemon) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&ld.DaemonRun, "daemon", false, "run in background as daemon")
+	cmd.Flags().BoolVar(&ld.RootManager, "root-manager", false, "run the root-manager (privileged daemon)")
+	cmd.Flags().BoolVar(&ld.SandboxManager, "sandbox-manager", false, "run the sandbox-manager (unprivileged daemon)")
 
-	cmd.Flags().StringVar(&c.ConnectInvocationConfigFile, "ci-config-file", "", "by-pass calling signadot local connect (hidden)")
+	cmd.Flags().StringVar(&ld.ConnectInvocationConfigFile, "ci-config-file", "", "by-pass calling signadot local connect (hidden)")
 	cmd.Flags().MarkHidden("ci-config-file")
-	cmd.Flags().StringVar(&c.PProfAddr, "pprof", "", "pprof listen address")
+	cmd.Flags().StringVar(&ld.PProfAddr, "pprof", "", "pprof listen address")
 	cmd.Flags().MarkHidden("pprof")
+	cmd.Flags().StringVar(&ld.GOPSAddrRoot, "gops-root-addr", "", "gops root address")
+	cmd.Flags().MarkHidden("gops-root-addr")
+	cmd.Flags().StringVar(&ld.GOPSAddrNonRoot, "gops-non-root-addr", "", "gops root address")
+	cmd.Flags().MarkHidden("gops-non-root-addr")
 }

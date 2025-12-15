@@ -72,9 +72,15 @@ func run(cfg *config.LocalDaemon, args []string) error {
 		}
 		if cfg.RootManager {
 			args = append(args, "--root-manager")
+			if cfg.GOPSAddrRoot != "" {
+				args = append(args, "--gops-root-addr", cfg.GOPSAddrRoot)
+			}
 		} else {
 			args = append(args, "--sandbox-manager")
 			env = append(env, ciConfig.Env...)
+			if cfg.GOPSAddrNonRoot != "" {
+				args = append(args, "--gops-non-root-addr", cfg.GOPSAddrNonRoot)
+			}
 		}
 		cmd := exec.Command(binary, args...)
 		cmd.Env = env

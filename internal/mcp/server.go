@@ -25,7 +25,7 @@ type Server struct {
 // Authentication is checked at startup and monitored continuously in the background.
 // Authenticated tools are dynamically added/removed based on authentication status,
 // and clients are automatically notified via tools/list_changed notifications.
-func NewServer(cfg *config.MCPRun) *Server {
+func NewServer(cfg *config.MCP) *Server {
 	// write logs to sterr (for an mcp server in stdio mode).
 	logLevel := slog.LevelInfo
 	if cfg.Debug {
@@ -37,17 +37,32 @@ func NewServer(cfg *config.MCPRun) *Server {
 		}),
 	)
 
+	// Create Server struct first (partial initialization)
 	srv := &Server{
 		log: log,
-		// Create MCP server
-		mcpServer: mcp.NewServer(&mcp.Implementation{Name: "signadot-mcp-server"}, nil),
 	}
+
+	// Create remote manager (needed for the handler)
+	srv.remoteManager = remote.NewRemoteManager(log, cfg.API)
+
+	// Create MCP server with InitializedHandler to initilize the remote
+	// manager. Note that in a stdio server, there's only one client session.
+	serverOptions := &mcp.ServerOptions{
+		InitializedHandler: func(ctx context.Context, req *mcp.InitializedRequest) {
+			err := srv.remoteManager.Init(req.Session)
+			if err != nil {
+				log.Error("failed to initialize remote manager", "error", err)
+			}
+		},
+		HasTools: true,
+	}
+
+	srv.mcpServer = mcp.NewServer(&mcp.Implementation{
+		Name: "signadot-mcp-server",
+	}, serverOptions)
 
 	// Create authentication monitor
 	srv.authMonitor = authmonitor.NewMonitor(cfg.API)
-
-	// Create remote manager
-	srv.remoteManager = remote.NewRemoteManager(log, cfg.API)
 
 	// Create and setup tools
 	srv.tools = tools.NewTools(log, srv.mcpServer, srv.remoteManager)
@@ -58,41 +73,41 @@ func (s *Server) Run(ctx context.Context) error {
 	// Setup tools
 	s.tools.Setup()
 
-	// Start authentication monitoring in the background
-	s.authMonitor.SetCallback(s.OnAuthChange)
-	go s.authMonitor.Run(ctx, 5*time.Second)
-
 	// Start remote metadata monitoring in the background
 	initCh := make(chan struct{})
-	s.remoteManager.SetCallback(func(ctx context.Context, meta *remote.Meta) error {
-		err := s.OnMetaChange(ctx, meta)
+	s.remoteManager.SetCallback(func(ctx context.Context, meta *remote.Meta) {
+		s.OnMetaChange(ctx, meta)
 		select {
 		case <-initCh:
 		default:
 			close(initCh)
 		}
-		return err
 	})
 	go s.remoteManager.Run(ctx, 30*time.Second)
 
-	// Give some time for the remote metadata to be initialized
+	// Wait until the remote metadata is initialized to run the mcp server
+	// (avoid sending tools/list_changed notifications before the remote
+	// metadata is available)
 	select {
 	case <-initCh:
-	case <-time.After(500 * time.Millisecond):
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+
+	// Start authentication monitoring in the background
+	s.authMonitor.SetCallback(s.OnAuthChange)
+	go s.authMonitor.Run(ctx, 5*time.Second)
 
 	// Run the mcp server
 	return s.mcpServer.Run(ctx, &mcp.StdioTransport{})
 }
 
-func (s *Server) OnMetaChange(ctx context.Context, meta *remote.Meta) error {
+func (s *Server) OnMetaChange(ctx context.Context, meta *remote.Meta) {
 	// Update tools
-	return s.tools.Update(ctx, meta)
+	s.tools.Update(ctx, meta)
 }
 
-func (s *Server) OnAuthChange(ctx context.Context, _ bool) error {
+func (s *Server) OnAuthChange(ctx context.Context, _ bool) {
 	// Update tools
-	return s.tools.Update(ctx, s.remoteManager.Meta())
+	s.tools.Update(ctx, s.remoteManager.Meta())
 }
