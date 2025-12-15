@@ -24,6 +24,21 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox, currentDevboxID 
 	t := sdtab.New[devboxRow](out)
 	t.AddHeader()
 
+	if currentDevboxID != "" {
+		// ensure stored devbox is first
+		for i, b := range devboxes {
+			if b.ID != currentDevboxID {
+				continue
+			}
+			if i == 0 {
+				break
+			}
+			hdb := devboxes[0]
+			devboxes[0], devboxes[i] = b, hdb
+			break
+		}
+	}
+
 	for _, db := range devboxes {
 		validUntil := "-"
 		if db.Status != nil && db.Status.Session != nil && db.Status.Session.ValidUntil != "" {
@@ -45,9 +60,9 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox, currentDevboxID 
 		isDefault := currentDevboxID != "" && db.ID == currentDevboxID
 		if isDefault {
 			if status == "active" {
-				status = "active (default)"
+				status = "active (*)"
 			} else {
-				status = "inactive (default)"
+				status = "inactive (*)"
 			}
 		}
 
