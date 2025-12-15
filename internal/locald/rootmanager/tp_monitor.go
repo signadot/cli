@@ -18,31 +18,35 @@ import (
 const (
 	checkingPeriodNotOK = time.Second
 	checkingPeriodOK    = 10 * time.Second
-	// maxStartingTime needs to be large enough for worst case startup time
-	maxStartingTime = 30 * time.Second
 )
 
 type tpMonitor struct {
-	log           *slog.Logger
-	root          *rootManager
-	sbManagerAddr string
-	tpLocalAddr   string
-	ipMap         *ipmap.IPMap
-	starting      bool
-	beginStarting time.Time
-	sbClient      sbmanagerapi.SandboxManagerAPIClient
-	closeCh       chan struct{}
+	log            *slog.Logger
+	root           *rootManager
+	sbManagerAddr  string
+	tpLocalAddr    string
+	ipMap          *ipmap.IPMap
+	starting       bool
+	beginStarting  time.Time
+	sbClient       sbmanagerapi.SandboxManagerAPIClient
+	closeCh        chan struct{}
+	connectTimeout time.Duration
 }
 
 func NewTunnelProxyMonitor(ctx context.Context, root *rootManager, ipMap *ipmap.IPMap) *tpMonitor {
+	dur, err := time.ParseDuration(root.ciConfig.ConnectTimeout)
+	if err != nil {
+		dur = 10 * time.Second
+	}
 	mon := &tpMonitor{
-		log:           root.log,
-		ipMap:         ipMap,
-		sbManagerAddr: fmt.Sprintf("127.0.0.1:%d", root.ciConfig.APIPort),
-		root:          root,
-		starting:      true,
-		beginStarting: time.Now(),
-		closeCh:       make(chan struct{}),
+		log:            root.log,
+		ipMap:          ipMap,
+		sbManagerAddr:  fmt.Sprintf("127.0.0.1:%d", root.ciConfig.APIPort),
+		root:           root,
+		starting:       true,
+		beginStarting:  time.Now(),
+		closeCh:        make(chan struct{}),
+		connectTimeout: dur,
 	}
 	go mon.run(ctx)
 	return mon
@@ -220,10 +224,7 @@ func (mon *tpMonitor) checkRootServer(r *rootServer) (ok, restart bool) {
 // indicates that services should be restarted.
 func (mon *tpMonitor) shouldRestartDueToUnhealthy() bool {
 	if mon.starting {
-		if time.Since(mon.beginStarting) > maxStartingTime {
-			return true
-		}
-		return false
+		return time.Since(mon.beginStarting) > mon.connectTimeout
 	}
 	return true
 }
