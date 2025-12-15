@@ -84,71 +84,42 @@ func (sbw *sbmWatcher) watchSandboxes(ctx context.Context, tunAPIClient tunapicl
 
 func (sbw *sbmWatcher) readStream(ctx context.Context,
 	sbwClient tunapiv1.TunnelAPI_WatchLocalSandboxesClient) {
-	// Check for session ID changes periodically while reading the stream
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	// Channel for stream events
-	type streamResult struct {
-		event *tunapiv1.WatchLocalSandboxesResponse
-		err   error
-	}
-	streamCh := make(chan streamResult, 1)
-
-	// Goroutine to receive from the stream
-	go func() {
-		defer close(streamCh)
-		for {
-			event, err := sbwClient.Recv()
-			select {
-			case streamCh <- streamResult{event: event, err: err}:
-				if err != nil {
-					return
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
 	for {
+		event, err := sbwClient.Recv()
+		if err == nil {
+			sbw.setSuccess(ctx)
+			sbw.processStreamEvent(event)
+			continue
+		}
+		// just return if the context has been cancelled
 		select {
-		case result, ok := <-streamCh:
-			if !ok {
-				// Channel closed, stream ended
-				return
-			}
-			if result.err == nil {
-				sbw.setSuccess(ctx)
-				sbw.processStreamEvent(result.event)
-				continue
-			}
-			// Handle stream error
-			grpcStatus, ok := status.FromError(result.err)
-			if !ok {
-				sbw.setError("sandboxes watch grpc stream error: no status", result.err)
-				return
-			}
-			switch grpcStatus.Code() {
-			case codes.OK:
-				sbw.log.Debug("sandboxes watch error code is ok")
-				sbw.processStreamEvent(result.event)
-				continue
-			case codes.Internal:
-				sbw.setError("sandboxes watch internal grpc error", result.err)
-				<-time.After(3 * time.Second)
-			case codes.Unimplemented:
-				sbw.setError(SandboxesWatcherUnimplemented, nil)
-				// in this case, check again in 1 minutes
-				<-time.After(1 * time.Minute)
-			default:
-				sbw.setError("sandbox watch error", result.err)
-				<-time.After(3 * time.Second)
-			}
-			return
 		case <-ctx.Done():
 			return
+		default:
 		}
+		// extract the grpc status
+		grpcStatus, ok := status.FromError(err)
+		if !ok {
+			sbw.setError("sandboxes watch grpc stream error: no status", err)
+			break
+		}
+		switch grpcStatus.Code() {
+		case codes.OK:
+			sbw.log.Debug("sandboxes watch error code is ok")
+			sbw.processStreamEvent(event)
+			continue
+		case codes.Internal:
+			sbw.setError("sandboxes watch internal grpc error", err)
+			<-time.After(3 * time.Second)
+		case codes.Unimplemented:
+			sbw.setError(SandboxesWatcherUnimplemented, nil)
+			// in this case, check again in 1 minutes
+			<-time.After(1 * time.Minute)
+		default:
+			sbw.setError("sandbox watch error", err)
+			<-time.After(3 * time.Second)
+		}
+		break
 	}
 }
 
