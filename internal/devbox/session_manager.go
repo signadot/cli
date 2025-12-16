@@ -17,7 +17,7 @@ import (
 
 const (
 	// RenewalInterval is how often to renew the devbox session
-	RenewalInterval = 15 * time.Second
+	RenewalInterval = 22 * time.Second
 	// RenewalJitter adds randomness to avoid thundering herd
 	RenewalJitter = 5 * time.Second
 )
