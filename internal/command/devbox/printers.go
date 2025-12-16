@@ -20,9 +20,24 @@ type devboxRow struct {
 }
 
 // printDevboxTable prints devboxes in a table format.
-func printDevboxTable(out io.Writer, devboxes []*models.Devbox) error {
+func printDevboxTable(out io.Writer, devboxes []*models.Devbox, currentDevboxID string) error {
 	t := sdtab.New[devboxRow](out)
 	t.AddHeader()
+
+	if currentDevboxID != "" {
+		// ensure stored devbox is first
+		for i, b := range devboxes {
+			if b.ID != currentDevboxID {
+				continue
+			}
+			if i == 0 {
+				break
+			}
+			hdb := devboxes[0]
+			devboxes[0], devboxes[i] = b, hdb
+			break
+		}
+	}
 
 	for _, db := range devboxes {
 		validUntil := "-"
@@ -38,6 +53,16 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox) error {
 			validUntil, err := time.Parse(time.RFC3339, db.Status.Session.ValidUntil)
 			if err == nil && validUntil.After(time.Now()) {
 				status = "active"
+			}
+		}
+
+		// Mark current devbox as "default" in status column
+		isDefault := currentDevboxID != "" && db.ID == currentDevboxID
+		if isDefault {
+			if status == "active" {
+				status = "active (*)"
+			} else {
+				status = "inactive (*)"
 			}
 		}
 
