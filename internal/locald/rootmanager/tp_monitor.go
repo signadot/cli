@@ -36,6 +36,8 @@ type tpMonitor struct {
 func NewTunnelProxyMonitor(ctx context.Context, root *rootManager, ipMap *ipmap.IPMap) *tpMonitor {
 	dur, err := time.ParseDuration(root.ciConfig.ConnectTimeout)
 	if err != nil {
+		// error should not occur b/c it is set and processed on the calling local connect
+		// with default 10 seconds
 		dur = 10 * time.Second
 	}
 	mon := &tpMonitor{
