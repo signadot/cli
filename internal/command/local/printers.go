@@ -518,7 +518,7 @@ func (p *statusPrinter) printSandboxesWatcherStatus() {
 }
 
 func (p *statusPrinter) printSandboxStatus() {
-	p.printLine(p.out, 0, "Connected Sandboxes:", "*")
+	p.printLine(p.out, 0, "Mapped Sandboxes:", "*")
 	if len(p.status.Sandboxes) == 0 {
 		p.printLine(p.out, 1, "No active sandbox", "-")
 	} else {
