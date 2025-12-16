@@ -64,6 +64,19 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
+	// Check if the corresponding manager is already running this gives fail
+	// fast response and is safe to return an error here, but the check is _not_
+	// used to assume that we have the lock later on when starting.
+	withRootManager := !cfg.Unprivileged
+	pidFile := config.GetLocaldPIDfile(signadotDir, withRootManager)
+	isRunning, err := processes.IsDaemonRunning(pidFile)
+	if err != nil {
+		return err
+	}
+	if isRunning {
+		return fmt.Errorf("signadot is already connected")
+	}
+
 	// We will pass the connConfig to rootmanager and sandboxmanager
 	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
 	if err != nil {
@@ -125,7 +138,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 
 	// Compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
-		WithRootManager: !cfg.Unprivileged,
+		WithRootManager: withRootManager,
 		SignadotDir:     signadotDir,
 		APIPort:         6666,
 		LocalNetPort:    6667,
@@ -164,19 +177,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 }
 
 func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config.LocalConnect, ciConfig *config.ConnectInvocationConfig) error {
-	// Check if the corresponding manager is already running
-	// this gives fail fast response and is safe to return
-	// an error here, but the check is _not_ used to assume
-	// that we have the lock later on when starting.
-	pidFile := ciConfig.GetPIDfile(ciConfig.WithRootManager)
-	isRunning, err := processes.IsDaemonRunning(pidFile)
-	if err != nil {
-		return err
-	}
-	if isRunning {
-		return fmt.Errorf("signadot is already connected")
-	}
-
 	// Check version skew
 	if err := checkVersionSkew(localConfig, ciConfig); err != nil {
 		return err

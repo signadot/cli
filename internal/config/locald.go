@@ -95,10 +95,7 @@ type ConnectInvocationUser struct {
 }
 
 func (ciConfig *ConnectInvocationConfig) GetPIDfile(isRootManager bool) string {
-	if isRootManager {
-		return filepath.Join(ciConfig.SignadotDir, RootManagerPIDFile)
-	}
-	return filepath.Join(ciConfig.SignadotDir, SandboxManagerPIDFile)
+	return GetLocaldPIDfile(ciConfig.SignadotDir, isRootManager)
 }
 
 func (ciConfig *ConnectInvocationConfig) GetLogName(isRootManager bool) string {
@@ -106,6 +103,13 @@ func (ciConfig *ConnectInvocationConfig) GetLogName(isRootManager bool) string {
 		return RootManagerLogFile
 	}
 	return SandboxManagerLogFile
+}
+
+func GetLocaldPIDfile(signadotDir string, isRootManager bool) string {
+	if isRootManager {
+		return filepath.Join(signadotDir, RootManagerPIDFile)
+	}
+	return filepath.Join(signadotDir, SandboxManagerPIDFile)
 }
 
 func (ld *LocalDaemon) AddFlags(cmd *cobra.Command) {
