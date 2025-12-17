@@ -11,12 +11,11 @@ import (
 
 // devboxRow represents a row in the devbox table output.
 type devboxRow struct {
-	ID         string `sdtab:"ID"`
-	Name       string `sdtab:"NAME,trunc"`
-	OS         string `sdtab:"OS"`
-	MachineID  string `sdtab:"MACHINE ID,trunc"`
-	Status     string `sdtab:"STATUS"`
-	ValidUntil string `sdtab:"EXPIRES"`
+	ID        string `sdtab:"ID"`
+	Name      string `sdtab:"NAME,trunc"`
+	OS        string `sdtab:"OS"`
+	MachineID string `sdtab:"MACHINE ID,trunc"`
+	Status    string `sdtab:"STATUS"`
 }
 
 // printDevboxTable prints devboxes in a table format.
@@ -40,30 +39,26 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox, currentDevboxID 
 	}
 
 	for _, db := range devboxes {
-		validUntil := "-"
-		if db.Status != nil && db.Status.Session != nil && db.Status.Session.ValidUntil != "" {
-			vu, err := time.Parse(time.RFC3339, db.Status.Session.ValidUntil)
-			if err == nil {
-				validUntil = timeago.NoMax(timeago.English).Format(vu)
-			}
-		}
-
 		status := "inactive"
 		if db.Status != nil && db.Status.Session != nil && db.Status.Session.ValidUntil != "" {
 			validUntil, err := time.Parse(time.RFC3339, db.Status.Session.ValidUntil)
-			if err == nil && validUntil.After(time.Now()) {
-				status = "active"
+			if err == nil {
+				now := time.Now()
+				if validUntil.After(now) {
+					status = "active"
+				} else {
+					// Session has expired, show how long ago
+					duration := now.Sub(validUntil)
+					timeAgo := timeago.NoMax(timeago.English).FormatRelativeDuration(duration)
+					status = "expired " + timeAgo
+				}
 			}
 		}
 
 		// Mark current devbox as "default" in status column
 		isDefault := currentDevboxID != "" && db.ID == currentDevboxID
 		if isDefault {
-			if status == "active" {
-				status = "active (*)"
-			} else {
-				status = "inactive (*)"
-			}
+			status = status + " (*)"
 		}
 
 		name := db.Metadata["name"]
@@ -77,12 +72,11 @@ func printDevboxTable(out io.Writer, devboxes []*models.Devbox, currentDevboxID 
 		}
 
 		t.AddRow(devboxRow{
-			ID:         db.ID,
-			Name:       name,
-			OS:         os,
-			MachineID:  machineID,
-			ValidUntil: validUntil,
-			Status:     status,
+			ID:        db.ID,
+			Name:      name,
+			OS:        os,
+			MachineID: machineID,
+			Status:    status,
 		})
 	}
 

@@ -463,16 +463,14 @@ func (p *statusPrinter) printDevboxSessionStatus() {
 		if ds.LastErrorReason != "" {
 			msg += fmt.Sprintf(": %s", ds.LastErrorReason)
 		}
-		p.printLine(p.out, 1, msg, p.red("✗"))
+		p.printLine(p.out, 1, msg, "*")
 	} else {
-		msg := fmt.Sprintf("devbox session active (devbox: %s, session: %s)", ds.DevboxId, ds.SessionId)
 		if p.cfg.Details && ds.SessionId != "" {
-			msg = "devbox session active"
-			p.printLine(p.out, 1, msg, p.green("✓"))
+			p.printLine(p.out, 1, "devbox connected", "*")
 			p.printLine(p.out, 2, fmt.Sprintf("Devbox ID: %s", ds.DevboxId), "*")
 			p.printLine(p.out, 2, fmt.Sprintf("Session ID: %s", ds.SessionId), "*")
 		} else {
-			p.printLine(p.out, 1, msg, p.green("✓"))
+			p.printLine(p.out, 1, fmt.Sprintf("devbox %s connected", ds.DevboxId), "*")
 		}
 	}
 }
@@ -520,7 +518,7 @@ func (p *statusPrinter) printSandboxesWatcherStatus() {
 }
 
 func (p *statusPrinter) printSandboxStatus() {
-	p.printLine(p.out, 0, "Connected Sandboxes:", "*")
+	p.printLine(p.out, 0, "Mapped Sandboxes:", "*")
 	if len(p.status.Sandboxes) == 0 {
 		p.printLine(p.out, 1, "No active sandbox", "-")
 	} else {
