@@ -48,7 +48,7 @@ func (r *Remote) fetchMeta(ctx context.Context) (*Meta, error) {
 		Timeout: 10 * time.Second,
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", r.cfg.MCPURL+"/meta", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", r.mcpCfg.API.MCPURL+"/meta", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
