@@ -23,7 +23,7 @@ type Remote struct {
 	mu sync.Mutex
 
 	log           *slog.Logger
-	cfg           *config.API
+	mcpCfg        *config.MCP
 	remoteClient  *mcp.Client
 	remoteSession *mcp.ClientSession
 	localSession  *mcp.ServerSession
@@ -33,10 +33,10 @@ type Remote struct {
 
 // NewRemoteManager creates a new Remote instance for managing connections
 // to the remote MCP server. The client is created lazily when capabilities are known.
-func NewRemoteManager(log *slog.Logger, cfg *config.API) *Remote {
+func NewRemoteManager(log *slog.Logger, mcpCfg *config.MCP) *Remote {
 	return &Remote{
-		log: log.With("component", "remote-manager"),
-		cfg: cfg,
+		log:    log.With("component", "remote-manager"),
+		mcpCfg: mcpCfg,
 	}
 }
 
@@ -72,14 +72,18 @@ func (r *Remote) Init(localSession *mcp.ServerSession) error {
 	opts := &mcp.ClientOptions{
 		KeepAlive: 10 * time.Second,
 	}
-	if initParams.Capabilities != nil {
-		clientCaps := initParams.Capabilities
-		// If the local client supports elicitation, set up a handler to proxy
-		// elicitation requests
-		if clientCaps.Elicitation != nil {
-			opts.ElicitationHandler = r.proxyElicitation
-			r.log.Debug("elicitation handler configured for remote client")
+	if !r.mcpCfg.DisableElicitation {
+		if initParams.Capabilities != nil {
+			clientCaps := initParams.Capabilities
+			// If the local client supports elicitation and elicitation is not
+			// disabled, set up a handler to proxy elicitation requests
+			if clientCaps.Elicitation != nil {
+				opts.ElicitationHandler = r.proxyElicitation
+				r.log.Debug("elicitation handler configured for remote client")
+			}
 		}
+	} else {
+		r.log.Debug("elicitation disabled via --disable-elicitation flag")
 	}
 
 	r.localSession = localSession
@@ -126,7 +130,7 @@ func (r *Remote) Session() (*mcp.ClientSession, error) {
 
 	// Create HTTP transport with authentication headers
 	transport := &mcp.StreamableClientTransport{
-		Endpoint: r.cfg.MCPURL + "/stream",
+		Endpoint: r.mcpCfg.API.MCPURL + "/stream",
 		HTTPClient: &http.Client{
 			Transport: &authTransport{
 				RoundTripper: http.DefaultTransport,

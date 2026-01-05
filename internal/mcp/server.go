@@ -43,7 +43,7 @@ func NewServer(cfg *config.MCP) *Server {
 	}
 
 	// Create remote manager (needed for the handler)
-	srv.remoteManager = remote.NewRemoteManager(log, cfg.API)
+	srv.remoteManager = remote.NewRemoteManager(log, cfg)
 
 	// Create MCP server with InitializedHandler to initilize the remote
 	// manager. Note that in a stdio server, there's only one client session.
