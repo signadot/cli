@@ -15,3 +15,8 @@ build:
 
 release:
 	SIGNADOT_IMAGE_SUFFIX='' goreleaser release --rm-dist
+
+
+devcontainer:
+	GOOS=linux go build -o .devcontainer/signadot ./cmd/signadot
+	GOARCH=$(shell go env GOARCH) devcontainer --workspace-folder . build
