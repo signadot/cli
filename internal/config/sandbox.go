@@ -76,11 +76,13 @@ type SandboxCleanFiles struct {
 
 type SandboxGetEnv struct {
 	*Sandbox
-	Local     string
-	Container string
+	Local      string
+	Container  string
+	ShowSource bool
 }
 
 func (c *SandboxGetEnv) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Local, "local", "l", "", "local workload name (default to first)")
 	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container")
+	cmd.Flags().BoolVarP(&c.ShowSource, "show-source", "s", false, "show source in comments")
 }
