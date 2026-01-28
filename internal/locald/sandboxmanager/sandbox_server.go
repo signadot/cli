@@ -209,8 +209,8 @@ func (s *sbmServer) devboxSessionStatus() *commonapi.DevboxSessionStatus {
 	healthy, devboxID, sessionID, lastErrorTime, lastError := s.devboxSessionMgr.GetStatus()
 
 	status := &commonapi.DevboxSessionStatus{
-		Healthy:  healthy,
-		DevboxId: devboxID,
+		Healthy:   healthy,
+		DevboxId:  devboxID,
 		SessionId: sessionID,
 	}
 
