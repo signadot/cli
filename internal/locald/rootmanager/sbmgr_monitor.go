@@ -104,7 +104,7 @@ func (mon *sbmgrMonitor) run() {
 			goto tick
 		}
 		mon.setProcInfo(procDone, procPID)
-		
+
 		select {
 		case <-procDone:
 		case <-mon.done:

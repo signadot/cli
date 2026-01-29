@@ -347,8 +347,8 @@ func getRawDevboxSession(cfg *config.LocalStatus, devboxSession *commonapi.Devbo
 	}
 
 	result := &PrintableDevboxSession{
-		Healthy:  devboxSession.Healthy,
-		DevboxId: devboxSession.DevboxId,
+		Healthy:   devboxSession.Healthy,
+		DevboxId:  devboxSession.DevboxId,
 		SessionId: devboxSession.SessionId,
 	}
 

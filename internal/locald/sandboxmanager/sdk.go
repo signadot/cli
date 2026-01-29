@@ -234,7 +234,7 @@ func ValidateSandboxManager(expectedCluster *string) (*sbmapi.StatusResponse, er
 	// Validate cluster matches
 	if expectedCluster != nil && *expectedCluster != ciConfig.ConnectionConfig.Cluster {
 		return nil, fmt.Errorf("sandbox spec cluster %q does not match connected cluster (%q)",
-			expectedCluster, ciConfig.ConnectionConfig.Cluster)
+			*expectedCluster, ciConfig.ConnectionConfig.Cluster)
 	}
 
 	return status, nil
