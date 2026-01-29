@@ -64,8 +64,8 @@ type SandboxGetFiles struct {
 }
 
 func (c *SandboxGetFiles) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&c.Local, "local", "l", "", "local workload name (default to first)")
-	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container name (defaults to first)")
+	cmd.Flags().StringVarP(&c.Local, "local", "l", "", "local workload name, defaults to the first local workload in the sandbox")
+	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container name, defaults to the first container in the local workload")
 	cmd.Flags().BoolVar(&c.NoClobber, "no-clobber", false, "do not overwrite files")
 	cmd.Flags().StringVarP(&c.OutputDir, "output-dir", "d", "", "output directory")
 }
@@ -82,7 +82,7 @@ type SandboxGetEnv struct {
 }
 
 func (c *SandboxGetEnv) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&c.Local, "local", "l", "", "local workload name (default to first)")
-	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container")
+	cmd.Flags().StringVarP(&c.Local, "local", "l", "", "local workload name, defaults to the first local workload in the sandbox")
+	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container name, defaults to the first container in the local workload")
 	cmd.Flags().BoolVarP(&c.ShowSource, "show-source", "s", false, "show source in comments")
 }
