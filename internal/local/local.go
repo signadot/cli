@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"path/filepath"
 
+	rolloutapi "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
 	"github.com/signadot/cli/internal/config"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/libconnect/common/processes"
 	lcconfig "github.com/signadot/libconnect/config"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -31,7 +34,14 @@ func GetLocalKubeClient() (client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return client.New(restConfig, client.Options{})
+	s := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(s); err != nil {
+		return nil, fmt.Errorf("couldn't add client-go types to scheme: %w", err)
+	}
+	if err := rolloutapi.AddToScheme(s); err != nil {
+		return nil, fmt.Errorf("couldn't add argo rollout types to scheme: %w", err)
+	}
+	return client.New(restConfig, client.Options{Scheme: s})
 }
 
 func GetLocalStatus() (*sbmapi.StatusResponse, error) {
