@@ -18,13 +18,18 @@ Help the user manage Signadot resources using the `signadot` CLI. If the user sp
 
 ## Configuration
 
+The main configuration for the CLI is authentication (org and optionally api key)
+and configuration for signadot local.
+
 The CLI reads `$HOME/.signadot/config.yaml` by default. Use `--config` to switch:
 
 ```bash
 signadot --config ~/configs/staging.yaml sandbox list
 ```
 
-See the `signadot-install` skill for full config file reference.
+See authentication below for authentication information and the `signadot-local` skill
+for local configuration.
+
 
 ## Authentication
 
