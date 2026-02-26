@@ -25,8 +25,8 @@ type LogFileScanner struct {
 	cfg    *LogFileScannerConfig
 	offset int64
 
-	resumeCh chan struct{}
-	closeCh  chan struct{}
+	resumeCh  chan struct{}
+	closeCh   chan struct{}
 	closeOnce sync.Once
 }
 

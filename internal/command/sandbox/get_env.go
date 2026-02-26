@@ -93,15 +93,15 @@ func getEnv(cfg *config.SandboxGetEnv, out, errOut io.Writer, name string) error
 	resEnv = k8senv.ResolveEnv(ctx, resEnv)
 
 	// print output
-	return printEnv(out, cfg.OutputFormat, resEnv)
+	return printEnv(out, cfg, resEnv)
 }
 
-func printEnv(out io.Writer, oFmt config.OutputFormat, resEnv []k8senv.EnvItem) error {
-	switch oFmt {
+func printEnv(out io.Writer, cfg *config.SandboxGetEnv, resEnv []k8senv.EnvItem) error {
+	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 1, ' ', tabwriter.TabIndent)
 		for _, item := range resEnv {
-			_, err := w.Write([]byte(item.ToShellEval() + "\n"))
+			_, err := w.Write([]byte(item.ToShellEval(cfg.ShowSource) + "\n"))
 			if err != nil {
 				return err
 			}
@@ -112,7 +112,7 @@ func printEnv(out io.Writer, oFmt config.OutputFormat, resEnv []k8senv.EnvItem) 
 	case config.OutputFormatYAML:
 		return print.RawYAML(out, resEnv)
 	default:
-		return fmt.Errorf("unknown output format %q", oFmt)
+		return fmt.Errorf("unknown output format %q", cfg.OutputFormat)
 	}
 }
 

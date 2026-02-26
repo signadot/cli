@@ -22,8 +22,8 @@ type TrafficWatchScanner struct {
 	path   string
 	offset int64
 
-	resumeCh chan struct{}
-	closeCh  chan struct{}
+	resumeCh  chan struct{}
+	closeCh   chan struct{}
 	closeOnce sync.Once
 
 	pendingRequests map[string]*RequestMetadata
