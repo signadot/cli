@@ -1,3 +1,4 @@
+version: 2
 project_name: signadot-cli
 builds:
 - main: ./cmd/signadot
@@ -17,15 +18,23 @@ builds:
   - -X github.com/signadot/cli/internal/buildinfo.BuildDate={{ .Date }}
 archives:
 - id: signadot
+  builds:
+  - signadot
   name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
   files:
   # We don't want any extra files besides the actual binary.
   # Set a pattern that matches nothing to override the default file globs.
   - none*
+- id: signadot-cli-mcp
+  builds:
+  - signadot
+  name_template: "{{ .ProjectName }}_mcp_{{ .Os }}_{{ .Arch }}"
+  files:
+  - none*
 checksum:
   name_template: checksums.txt
 snapshot:
-  name_template: "{{ .Version }}-{{ .ShortCommit }}"
+  version_template: "{{ .Version }}-{{ .ShortCommit }}"
 brews:
 - name: signadot-cli
   description: Command-line interface for Signadot
@@ -34,7 +43,7 @@ brews:
   commit_author:
     name: foxish
     email: info@signadot.com
-  tap:
+  repository:
     owner: signadot
     name: homebrew-tap
   install: |-
@@ -83,3 +92,23 @@ docker_manifests:
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-arm64v8
     create_flags:
       - "--amend"
+mcp:
+  name: io.github.signadot/cli
+  title: Signadot MCP Server
+  description: Connect to Signadot to manage ephemeral environments and route traffic to local services.
+  homepage: https://signadot.com
+  repository:
+    url: https://github.com/signadot/cli
+    source: github
+  packages:
+  - registry_type: mcpb
+    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/signadot-cli_mcp_{{ .Os }}_{{ .Arch }}.tar.gz"
+    transport:
+      type: stdio
+      args:
+      - mcp
+    environment_variables:
+    - name: SIGNADOT_API_KEY
+      description: Signadot API Key
+      is_required: true
+      is_secret: true
