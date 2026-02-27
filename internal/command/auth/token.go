@@ -20,12 +20,10 @@ func newToken(cfg *config.Auth) *cobra.Command {
 }
 
 func runToken(cfg *config.Auth, out io.Writer) error {
-	if err := cfg.InitAPIConfig(); err != nil {
-		return err
+	token, err := cfg.RefreshBearerToken()
+	if err != nil {
+		return fmt.Errorf("could not get token: %w", err)
 	}
-	if cfg.BearerToken == "" {
-		return fmt.Errorf("no bearer token available (API key auth does not provide a token)")
-	}
-	fmt.Fprint(out, cfg.BearerToken)
+	fmt.Fprint(out, token)
 	return nil
 }
