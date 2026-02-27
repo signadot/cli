@@ -16,6 +16,8 @@ builds:
   - -X github.com/signadot/cli/internal/buildinfo.Version=v{{ .Version }}
   - -X github.com/signadot/cli/internal/buildinfo.GitCommit={{ .ShortCommit }}
   - -X github.com/signadot/cli/internal/buildinfo.BuildDate={{ .Date }}
+env:
+  - 'SIGNADOT_IMAGE_SUFFIX={{ index .Env "SIGNADOT_IMAGE_SUFFIX" }}'
 archives:
 - id: signadot
   ids:
