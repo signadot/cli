@@ -128,24 +128,17 @@ func (a *API) checkKeyringAuth(authInfo *auth.ResolvedAuth) error {
 	return nil
 }
 
-// RefreshBearerToken forces a token refresh using the stored refresh token,
-// regardless of whether the current token is expired. It returns the new access token.
-func (a *API) RefreshBearerToken() (string, error) {
-	authInfo, err := auth.ResolveAuth()
-	if err != nil {
-		return "", fmt.Errorf("could not resolve auth: %w", err)
-	}
-	if authInfo == nil || authInfo.RefreshToken == "" {
-		return "", fmt.Errorf("no refresh token available")
-	}
-	if err := a.basicInit(); err != nil {
+// GetBearerToken initializes the API config (refreshing the token if needed)
+// and returns the bearer token. Returns an error if the user is authenticated
+// with an API key instead.
+func (a *API) GetBearerToken() (string, error) {
+	if err := a.InitAPIConfig(); err != nil {
 		return "", err
 	}
-	refreshed, err := a.refreshKeyringAuth(authInfo)
-	if err != nil {
-		return "", err
+	if a.BearerToken == "" {
+		return "", fmt.Errorf("bearer tokens are not used when authenticated with an API key")
 	}
-	return refreshed.BearerToken, nil
+	return a.BearerToken, nil
 }
 
 func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error) {

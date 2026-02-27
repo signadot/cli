@@ -20,7 +20,7 @@ func newToken(cfg *config.Auth) *cobra.Command {
 }
 
 func runToken(cfg *config.Auth, out io.Writer) error {
-	token, err := cfg.RefreshBearerToken()
+	token, err := cfg.GetBearerToken()
 	if err != nil {
 		return fmt.Errorf("could not get token: %w", err)
 	}
