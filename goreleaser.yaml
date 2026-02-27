@@ -25,12 +25,6 @@ archives:
   # We don't want any extra files besides the actual binary.
   # Set a pattern that matches nothing to override the default file globs.
   - none*
-- id: signadot-cli-mcp
-  ids:
-  - signadot
-  name_template: "{{ .ProjectName }}_mcp_{{ .Os }}_{{ .Arch }}"
-  files:
-  - none*
 checksum:
   name_template: checksums.txt
 snapshot:
@@ -76,6 +70,6 @@ mcp:
     source: github
   packages:
   - registry_type: mcpb
-    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/signadot-cli_mcp_{{ .Os }}_{{ .Arch }}.tar.gz"
+    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/signadot-cli_{{ .Os }}_{{ .Arch }}.tar.gz"
     transport:
       type: stdio
