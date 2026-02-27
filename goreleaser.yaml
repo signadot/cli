@@ -100,6 +100,6 @@ mcp:
     source: github
   packages:
   - registry_type: mcpb
-    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/signadot-cli_mcp_{{ .Os }}_{{ .Arch }}.tar.gz"
+    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/{{ .ProjectName }}_mcp_{{ .Os }}_{{ .Arch }}.tar.gz"
     transport:
       type: stdio
