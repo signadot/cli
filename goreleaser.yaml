@@ -46,6 +46,8 @@ homebrew_casks:
   repository:
     owner: signadot
     name: homebrew-tap
+  ids:
+  - signadot
   binaries:
   - signadot
 dockers_v2:
