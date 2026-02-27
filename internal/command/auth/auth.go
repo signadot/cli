@@ -18,6 +18,7 @@ func New(api *config.API) *cobra.Command {
 		newLogin(cfg),
 		newStatus(cfg),
 		newLogout(cfg),
+		newToken(cfg),
 	)
 
 	return cmd

@@ -128,6 +128,19 @@ func (a *API) checkKeyringAuth(authInfo *auth.ResolvedAuth) error {
 	return nil
 }
 
+// GetBearerToken initializes the API config (refreshing the token if needed)
+// and returns the bearer token. Returns an error if the user is authenticated
+// with an API key instead.
+func (a *API) GetBearerToken() (string, error) {
+	if err := a.InitAPIConfig(); err != nil {
+		return "", err
+	}
+	if a.ApiKey != "" {
+		return "", fmt.Errorf("bearer tokens are not used when authenticated with an API key")
+	}
+	return a.BearerToken, nil
+}
+
 func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error) {
 	if err := a.InitUnauthAPIConfig(); err != nil {
 		return nil, err
