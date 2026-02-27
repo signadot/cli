@@ -62,7 +62,14 @@ _download_url() {
     tag="$SIGNADOT_CLI_VERSION"
   fi
 
-  echo "https://github.com/signadot/cli/releases/download/${tag}/signadot-cli_mcp_${os}_${arch}.tar.gz"
+  # Try new naming convention (with _mcp_), fall back to old for older releases
+  new_url="https://github.com/signadot/cli/releases/download/${tag}/signadot-cli_mcp_${os}_${arch}.tar.gz"
+  old_url="https://github.com/signadot/cli/releases/download/${tag}/signadot-cli_${os}_${arch}.tar.gz"
+  if curl -sSLf --head "$new_url" > /dev/null 2>&1; then
+    echo "$new_url"
+  else
+    echo "$old_url"
+  fi
 }
 
 echo "Downloading signadot binary from URL: $(_download_url)"
