@@ -62,7 +62,7 @@ _download_url() {
     tag="$SIGNADOT_CLI_VERSION"
   fi
 
-  echo "https://github.com/signadot/cli/releases/download/${tag}/signadot-cli_${os}_${arch}.tar.gz"
+  echo "https://github.com/signadot/cli/releases/download/${tag}/signadot-cli_mcp_${os}_${arch}.tar.gz"
 }
 
 echo "Downloading signadot binary from URL: $(_download_url)"

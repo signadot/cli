@@ -5,7 +5,7 @@ on:
     - 'v[0-9]+.[0-9]+.[0-9]'
     - 'v[0-9]+.[0-9]+.[0-9]+-xrc.[0-9]+'
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.25"
 
 jobs:
   release-cli:
@@ -49,10 +49,11 @@ jobs:
 
     # run goreleaser
     - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v5
+      uses: goreleaser/goreleaser-action@v6
       with:
-        version: 1.22.1
+        version: "~> v2"
         args: release --clean
       env:
         SIGNADOT_IMAGE_SUFFIX: ''
         GITHUB_TOKEN: ${{ secrets.SIGNADOT_GHA_GOBUILD_PAT }}
+        MCP_GITHUB_TOKEN: ${{ secrets.SIGNADOT_GHA_GOBUILD_PAT }}
