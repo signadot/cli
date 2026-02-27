@@ -135,7 +135,7 @@ func (a *API) GetBearerToken() (string, error) {
 	if err := a.InitAPIConfig(); err != nil {
 		return "", err
 	}
-	if a.BearerToken == "" {
+	if a.ApiKey != "" {
 		return "", fmt.Errorf("bearer tokens are not used when authenticated with an API key")
 	}
 	return a.BearerToken, nil
