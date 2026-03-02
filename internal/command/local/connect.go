@@ -20,6 +20,7 @@ import (
 	"github.com/signadot/cli/internal/devbox"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 	sbmgr "github.com/signadot/cli/internal/locald/sandboxmanager"
+	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/utils/system"
 	clusters "github.com/signadot/go-sdk/client/cluster"
 	"github.com/signadot/go-sdk/client/devboxes"
@@ -37,7 +38,11 @@ func newConnect(localConfig *config.Local) *cobra.Command {
 		Use:   "connect",
 		Short: "Connect local machine to cluster",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runConnect(cmd, cmd.OutOrStdout(), cfg, args)
+			if err := runConnect(cmd, cmd.OutOrStdout(), cfg, args); err != nil {
+				return print.Error(cmd.OutOrStdout(), err, cfg.OutputFormat)
+			}
+
+			return nil
 		},
 	}
 	cfg.AddFlags(cmd)
