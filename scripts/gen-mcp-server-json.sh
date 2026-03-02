@@ -81,7 +81,7 @@ cat > "$OUTPUT" <<EOF
     "url": "https://github.com/signadot/cli",
     "source": "github"
   },
-  "version": "${VERSION}",
+  "version": "${TAG}",
   "packages": [${PACKAGES}
   ]
 }
