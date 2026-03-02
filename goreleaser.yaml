@@ -31,21 +31,19 @@ checksum:
   name_template: checksums.txt
 snapshot:
   version_template: "{{ .Version }}-{{ .ShortCommit }}"
-homebrew_casks:
+brews:
 - name: signadot-cli
   description: Command-line interface for Signadot
   homepage: https://signadot.com
-  directory: Casks
+  directory: Formula
   commit_author:
     name: foxish
     email: info@signadot.com
   repository:
     owner: signadot
     name: homebrew-tap
-  ids:
-  - signadot
-  binaries:
-  - signadot
+  install: |-
+    bin.install "signadot"
 dockers:
   -
     use: buildx
@@ -95,11 +93,25 @@ mcp:
   title: Signadot MCP Server
   description: Connect to Signadot to manage ephemeral environments and route traffic to local services.
   homepage: https://signadot.com
+  auth:
+    type: github
   repository:
     url: https://github.com/signadot/cli
     source: github
   packages:
   - registry_type: mcpb
-    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/{{ .ProjectName }}_mcp_{{ .Os }}_{{ .Arch }}.tar.gz"
+    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/{{ .ProjectName }}_mcp_linux_amd64.tar.gz"
+    transport:
+      type: stdio
+  - registry_type: mcpb
+    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/{{ .ProjectName }}_mcp_linux_arm64.tar.gz"
+    transport:
+      type: stdio
+  - registry_type: mcpb
+    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/{{ .ProjectName }}_mcp_darwin_amd64.tar.gz"
+    transport:
+      type: stdio
+  - registry_type: mcpb
+    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/{{ .ProjectName }}_mcp_darwin_arm64.tar.gz"
     transport:
       type: stdio
