@@ -31,21 +31,19 @@ checksum:
   name_template: checksums.txt
 snapshot:
   version_template: "{{ .Version }}-{{ .ShortCommit }}"
-homebrew_casks:
+brews:
 - name: signadot-cli
   description: Command-line interface for Signadot
   homepage: https://signadot.com
-  directory: Casks
+  directory: Formula
   commit_author:
     name: foxish
     email: info@signadot.com
   repository:
     owner: signadot
     name: homebrew-tap
-  ids:
-  - signadot
-  binaries:
-  - signadot
+  install: |-
+    bin.install "signadot"
 dockers:
   -
     use: buildx
@@ -90,16 +88,3 @@ docker_manifests:
       - signadot/signadot-cli{{ .Env.SIGNADOT_IMAGE_SUFFIX }}:latest-arm64v8
     create_flags:
       - "--amend"
-mcp:
-  name: io.github.signadot/cli
-  title: Signadot MCP Server
-  description: Connect to Signadot to manage ephemeral environments and route traffic to local services.
-  homepage: https://signadot.com
-  repository:
-    url: https://github.com/signadot/cli
-    source: github
-  packages:
-  - registry_type: mcpb
-    identifier: "https://github.com/signadot/cli/releases/download/v{{ .Version }}/{{ .ProjectName }}_mcp_{{ .Os }}_{{ .Arch }}.tar.gz"
-    transport:
-      type: stdio

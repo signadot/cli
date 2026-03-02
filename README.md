@@ -36,6 +36,20 @@ To release the CLI, you can use the release Github action.
 Push a new tag that matches the format `v[0-9]+.[0-9]+.[0-9]`
 and it will push new release artifacts and update brew.
 
+### Post-release: publish to the MCP Registry
+
+After the GitHub release artifacts are live, publish the MCP server entry
+manually. goreleaser does not yet support the `fileSha256` integrity field
+required by the MCP registry for `mcpb` packages.
+
+**Prerequisite:** install [`mcp-publisher`](https://github.com/modelcontextprotocol/registry).
+
+```sh
+./scripts/gen-mcp-server-json.sh <version>   # e.g. v1.5.0 — writes server.json
+mcp-publisher login github
+mcp-publisher publish server.json
+```
+
 ## See Also
 
 The CLI is built on top of the [Go SDK](https://github.com/signadot/go-sdk).
