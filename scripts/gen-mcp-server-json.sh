@@ -2,7 +2,7 @@
 # gen-mcp-server-json.sh - Generate server.json for MCP registry publishing.
 #
 # Usage: ./scripts/gen-mcp-server-json.sh <version>
-# Example: ./scripts/gen-mcp-server-json.sh 1.5.0
+# Example: ./scripts/gen-mcp-server-json.sh v1.5.0
 #
 # Downloads the release archives for the given version, computes their SHA256
 # hashes, and writes server.json to the current directory. Then prints the
@@ -13,7 +13,7 @@ set -euo pipefail
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
   echo "Usage: $0 <version>" >&2
-  echo "Example: $0 1.5.0" >&2
+  echo "Example: $0 v1.5.0" >&2
   exit 1
 fi
 
