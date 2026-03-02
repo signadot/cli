@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
 # gen-mcp-server-json.sh - Generate server.json for MCP registry publishing.
 #
-# Usage: ./scripts/gen-mcp-server-json.sh <tag>
-# Example: ./scripts/gen-mcp-server-json.sh v1.5.0
+# Usage: ./scripts/gen-mcp-server-json.sh <version>
+# Example: ./scripts/gen-mcp-server-json.sh 1.5.0
 #
-# Downloads the release archives for the given tag, computes their SHA256
+# Downloads the release archives for the given version, computes their SHA256
 # hashes, and writes server.json to the current directory. Then prints the
 # commands needed to publish to the MCP registry.
 
 set -euo pipefail
 
-TAG="${1:-}"
-if [ -z "$TAG" ]; then
-  echo "Usage: $0 <tag>" >&2
-  echo "Example: $0 v1.5.0" >&2
+VERSION="${1:-}"
+if [ -z "$VERSION" ]; then
+  echo "Usage: $0 <version>" >&2
+  echo "Example: $0 1.5.0" >&2
   exit 1
 fi
+
+# Strip leading 'v' if present so callers can pass either form.
+VERSION="${VERSION#v}"
+TAG="v${VERSION}"
 
 BASE_URL="https://github.com/signadot/cli/releases/download/${TAG}"
 PLATFORMS=("linux_amd64" "linux_arm64" "darwin_amd64" "darwin_arm64")
@@ -77,7 +81,7 @@ cat > "$OUTPUT" <<EOF
     "url": "https://github.com/signadot/cli",
     "source": "github"
   },
-  "version": "${TAG}",
+  "version": "${VERSION}",
   "packages": [${PACKAGES}
   ]
 }

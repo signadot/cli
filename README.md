@@ -45,7 +45,7 @@ required by the MCP registry for `mcpb` packages.
 **Prerequisite:** install [`mcp-publish`](https://github.com/modelcontextprotocol/registry).
 
 ```sh
-./scripts/gen-mcp-server-json.sh <tag>   # e.g. v1.5.0 — writes server.json
+./scripts/gen-mcp-server-json.sh <version>   # e.g. 1.5.0 — writes server.json
 mcp-publish login github
 mcp-publish publish server.json
 ```
