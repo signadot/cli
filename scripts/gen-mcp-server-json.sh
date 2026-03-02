@@ -93,5 +93,5 @@ echo "" >&2
 
 echo "Run the following commands to publish to the MCP registry:"
 echo ""
-echo "  mcp-publish login github"
-echo "  mcp-publish publish ${OUTPUT}"
+echo "  mcp-publisher login github"
+echo "  mcp-publisher publish ${OUTPUT}"

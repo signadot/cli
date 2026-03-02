@@ -42,12 +42,12 @@ After the GitHub release artifacts are live, publish the MCP server entry
 manually. goreleaser does not yet support the `fileSha256` integrity field
 required by the MCP registry for `mcpb` packages.
 
-**Prerequisite:** install [`mcp-publish`](https://github.com/modelcontextprotocol/registry).
+**Prerequisite:** install [`mcp-publisher`](https://github.com/modelcontextprotocol/registry).
 
 ```sh
 ./scripts/gen-mcp-server-json.sh <version>   # e.g. 1.5.0 — writes server.json
-mcp-publish login github
-mcp-publish publish server.json
+mcp-publisher login github
+mcp-publisher publish server.json
 ```
 
 ## See Also
