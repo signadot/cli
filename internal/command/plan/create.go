@@ -20,7 +20,7 @@ func newCreate(plan *config.Plan) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create -f SPEC_FILE",
-		Short: "Create a plan from a spec file",
+		Short: "Create a plan from a hand-authored spec file",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return create(cfg, cmd.OutOrStdout())

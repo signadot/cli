@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"github.com/signadot/cli/internal/command/plantag"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -10,7 +11,7 @@ func New(api *config.API) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "plan",
-		Short: "Manage plans",
+		Short: "Manage plans (compiled prompts that define runnable workflows)",
 	}
 
 	// Subcommands
@@ -20,6 +21,7 @@ func New(api *config.API) *cobra.Command {
 		newList(cfg),
 		newGet(cfg),
 		newDelete(cfg),
+		plantag.New(cfg),
 	)
 
 	return cmd
