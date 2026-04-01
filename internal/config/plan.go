@@ -25,12 +25,14 @@ type PlanCreate struct {
 
 	// Flags
 	Filename     string
+	Tag          string
 	TemplateVals TemplateVals
 }
 
 func (c *PlanCreate) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "YAML or JSON file containing the plan spec")
 	cmd.MarkFlagRequired("filename")
+	cmd.Flags().StringVar(&c.Tag, "tag", "", "tag the created plan with this name")
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 }
 
