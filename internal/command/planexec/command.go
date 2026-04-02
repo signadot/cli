@@ -19,6 +19,7 @@ func New(plan *config.Plan) *cobra.Command {
 		newCancel(cfg),
 		newOutputs(cfg),
 		newGetOutput(cfg),
+		newLogs(cfg),
 	)
 
 	return cmd
