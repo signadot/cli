@@ -31,7 +31,7 @@ func cancelExec(cfg *config.PlanExecCancel, out, log io.Writer, execID string) e
 	}
 	params := planexecs.NewCancelPlanExecutionParams().
 		WithOrgName(cfg.Org).
-		WithPlanExecutionID(execID)
+		WithExecutionID(execID)
 	resp, err := cfg.Client.PlanExecutions.CancelPlanExecution(params, nil)
 	if err != nil {
 		return err

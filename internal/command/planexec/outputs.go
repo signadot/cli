@@ -32,7 +32,7 @@ func listOutputs(cfg *config.PlanExecOutputs, out io.Writer, execID string) erro
 	}
 	params := planexecs.NewGetPlanExecutionParams().
 		WithOrgName(cfg.Org).
-		WithPlanExecutionID(execID)
+		WithExecutionID(execID)
 	resp, err := cfg.Client.PlanExecutions.GetPlanExecution(params, nil)
 	if err != nil {
 		return err

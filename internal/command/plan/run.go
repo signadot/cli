@@ -94,7 +94,7 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 			cancelParams := planexecs.NewCancelPlanExecutionParams().
 				WithContext(cancelCtx).
 				WithOrgName(cfg.Org).
-				WithPlanExecutionID(execID)
+				WithExecutionID(execID)
 			cfg.Client.PlanExecutions.CancelPlanExecution(cancelParams, nil)
 			os.Exit(2)
 		}
@@ -212,7 +212,7 @@ func pollExecution(ctx context.Context, cfg *config.PlanRun, log io.Writer, exec
 		params := planexecs.NewGetPlanExecutionParams().
 			WithContext(ctx).
 			WithOrgName(cfg.Org).
-			WithPlanExecutionID(execID)
+			WithExecutionID(execID)
 		resp, err := cfg.Client.PlanExecutions.GetPlanExecution(params, nil)
 		if err != nil {
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -284,8 +284,8 @@ func exportOutputs(cfg *config.PlanRun, log io.Writer, exec *models.PlanExecutio
 				}
 				params := planexecs.NewGetPlanExecutionOutputParams().
 					WithOrgName(cfg.Org).
-					WithPlanExecutionID(exec.ID).
-					WithStepOutputName(o.Name)
+					WithExecutionID(exec.ID).
+					WithOutputName(o.Name)
 				_, _, err = c.PlanExecutions.GetPlanExecutionOutput(params, nil, f)
 				f.Close()
 				if err != nil {

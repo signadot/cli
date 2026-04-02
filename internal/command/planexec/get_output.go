@@ -74,9 +74,9 @@ func getOutput(cfg *config.PlanExecGetOutput, out io.Writer, execID, name string
 				params := planexecs.NewGetStepOutputParams().
 					WithTimeout(4*time.Minute).
 					WithOrgName(cfg.Org).
-					WithPlanExecutionID(execID).
+					WithExecutionID(execID).
 					WithStepID(stepID).
-					WithStepOutputName(outputName)
+					WithOutputName(outputName)
 				_, _, err := c.PlanExecutions.GetStepOutput(params, nil, out)
 				if err != nil {
 					return fmt.Errorf("downloading output %q: %w", name, err)
@@ -87,8 +87,8 @@ func getOutput(cfg *config.PlanExecGetOutput, out io.Writer, execID, name string
 			params := planexecs.NewGetPlanExecutionOutputParams().
 				WithTimeout(4*time.Minute).
 				WithOrgName(cfg.Org).
-				WithPlanExecutionID(execID).
-				WithStepOutputName(name)
+				WithExecutionID(execID).
+				WithOutputName(name)
 			_, _, err := c.PlanExecutions.GetPlanExecutionOutput(params, nil, out)
 			if err != nil {
 				return fmt.Errorf("downloading output %q: %w", name, err)
@@ -105,7 +105,7 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 	// Fetch execution to get output list.
 	getParams := planexecs.NewGetPlanExecutionParams().
 		WithOrgName(cfg.Org).
-		WithPlanExecutionID(execID)
+		WithExecutionID(execID)
 	resp, err := cfg.Client.PlanExecutions.GetPlanExecution(getParams, nil)
 	if err != nil {
 		return err
@@ -138,8 +138,8 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 				params := planexecs.NewGetPlanExecutionOutputParams().
 					WithTimeout(4*time.Minute).
 					WithOrgName(cfg.Org).
-					WithPlanExecutionID(execID).
-					WithStepOutputName(o.Name)
+					WithExecutionID(execID).
+					WithOutputName(o.Name)
 				_, _, err = c.PlanExecutions.GetPlanExecutionOutput(params, nil, f)
 				f.Close()
 				if err != nil {
