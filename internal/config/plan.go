@@ -40,10 +40,6 @@ type PlanGet struct {
 	*Plan
 }
 
-type PlanList struct {
-	*Plan
-}
-
 type PlanDelete struct {
 	*Plan
 }
