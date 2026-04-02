@@ -40,6 +40,17 @@ type PlanGet struct {
 	*Plan
 }
 
+type PlanRecompile struct {
+	*Plan
+
+	// Flags
+	Tag string
+}
+
+func (c *PlanRecompile) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.Tag, "tag", "", "tag the recompiled plan with this name")
+}
+
 type PlanDelete struct {
 	*Plan
 }
