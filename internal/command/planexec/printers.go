@@ -155,6 +155,43 @@ func printOutputsTable(out io.Writer, outputs []*models.PlanOutputStatus) error 
 	return t.Flush()
 }
 
+type allOutputRow struct {
+	Name    string `sdtab:"NAME"`
+	Step    string `sdtab:"STEP"`
+	Scope   string `sdtab:"SCOPE"`
+	Storage string `sdtab:"STORAGE"`
+	Size    string `sdtab:"SIZE"`
+	Ready   string `sdtab:"READY"`
+}
+
+func printAllOutputsTable(out io.Writer, outputs []allOutput) error {
+	t := sdtab.New[allOutputRow](out)
+	t.AddHeader()
+	for _, o := range outputs {
+		size := ""
+		ready := "-"
+		if o.Size > 0 {
+			size = units.HumanSize(float64(o.Size))
+		}
+		if o.Ready != nil {
+			if *o.Ready {
+				ready = "true"
+			} else {
+				ready = "false"
+			}
+		}
+		t.AddRow(allOutputRow{
+			Name:    o.Name,
+			Step:    o.Step,
+			Scope:   o.Scope,
+			Storage: o.Type,
+			Size:  size,
+			Ready: ready,
+		})
+	}
+	return t.Flush()
+}
+
 type execRow struct {
 	ID      string `sdtab:"ID"`
 	Plan    string `sdtab:"PLAN"`
