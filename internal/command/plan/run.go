@@ -18,6 +18,7 @@ import (
 	sdkprint "github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
 	sdkclient "github.com/signadot/go-sdk/client"
+	planlogs "github.com/signadot/go-sdk/client/plan_execution_logs"
 	planexecs "github.com/signadot/go-sdk/client/plan_executions"
 	plantags "github.com/signadot/go-sdk/client/plan_tags"
 	"github.com/signadot/go-sdk/models"
@@ -33,6 +34,7 @@ func newRun(plan *config.Plan) *cobra.Command {
 		Long: `Creates an execution of a compiled plan and polls until completion.
 
 Resolve the plan by ID (positional argument) or by tag name (--tag).
+Use --attach to stream structured events (logs, outputs, result) to stdout.
 Exit codes: 0 = completed, 1 = failed, 2 = cancelled.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -48,6 +50,10 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 	ctx, cancel := signal.NotifyContext(context.Background(),
 		os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer cancel()
+
+	if cfg.Attach && cfg.OutputFormat == config.OutputFormatYAML {
+		return fmt.Errorf("--attach does not support -o yaml; use -o json for structured output")
+	}
 
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
@@ -83,12 +89,17 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		return writeRunOutput(cfg, out, createResp.Payload)
 	}
 
-	// Poll for completion.
-	exec, err := pollExecution(ctx, cfg, log, execID)
+	// Wait for completion: attach streams structured events, otherwise poll with spinner.
+	var exec *models.PlanExecution
+	if cfg.Attach {
+		exec, err = attachExecution(ctx, cfg, out, log, execID)
+	} else {
+		exec, err = pollExecution(ctx, cfg, log, execID)
+	}
 	if err != nil {
-		// On interrupt, try to cancel the execution.
-		if errors.Is(err, context.Canceled) {
-			fmt.Fprintf(log, "\nInterrupted, cancelling execution %s...\n", execID)
+		// On interrupt or timeout, try to cancel the execution.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			fmt.Fprintf(log, "\nCancelling execution %s...\n", execID)
 			cancelCtx, cancelCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancelCancel()
 			cancelParams := planexecs.NewCancelPlanExecutionParams().
@@ -108,16 +119,32 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		}
 	}
 
-	// Print result and exit with appropriate code.
-	if err := writeRunOutput(cfg, out, exec); err != nil {
-		return err
+	// In attach mode, events were already emitted to stdout. Just exit.
+	if cfg.Attach {
+		switch exec.Status.Phase {
+		case models.PlansExecutionPhaseFailed:
+			os.Exit(1)
+		case models.PlansExecutionPhaseCancelled:
+			os.Exit(2)
+		}
+		return nil
 	}
 
+	// Print result and exit with appropriate code.
+	// On failure/cancellation, write details to stderr so stdout stays clean.
 	switch exec.Status.Phase {
 	case models.PlansExecutionPhaseFailed:
+		if err := writeRunOutput(cfg, log, exec); err != nil {
+			fmt.Fprintf(log, "error rendering output: %v\n", err)
+		}
 		os.Exit(1)
 	case models.PlansExecutionPhaseCancelled:
+		if err := writeRunOutput(cfg, log, exec); err != nil {
+			fmt.Fprintf(log, "error rendering output: %v\n", err)
+		}
 		os.Exit(2)
+	default:
+		return writeRunOutput(cfg, out, exec)
 	}
 	return nil
 }
@@ -243,6 +270,114 @@ func pollExecution(ctx context.Context, cfg *config.PlanRun, log io.Writer, exec
 		case <-ticker.C:
 		case <-ctx.Done():
 			spin.StopFail()
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Writer, execID string) (*models.PlanExecution, error) {
+	if cfg.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
+		defer cancel()
+	}
+
+	jsonMode := cfg.OutputFormat == config.OutputFormatJSON
+	aw := sdkprint.NewAttachWriter(out, jsonMode)
+
+	// Stream aggregated logs in background, emitting structured events.
+	logCtx, logCancel := context.WithCancel(ctx)
+	defer logCancel()
+
+	logDone := make(chan error, 1)
+	go func() {
+		transportCfg := cfg.GetBaseTransport()
+		transportCfg.Consumers = map[string]runtime.Consumer{
+			"text/event-stream": runtime.ByteStreamConsumer(),
+		}
+		err := cfg.APIClientWithCustomTransport(transportCfg,
+			func(c *sdkclient.SignadotAPI) error {
+				reader, writer := io.Pipe()
+				errch := make(chan error, 2)
+
+				go func() {
+					_, err := sdkprint.ParseSSEAttach(reader, aw)
+					if errors.Is(err, io.ErrClosedPipe) {
+						err = nil
+					}
+					reader.Close()
+					errch <- err
+				}()
+
+				go func() {
+					params := planlogs.NewStreamPlanExecutionLogsParams().
+						WithContext(logCtx).
+						WithTimeout(0).
+						WithOrgName(cfg.Org).
+						WithExecutionID(execID)
+					_, err := c.PlanExecutionLogs.StreamPlanExecutionLogs(params, nil, writer)
+					if errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
+						err = nil
+					}
+					writer.Close()
+					errch <- err
+				}()
+
+				return errors.Join(<-errch, <-errch)
+			})
+		logDone <- err
+	}()
+
+	// Poll for terminal phase.
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		params := planexecs.NewGetPlanExecutionParams().
+			WithContext(ctx).
+			WithOrgName(cfg.Org).
+			WithExecutionID(execID)
+		resp, err := cfg.Client.PlanExecutions.GetPlanExecution(params, nil)
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				logCancel()
+				<-logDone
+				return nil, err
+			}
+		} else if isTerminal(resp.Payload.Status.Phase) {
+			logCancel()
+			<-logDone
+
+			ex := resp.Payload
+			// Emit output events for resolved plan-level outputs.
+			if ex.Status != nil {
+				for _, o := range ex.Status.Outputs {
+					aw.Emit(sdkprint.AttachEvent{
+						Type:  "output",
+						Name:  o.Name,
+						Value: o.Value,
+					})
+				}
+			}
+			// Emit result event.
+			resultEvent := sdkprint.AttachEvent{
+				Type:  "result",
+				ID:    ex.ID,
+				Phase: string(ex.Status.Phase),
+			}
+			if ex.Status.Error != "" {
+				resultEvent.Error = ex.Status.Error
+			}
+			aw.Emit(resultEvent)
+
+			return ex, nil
+		}
+
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			logCancel()
+			<-logDone
 			return nil, ctx.Err()
 		}
 	}
