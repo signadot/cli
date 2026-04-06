@@ -54,7 +54,9 @@ func create(cfg *config.PlanCreate, out, log io.Writer) error {
 		if _, err := plantag.ApplyTag(cfg.Plan, resp.Payload.ID, cfg.Tag); err != nil {
 			return fmt.Errorf("plan created (id=%s) but tagging failed: %w", resp.Payload.ID, err)
 		}
-		fmt.Fprintf(log, "Tagged plan %s as %q\n", resp.Payload.ID, cfg.Tag)
+		if cfg.OutputFormat == config.OutputFormatDefault {
+			fmt.Fprintf(log, "Tagged plan %s as %q\n", resp.Payload.ID, cfg.Tag)
+		}
 	}
 
 	switch cfg.OutputFormat {
