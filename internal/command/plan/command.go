@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"github.com/signadot/cli/internal/command/planexec"
 	"github.com/signadot/cli/internal/command/plantag"
 	"github.com/signadot/cli/internal/config"
 	"github.com/spf13/cobra"
@@ -18,10 +19,12 @@ func New(api *config.API) *cobra.Command {
 	cmd.AddCommand(
 		newCompile(cfg),
 		newCreate(cfg),
-		newList(cfg),
 		newGet(cfg),
 		newDelete(cfg),
+		newRecompile(cfg),
 		plantag.New(cfg),
+		planexec.New(cfg),
+		newRun(cfg),
 	)
 
 	return cmd

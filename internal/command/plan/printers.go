@@ -6,49 +6,11 @@ import (
 	"slices"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
-	"github.com/xeonx/timeago"
 )
-
-type planRow struct {
-	ID       string `sdtab:"ID"`
-	Prompt   string `sdtab:"PROMPT,trunc"`
-	Steps    string `sdtab:"STEPS"`
-	Created  string `sdtab:"CREATED"`
-}
-
-func printPlanTable(out io.Writer, plans []*models.RunnablePlan) error {
-	t := sdtab.New[planRow](out)
-	t.AddHeader()
-	for _, p := range plans {
-		var (
-			prompt string
-			steps  int
-		)
-		if p.Spec != nil {
-			prompt = print.FirstLine(p.Spec.Prompt)
-			steps = len(p.Spec.Steps)
-		}
-		var created string
-		if p.Status != nil && p.Status.CreatedAt != "" {
-			if ts, err := time.Parse(time.RFC3339, p.Status.CreatedAt); err == nil {
-				created = timeago.NoMax(timeago.English).Format(ts)
-			}
-		}
-		t.AddRow(planRow{
-			ID:      p.ID,
-			Prompt:  prompt,
-			Steps:   fmt.Sprintf("%d", steps),
-			Created: created,
-		})
-	}
-	return t.Flush()
-}
 
 func printPlanDetails(out io.Writer, p *models.RunnablePlan) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
