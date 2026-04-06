@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
+	"time"
 
 	"github.com/docker/go-units"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
+	"github.com/xeonx/timeago"
 )
 
 // PrintRunResult prints execution details with output summary for plan run.
@@ -148,6 +150,82 @@ func printOutputsTable(out io.Writer, outputs []*models.PlanOutputStatus) error 
 			Type:  typ,
 			Size:  size,
 			Ready: ready,
+		})
+	}
+	return t.Flush()
+}
+
+type allOutputRow struct {
+	Name    string `sdtab:"NAME"`
+	Step    string `sdtab:"STEP"`
+	Scope   string `sdtab:"SCOPE"`
+	Storage string `sdtab:"STORAGE"`
+	Size    string `sdtab:"SIZE"`
+	Ready   string `sdtab:"READY"`
+}
+
+func printAllOutputsTable(out io.Writer, outputs []allOutput) error {
+	t := sdtab.New[allOutputRow](out)
+	t.AddHeader()
+	for _, o := range outputs {
+		size := ""
+		ready := "-"
+		if o.Size > 0 {
+			size = units.HumanSize(float64(o.Size))
+		}
+		if o.Ready != nil {
+			if *o.Ready {
+				ready = "true"
+			} else {
+				ready = "false"
+			}
+		}
+		t.AddRow(allOutputRow{
+			Name:    o.Name,
+			Step:    o.Step,
+			Scope:   o.Scope,
+			Storage: o.Type,
+			Size:  size,
+			Ready: ready,
+		})
+	}
+	return t.Flush()
+}
+
+type execRow struct {
+	ID      string `sdtab:"ID"`
+	Plan    string `sdtab:"PLAN"`
+	Phase   string `sdtab:"PHASE"`
+	Steps   string `sdtab:"STEPS"`
+	Created string `sdtab:"CREATED"`
+}
+
+func printExecTable(out io.Writer, results []*models.PlanExecutionQueryResult) error {
+	t := sdtab.New[execRow](out)
+	t.AddHeader()
+	for _, r := range results {
+		var plan, phase, steps, created string
+		if r.Spec != nil {
+			plan = r.Spec.PlanID
+		}
+		if r.Status != nil {
+			phase = string(r.Status.Phase)
+			if sc := r.Status.StepCounts; sc != nil {
+				total := sc.Init + sc.Waiting + sc.Running + sc.Completed + sc.Failed + sc.Skipped
+				steps = fmt.Sprintf("%d/%d", sc.Completed, total)
+			}
+			if r.Status.CreatedAt != "" {
+				if ts, err := time.Parse(time.RFC3339, r.Status.CreatedAt); err == nil {
+					created = timeago.NoMax(timeago.English).Format(ts)
+				}
+			}
+		}
+		t.AddRow(execRow{
+			ID:      r.ID,
+			Plan:    plan,
+			Phase:   phase,
+			Steps:   steps,
+			Created: created,
 		})
 	}
 	return t.Flush()
