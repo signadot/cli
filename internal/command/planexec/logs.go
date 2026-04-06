@@ -36,8 +36,7 @@ With a step ID, streams logs for that specific step.`,
 	return cmd
 }
 
-// ShowPlanLogs streams plan execution logs. Exported for use by signadot logs --plan.
-func ShowPlanLogs(ctx context.Context, cfg *config.API, out io.Writer, execID, stepID, stream string, tailLines int) error {
+func showPlanLogs(ctx context.Context, cfg *config.API, out io.Writer, execID, stepID, stream string, tailLines int) error {
 	transportCfg := cfg.GetBaseTransport()
 	transportCfg.Consumers = map[string]runtime.Consumer{
 		"text/event-stream": runtime.ByteStreamConsumer(),
@@ -111,5 +110,5 @@ func streamLogs(cfg *config.PlanExecLogs, out io.Writer, args []string) error {
 		stepID = args[1]
 	}
 
-	return ShowPlanLogs(ctx, cfg.API, out, execID, stepID, cfg.Stream, int(cfg.TailLines))
+	return showPlanLogs(ctx, cfg.API, out, execID, stepID, cfg.Stream, int(cfg.TailLines))
 }

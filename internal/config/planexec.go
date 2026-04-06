@@ -27,6 +27,21 @@ type PlanExecGetOutput struct {
 	Metadata bool
 }
 
+type PlanExecList struct {
+	*PlanExecution
+
+	// Flags
+	PlanID string
+	Tag    string
+	Phase  string
+}
+
+func (c *PlanExecList) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.PlanID, "plan", "", "filter by plan ID")
+	cmd.Flags().StringVar(&c.Tag, "tag", "", "filter by plan tag name")
+	cmd.Flags().StringVar(&c.Phase, "phase", "", "filter by execution phase")
+}
+
 type PlanExecLogs struct {
 	*PlanExecution
 

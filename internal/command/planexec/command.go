@@ -15,6 +15,7 @@ func New(plan *config.Plan) *cobra.Command {
 	}
 
 	cmd.AddCommand(
+		newList(cfg),
 		newGet(cfg),
 		newCancel(cfg),
 		newOutputs(cfg),
