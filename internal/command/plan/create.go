@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/signadot/cli/internal/command/plantag"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/jsonexact"
 	"github.com/signadot/cli/internal/print"
@@ -20,10 +21,10 @@ func newCreate(plan *config.Plan) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "create -f SPEC_FILE",
-		Short: "Create a plan from a spec file",
+		Short: "Create a plan from a hand-authored spec file",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return create(cfg, cmd.OutOrStdout())
+			return create(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
 		},
 	}
 
@@ -31,7 +32,7 @@ func newCreate(plan *config.Plan) *cobra.Command {
 	return cmd
 }
 
-func create(cfg *config.PlanCreate, out io.Writer) error {
+func create(cfg *config.PlanCreate, out, log io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -47,6 +48,13 @@ func create(cfg *config.PlanCreate, out io.Writer) error {
 	resp, err := cfg.Client.Plans.CreatePlan(params, nil)
 	if err != nil {
 		return err
+	}
+
+	if cfg.Tag != "" {
+		if _, err := plantag.ApplyTag(cfg.Plan, resp.Payload.ID, cfg.Tag); err != nil {
+			return fmt.Errorf("plan created (id=%s) but tagging failed: %w", resp.Payload.ID, err)
+		}
+		fmt.Fprintf(log, "Tagged plan %s as %q\n", resp.Payload.ID, cfg.Tag)
 	}
 
 	switch cfg.OutputFormat {

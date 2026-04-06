@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/signadot/cli/internal/command/plantag"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	sdkplans "github.com/signadot/go-sdk/client/plans"
@@ -18,7 +19,7 @@ func newCompile(plan *config.Plan) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "compile -f PROMPT_FILE",
-		Short: "Compile a prompt into a plan",
+		Short: "Compile a natural-language prompt into a runnable plan",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return compile(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr())
@@ -62,7 +63,7 @@ func compile(cfg *config.PlanCompile, out, log io.Writer) error {
 
 	// If --tag was provided, tag the compiled plan.
 	if cfg.Tag != "" {
-		if err := tagPlan(cfg.Plan, resp.Payload.ID, cfg.Tag); err != nil {
+		if _, err := plantag.ApplyTag(cfg.Plan, resp.Payload.ID, cfg.Tag); err != nil {
 			return fmt.Errorf("plan compiled (id=%s) but tagging failed: %w", resp.Payload.ID, err)
 		}
 		fmt.Fprintf(log, "Tagged plan %s as %q\n", resp.Payload.ID, cfg.Tag)
