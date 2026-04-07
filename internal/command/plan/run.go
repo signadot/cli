@@ -70,8 +70,9 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 
 	// Create execution.
 	spec := &models.PlanExecutionSpec{
-		PlanID: planID,
-		Params: params,
+		PlanID:  planID,
+		Cluster: cfg.Cluster,
+		Params:  params,
 	}
 	createParams := planexecs.NewCreatePlanExecutionParams().
 		WithContext(ctx).

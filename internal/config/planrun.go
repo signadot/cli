@@ -11,6 +11,7 @@ type PlanRun struct {
 
 	// Flags
 	Tag       string
+	Cluster   string
 	Params    TemplateVals
 	Wait      bool
 	Attach    bool
@@ -20,6 +21,7 @@ type PlanRun struct {
 
 func (c *PlanRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Tag, "tag", "", "run the plan referenced by this tag (alternative to plan ID argument)")
+	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "target cluster for the execution")
 	cmd.Flags().Var(&c.Params, "param", "parameter in key=value form (can be repeated)")
 	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for execution to complete")
 	cmd.Flags().BoolVar(&c.Attach, "attach", false, "stream structured events (logs, outputs, result) to stdout")
