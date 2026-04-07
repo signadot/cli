@@ -21,7 +21,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/signadot/go-sdk v0.3.8-0.20260402222445-b8b5bc1f40c0
+	github.com/signadot/go-sdk v0.3.8-0.20260407201055-78b3ac589bac
 	github.com/signadot/libconnect v0.1.1-0.20260224205539-f894c2d0a57e
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
@@ -146,9 +146,9 @@ require (
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.4.2 // indirect
-	go.opentelemetry.io/otel v1.42.0 // indirect
-	go.opentelemetry.io/otel/metric v1.42.0 // indirect
-	go.opentelemetry.io/otel/trace v1.42.0 // indirect
+	go.opentelemetry.io/otel v1.43.0 // indirect
+	go.opentelemetry.io/otel/metric v1.43.0 // indirect
+	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
