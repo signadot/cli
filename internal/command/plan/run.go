@@ -94,7 +94,9 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		return fmt.Errorf("creating execution: %w", err)
 	}
 	execID := createResp.Payload.ID
-	fmt.Fprintf(log, "Created execution %s for plan %s\n", execID, planID)
+	if cfg.OutputFormat == config.OutputFormatDefault {
+		fmt.Fprintf(log, "Created execution %s for plan %s\n", execID, planID)
+	}
 
 	// Fire-and-forget mode.
 	if !cfg.Wait {
@@ -296,7 +298,11 @@ func pollExecution(ctx context.Context, cfg *config.PlanRun, log io.Writer, exec
 		defer cancel()
 	}
 
-	spin := spinner.Start(log, "Execution")
+	spinWriter := log
+	if cfg.OutputFormat != config.OutputFormatDefault {
+		spinWriter = io.Discard
+	}
+	spin := spinner.Start(spinWriter, "Execution")
 	defer spin.Stop()
 
 	ticker := time.NewTicker(2 * time.Second)
