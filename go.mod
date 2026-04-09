@@ -21,7 +21,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/signadot/go-sdk v0.3.8-0.20260407201055-78b3ac589bac
+	github.com/signadot/go-sdk v0.3.8-0.20260409131400-73b58199c972
 	github.com/signadot/libconnect v0.1.1-0.20260224205539-f894c2d0a57e
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
@@ -152,7 +152,7 @@ require (
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/oauth2 v0.32.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
+	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
