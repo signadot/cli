@@ -20,6 +20,7 @@ import (
 	sdkclient "github.com/signadot/go-sdk/client"
 	planlogs "github.com/signadot/go-sdk/client/plan_execution_logs"
 	planexecs "github.com/signadot/go-sdk/client/plan_executions"
+	sdkplans "github.com/signadot/go-sdk/client/plans"
 	plantags "github.com/signadot/go-sdk/client/plan_tags"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
@@ -59,19 +60,30 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		return err
 	}
 
-	// Resolve plan ID.
-	planID, err := resolvePlanID(cfg, args)
+	// Resolve and fetch plan.
+	plan, err := resolvePlan(ctx, cfg, args)
 	if err != nil {
 		return err
 	}
+	planID := plan.ID
+	planSpec := plan.Spec
 
 	// Build params.
 	params := buildParams(cfg.Params)
+	if params == nil && (cfg.Sandbox != "" || cfg.RouteGroup != "") {
+		params = make(map[string]any)
+	}
+
+	// Apply --sandbox / --route-group to params.
+	if err := applyRoutingFlags(cfg, planSpec, params); err != nil {
+		return err
+	}
 
 	// Create execution.
 	spec := &models.PlanExecutionSpec{
-		PlanID: planID,
-		Params: params,
+		PlanID:  planID,
+		Cluster: cfg.Cluster,
+		Params:  params,
 	}
 	createParams := planexecs.NewCreatePlanExecutionParams().
 		WithContext(ctx).
@@ -149,27 +161,38 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 	return nil
 }
 
-func resolvePlanID(cfg *config.PlanRun, args []string) (string, error) {
+func resolvePlan(ctx context.Context, cfg *config.PlanRun, args []string) (*models.RunnablePlan, error) {
 	if cfg.Tag != "" && len(args) > 0 {
-		return "", fmt.Errorf("specify either a plan ID argument or --tag, not both")
+		return nil, fmt.Errorf("specify either a plan ID argument or --tag, not both")
 	}
 	if cfg.Tag == "" && len(args) == 0 {
-		return "", fmt.Errorf("specify a plan ID argument or --tag")
+		return nil, fmt.Errorf("specify a plan ID argument or --tag")
 	}
+
 	if cfg.Tag != "" {
-		params := plantags.NewGetPlanTagParams().
+		tagParams := plantags.NewGetPlanTagParams().
+			WithContext(ctx).
 			WithOrgName(cfg.Org).
 			WithPlanTagName(cfg.Tag)
-		resp, err := cfg.Client.PlanTags.GetPlanTag(params, nil)
+		resp, err := cfg.Client.PlanTags.GetPlanTag(tagParams, nil)
 		if err != nil {
-			return "", fmt.Errorf("resolving tag %q: %w", cfg.Tag, err)
+			return nil, fmt.Errorf("resolving tag %q: %w", cfg.Tag, err)
 		}
-		if resp.Payload.Spec == nil || resp.Payload.Spec.PlanID == "" {
-			return "", fmt.Errorf("tag %q has no plan ID", cfg.Tag)
+		if resp.Payload.Plan == nil {
+			return nil, fmt.Errorf("tag %q has no plan", cfg.Tag)
 		}
-		return resp.Payload.Spec.PlanID, nil
+		return resp.Payload.Plan, nil
 	}
-	return args[0], nil
+
+	getParams := sdkplans.NewGetPlanParams().
+		WithContext(ctx).
+		WithOrgName(cfg.Org).
+		WithPlanID(args[0])
+	resp, err := cfg.Client.Plans.GetPlan(getParams, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetching plan: %w", err)
+	}
+	return resp.Payload, nil
 }
 
 func buildParams(tplVals config.TemplateVals) map[string]any {
@@ -210,6 +233,50 @@ func looksLikeJSON(s string) bool {
 		return json.Unmarshal([]byte(s), &v) == nil
 	}
 	return false
+}
+
+func applyRoutingFlags(cfg *config.PlanRun, planSpec *models.PlanSpec, params map[string]any) error {
+	if cfg.Sandbox == "" && cfg.RouteGroup == "" {
+		return nil
+	}
+
+	aff := planSpec.Cluster
+	if aff == nil {
+		if cfg.Sandbox != "" {
+			return fmt.Errorf("plan does not accept a sandbox parameter")
+		}
+		return fmt.Errorf("plan does not accept a route group parameter")
+	}
+
+	if cfg.Sandbox != "" {
+		if aff.FromAnyTarget != "" {
+			raw, err := json.Marshal(models.RoutingTarget{Sandbox: cfg.Sandbox})
+			if err != nil {
+				return fmt.Errorf("marshalling routing target: %w", err)
+			}
+			params[aff.FromAnyTarget] = json.RawMessage(raw)
+		} else if aff.FromSandbox != "" {
+			params[aff.FromSandbox] = cfg.Sandbox
+		} else {
+			return fmt.Errorf("plan does not accept a sandbox parameter")
+		}
+	}
+
+	if cfg.RouteGroup != "" {
+		if aff.FromAnyTarget != "" {
+			raw, err := json.Marshal(models.RoutingTarget{RouteGroup: cfg.RouteGroup})
+			if err != nil {
+				return fmt.Errorf("marshalling routing target: %w", err)
+			}
+			params[aff.FromAnyTarget] = json.RawMessage(raw)
+		} else if aff.FromRouteGroup != "" {
+			params[aff.FromRouteGroup] = cfg.RouteGroup
+		} else {
+			return fmt.Errorf("plan does not accept a route group parameter")
+		}
+	}
+
+	return nil
 }
 
 func isTerminal(phase models.PlansExecutionPhase) bool {
