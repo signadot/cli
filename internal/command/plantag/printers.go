@@ -16,6 +16,8 @@ import (
 type tagRow struct {
 	Name    string `sdtab:"NAME"`
 	PlanID  string `sdtab:"PLAN ID"`
+	Steps   string `sdtab:"STEPS"`
+	Prompt  string `sdtab:"PROMPT"`
 	Created string `sdtab:"CREATED"`
 	Updated string `sdtab:"UPDATED"`
 }
@@ -24,9 +26,13 @@ func printTagTable(out io.Writer, tags []*models.PlanTag) error {
 	t := sdtab.New[tagRow](out)
 	t.AddHeader()
 	for _, tag := range tags {
-		var planID, created, updated string
+		var planID, steps, prompt, created, updated string
 		if tag.Spec != nil {
 			planID = tag.Spec.PlanID
+		}
+		if tag.Plan != nil && tag.Plan.Spec != nil {
+			steps = fmt.Sprintf("%d", len(tag.Plan.Spec.Steps))
+			prompt = print.FirstLine(tag.Plan.Spec.Prompt)
 		}
 		if tag.Status != nil {
 			if tag.Status.CreatedAt != "" {
@@ -43,6 +49,8 @@ func printTagTable(out io.Writer, tags []*models.PlanTag) error {
 		t.AddRow(tagRow{
 			Name:    tag.Name,
 			PlanID:  planID,
+			Steps:   steps,
+			Prompt:  prompt,
 			Created: created,
 			Updated: updated,
 		})
