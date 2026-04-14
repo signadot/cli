@@ -28,13 +28,30 @@ func newOutputs(exec *config.PlanExecution) *cobra.Command {
 }
 
 // allOutput unifies plan-level and step-level outputs for display.
+// Size has no omitempty so a 0-byte output (e.g. a silent stdout)
+// shows "size": 0 in sidecars rather than being elided — a missing
+// field would be ambiguous with "size not reported".
 type allOutput struct {
 	Name  string `json:"name"`
-	Step  string `json:"step"`
+	Step  string `json:"step,omitempty"`
 	Scope string `json:"scope"` // "plan" or "step"
 	Type  string `json:"type"`  // "inline" or "artifact"
-	Size  int64  `json:"size,omitempty"`
+	Size  int64  `json:"size"`
 	Ready *bool  `json:"ready,omitempty"`
+}
+
+// outputSidecar is the .meta.json content written alongside each
+// exported output under --all --metadata. It combines derived fields
+// (name, scope, step, type, size, ready) with the server-supplied
+// Content-Type and any explicit metadata the step or plan declared,
+// so the reader can tell what an exported file is without opening it.
+type outputSidecar struct {
+	allOutput
+	// ContentType is the Content-Type header the apiserver returned
+	// when downloading this output. Omitted when absent (e.g. drill
+	// paths that don't set it, or older servers).
+	ContentType string            `json:"contentType,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
 }
 
 func listOutputs(cfg *config.PlanExecOutputs, out io.Writer, execID string) error {
