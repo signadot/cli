@@ -48,9 +48,15 @@ type PlanExecLogs struct {
 	// Flags
 	Stream    string
 	TailLines uint
+	Follow    bool
+	All       bool
+	Dir       string
 }
 
 func (c *PlanExecLogs) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&c.Follow, "follow", "f", false, "stream live logs (SSE)")
 	cmd.Flags().StringVarP(&c.Stream, "stream", "s", "stdout", "stream type (stdout or stderr), only used with a step ID")
-	cmd.Flags().UintVarP(&c.TailLines, "tail", "t", 0, "number of lines from the end to show (0 = all)")
+	cmd.Flags().UintVarP(&c.TailLines, "tail", "t", 0, "number of lines from the end to show (live streaming only; 0 = all)")
+	cmd.Flags().BoolVar(&c.All, "all", false, "export captured logs for all steps")
+	cmd.Flags().StringVar(&c.Dir, "dir", "", "directory to export logs to (requires --all)")
 }
