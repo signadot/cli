@@ -31,7 +31,7 @@ Single output:
 
 Bulk export:
   signadot plan x get-output <exec-id> --all --dir ./outputs/
-  signadot plan x get-output <exec-id> --all --dir ./outputs/ --metadata`,
+  signadot plan x get-output <exec-id> --all --dir ./outputs/ --metadata=false  # skip sidecars`,
 		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cfg.All {
@@ -52,7 +52,8 @@ Bulk export:
 
 	cmd.Flags().BoolVar(&cfg.All, "all", false, "export all outputs")
 	cmd.Flags().StringVar(&cfg.Dir, "dir", "", "directory to export outputs to (requires --all)")
-	cmd.Flags().BoolVar(&cfg.Metadata, "metadata", false, "write metadata sidecar JSON files (requires --all)")
+	cmd.Flags().BoolVar(&cfg.Metadata, "metadata", true,
+		"write .meta.json sidecar files alongside each exported output (requires --all; pass --metadata=false to disable)")
 
 	return cmd
 }
@@ -119,7 +120,10 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 		return nil
 	}
 
-	// Build a metadata lookup from the raw response for sidecar export.
+	// Build a metadata lookup keyed by qualified name (<name> for plan
+	// outputs, <step>/<name> for step outputs). Outputs without any
+	// explicit metadata map to nil entries — sidecars are still written
+	// for them using the derived fields alone.
 	metadataMap := buildMetadataMap(resp.Payload)
 
 	if err := os.MkdirAll(cfg.Dir, 0o755); err != nil {
@@ -153,7 +157,12 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 				}
 
 				// Download using the appropriate API based on scope.
+				// Capture Content-Type from the response so the sidecar
+				// can record the server-supplied value rather than a
+				// re-derived one (keeps the server's
+				// plans.ResolveContentType as the single source of truth).
 				qualName := o.Name
+				var contentType string
 				if o.Scope == "step" {
 					qualName = o.Step + "/" + o.Name
 					params := planexecs.NewGetStepOutputParams().
@@ -162,14 +171,28 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 						WithExecutionID(execID).
 						WithStepID(o.Step).
 						WithOutputName(o.Name)
-					_, _, err = c.PlanExecutions.GetStepOutput(params, nil, f)
+					ok, partial, getErr := c.PlanExecutions.GetStepOutput(params, nil, f)
+					err = getErr
+					switch {
+					case ok != nil:
+						contentType = ok.ContentType
+					case partial != nil:
+						contentType = partial.ContentType
+					}
 				} else {
 					params := planexecs.NewGetPlanExecutionOutputParams().
 						WithTimeout(4*time.Minute).
 						WithOrgName(cfg.Org).
 						WithExecutionID(execID).
 						WithOutputName(o.Name)
-					_, _, err = c.PlanExecutions.GetPlanExecutionOutput(params, nil, f)
+					ok, partial, getErr := c.PlanExecutions.GetPlanExecutionOutput(params, nil, f)
+					err = getErr
+					switch {
+					case ok != nil:
+						contentType = ok.ContentType
+					case partial != nil:
+						contentType = partial.ContentType
+					}
 				}
 				f.Close()
 				if err != nil {
@@ -177,19 +200,27 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 				}
 				fmt.Fprintf(log, "Exported %s\n", outPath)
 
-				// Write metadata sidecar if requested.
+				// Write sidecar. --metadata is on by default; pass
+				// --metadata=false to disable. The sidecar is always
+				// emitted (regardless of whether the output carries
+				// explicit metadata) so the derived fields — scope,
+				// step, inline vs artifact, size, ready, contentType —
+				// are visible to the reader without another round-trip.
 				if cfg.Metadata {
-					if meta := metadataMap[qualName]; meta != nil {
-						metaPath := outPath + ".meta.json"
-						metaJSON, err := json.MarshalIndent(meta, "", "  ")
-						if err != nil {
-							return fmt.Errorf("marshaling metadata for %q: %w", qualName, err)
-						}
-						if err := os.WriteFile(metaPath, metaJSON, 0o644); err != nil {
-							return fmt.Errorf("writing %s: %w", metaPath, err)
-						}
-						fmt.Fprintf(log, "Exported %s\n", metaPath)
+					sidecar := outputSidecar{
+						allOutput:   o,
+						ContentType: contentType,
+						Metadata:    metadataMap[qualName],
 					}
+					metaPath := outPath + ".meta.json"
+					metaJSON, err := json.MarshalIndent(sidecar, "", "  ")
+					if err != nil {
+						return fmt.Errorf("marshaling sidecar for %q: %w", qualName, err)
+					}
+					if err := os.WriteFile(metaPath, metaJSON, 0o644); err != nil {
+						return fmt.Errorf("writing %s: %w", metaPath, err)
+					}
+					fmt.Fprintf(log, "Exported %s\n", metaPath)
 				}
 			}
 			return nil
@@ -198,19 +229,24 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 
 // buildMetadataMap extracts metadata from plan-level and step-level outputs,
 // keyed by "name" (plan-level) or "step/name" (step-level).
-func buildMetadataMap(ex *models.PlanExecution) map[string]any {
-	m := map[string]any{}
+// buildMetadataMap returns each output's explicit metadata keyed by
+// qualified name: "<name>" for plan-level outputs, "<step>/<name>" for
+// step-level outputs. Outputs that carry no explicit metadata are
+// absent from the map (so a lookup returns a nil map, which is the
+// correct omitempty signal for the sidecar).
+func buildMetadataMap(ex *models.PlanExecution) map[string]map[string]string {
+	m := map[string]map[string]string{}
 	if ex.Status == nil {
 		return m
 	}
 	for _, o := range ex.Status.Outputs {
-		if o.Metadata != nil {
+		if len(o.Metadata) > 0 {
 			m[o.Name] = o.Metadata
 		}
 	}
 	for _, s := range ex.Status.Steps {
 		for _, o := range s.Outputs {
-			if o.Metadata != nil {
+			if len(o.Metadata) > 0 {
 				m[s.ID+"/"+o.Name] = o.Metadata
 			}
 		}
