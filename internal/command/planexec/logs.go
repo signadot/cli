@@ -75,6 +75,9 @@ func runLogs(cfg *config.PlanExecLogs, out, log io.Writer, args []string) error 
 			return fmt.Errorf("--all cannot be combined with -f")
 		}
 	}
+	if cfg.Dir != "" && !cfg.All {
+		return fmt.Errorf("--dir requires --all")
+	}
 
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
@@ -98,12 +101,12 @@ func runLogs(cfg *config.PlanExecLogs, out, log io.Writer, args []string) error 
 	case stepID != "":
 		return downloadStepLog(cfg, out, execID, stepID)
 	default:
-		return listCapturedLogs(cfg, out, execID)
+		return listCapturedLogs(cfg, out, log, execID)
 	}
 }
 
 // listCapturedLogs prints a table of captured log streams.
-func listCapturedLogs(cfg *config.PlanExecLogs, out io.Writer, execID string) error {
+func listCapturedLogs(cfg *config.PlanExecLogs, out, log io.Writer, execID string) error {
 	params := planexecs.NewGetPlanExecutionParams().
 		WithOrgName(cfg.Org).
 		WithExecutionID(execID)
@@ -111,20 +114,20 @@ func listCapturedLogs(cfg *config.PlanExecLogs, out io.Writer, execID string) er
 	if err != nil {
 		return err
 	}
-	return renderCapturedLogs(out, resp.Payload, cfg.OutputFormat)
+	return renderCapturedLogs(out, log, resp.Payload, cfg.OutputFormat)
 }
 
 // renderCapturedLogs writes the captured-log view for an execution. Extracted
 // from listCapturedLogs so it can be tested without an API round-trip.
-func renderCapturedLogs(out io.Writer, ex *models.PlanExecution, format config.OutputFormat) error {
+// The hint is written to log (stderr) so piped output stays clean.
+func renderCapturedLogs(out, log io.Writer, ex *models.PlanExecution, format config.OutputFormat) error {
 	logs := collectAllLogs(ex)
 	running := ex != nil && ex.Status != nil && !isTerminalPhase(ex.Status.Phase)
 
 	switch format {
 	case config.OutputFormatDefault:
 		if running {
-			fmt.Fprintln(out, "Execution is still running. Captured logs appear as steps complete. Use -f to stream live.")
-			fmt.Fprintln(out)
+			fmt.Fprintln(log, "Execution is still running. Captured logs appear as steps complete. Use -f to stream live.")
 		}
 		return printLogsTable(out, logs)
 	case config.OutputFormatJSON:
@@ -227,9 +230,16 @@ func bulkExportLogs(cfg *config.PlanExecLogs, log io.Writer, execID string) erro
 	}
 	var logs []stepLog
 	for _, s := range resp.Payload.Status.Steps {
+		if err := validatePathComponent(s.ID); err != nil {
+			return fmt.Errorf("unsafe step ID %q: %w", s.ID, err)
+		}
 		for _, l := range s.Logs {
+			stream := string(l.Stream)
+			if err := validatePathComponent(stream); err != nil {
+				return fmt.Errorf("unsafe stream name %q: %w", stream, err)
+			}
 			ready := l.Artifact == nil || l.Artifact.Ready
-			logs = append(logs, stepLog{StepID: s.ID, Stream: string(l.Stream), Ready: ready})
+			logs = append(logs, stepLog{StepID: s.ID, Stream: stream, Ready: ready})
 		}
 	}
 	if len(logs) == 0 {
@@ -275,6 +285,7 @@ func bulkExportLogs(cfg *config.PlanExecLogs, log io.Writer, execID string) erro
 				_, _, dlErr := c.PlanExecutionLogs.DownloadStepLog(params, nil, f)
 				f.Close()
 				if dlErr != nil {
+					os.Remove(outPath)
 					return fmt.Errorf("downloading %s/%s: %w", sl.StepID, sl.Stream, dlErr)
 				}
 				fmt.Fprintf(log, "Exported %s\n", outPath)
@@ -355,7 +366,7 @@ type logEntry struct {
 }
 
 func collectAllLogs(ex *models.PlanExecution) []logEntry {
-	if ex.Status == nil {
+	if ex == nil || ex.Status == nil {
 		return nil
 	}
 	var entries []logEntry
@@ -393,7 +404,7 @@ func printLogsTable(out io.Writer, logs []logEntry) error {
 	t := sdtab.New[logRow](out)
 	t.AddHeader()
 	for _, l := range logs {
-		size := ""
+		size := "—"
 		ready := "-"
 		if l.Size > 0 {
 			size = units.HumanSize(float64(l.Size))
@@ -414,6 +425,18 @@ func printLogsTable(out io.Writer, logs []logEntry) error {
 		})
 	}
 	return t.Flush()
+}
+
+// --- Validation helpers ---
+
+// validatePathComponent rejects values that could escape the export directory
+// when used as a path segment (e.g. "..", absolute paths, slashes).
+func validatePathComponent(name string) error {
+	cleaned := filepath.Clean(name)
+	if cleaned != name || name == ".." || strings.ContainsAny(name, `/\`) || filepath.IsAbs(name) {
+		return fmt.Errorf("contains path separator or traversal")
+	}
+	return nil
 }
 
 // --- Phase helpers ---
