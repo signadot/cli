@@ -191,7 +191,7 @@ func diagnoseMissingLog(cfg *config.PlanExecLogs, execID, stepID string) string 
 		return fmt.Sprintf("step %q is still %s; use -f to stream live logs", stepID, step.Phase)
 	}
 	if len(step.Logs) == 0 {
-		return fmt.Sprintf("step %q has no captured logs", stepID)
+		return fmt.Sprintf("step %q has no captured logs; if it just completed, retry in a moment", stepID)
 	}
 	var available []string
 	for _, l := range step.Logs {
@@ -215,14 +215,21 @@ func bulkExportLogs(cfg *config.PlanExecLogs, log io.Writer, execID string) erro
 		return nil
 	}
 
+	// Warn if execution is still running — the export will be a partial snapshot.
+	if !isTerminalPhase(resp.Payload.Status.Phase) {
+		fmt.Fprintf(log, "Warning: execution is still %s; export may be incomplete.\n", resp.Payload.Status.Phase)
+	}
+
 	type stepLog struct {
 		StepID string
 		Stream string
+		Ready  bool
 	}
 	var logs []stepLog
 	for _, s := range resp.Payload.Status.Steps {
 		for _, l := range s.Logs {
-			logs = append(logs, stepLog{StepID: s.ID, Stream: string(l.Stream)})
+			ready := l.Artifact == nil || l.Artifact.Ready
+			logs = append(logs, stepLog{StepID: s.ID, Stream: string(l.Stream), Ready: ready})
 		}
 	}
 	if len(logs) == 0 {
@@ -243,6 +250,11 @@ func bulkExportLogs(cfg *config.PlanExecLogs, log io.Writer, execID string) erro
 	return cfg.APIClientWithCustomTransport(transportCfg,
 		func(c *client.SignadotAPI) error {
 			for _, sl := range logs {
+				if !sl.Ready {
+					fmt.Fprintf(log, "Skipped %s/%s (artifact not ready)\n", sl.StepID, sl.Stream)
+					continue
+				}
+
 				stepDir := filepath.Join(cfg.Dir, sl.StepID)
 				if err := os.MkdirAll(stepDir, 0o755); err != nil {
 					return fmt.Errorf("creating %s: %w", stepDir, err)
