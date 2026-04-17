@@ -42,3 +42,15 @@ type PlanRunnerGroupGet struct {
 type PlanRunnerGroupList struct {
 	*PlanRunnerGroup
 }
+
+type PlanRunnerGroupImagePush struct {
+	*PlanRunnerGroup
+
+	Platform string
+	File     string
+}
+
+func (c *PlanRunnerGroupImagePush) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.Platform, "platform", "", "Target platform (e.g. linux/arm64). Auto-detected from PRG pod if omitted.")
+	cmd.Flags().StringVarP(&c.File, "file", "f", "", "Path to an existing OCI archive to upload (skip registry pull)")
+}

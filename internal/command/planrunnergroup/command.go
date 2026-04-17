@@ -21,6 +21,7 @@ func New(api *config.API) *cobra.Command {
 		newList(cfg),
 		newApply(cfg),
 		newDelete(cfg),
+		newImage(cfg),
 	)
 
 	return cmd
