@@ -4,8 +4,10 @@ import (
 	"archive/tar"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-openapi/runtime"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -89,6 +91,7 @@ func imagePush(cfg *config.PlanRunnerGroupImagePush, out, errOut io.Writer, prgN
 	transportCfg.Producers = map[string]runtime.Producer{
 		"application/x-tar": runtime.ByteStreamProducer(),
 	}
+	transportCfg.HTTPClient = &http.Client{Timeout: 30 * time.Minute}
 
 	var result *sdtransport.UploadPRGImageResult
 	err := cfg.APIClientWithCustomTransport(transportCfg,
