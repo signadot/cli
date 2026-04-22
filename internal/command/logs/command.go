@@ -2,13 +2,13 @@ package logs
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/go-openapi/runtime"
-	"github.com/jclem/sseparser"
 	"github.com/signadot/cli/internal/config"
+	sdkprint "github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client"
 	"github.com/signadot/go-sdk/client/job_logs"
 	"github.com/signadot/go-sdk/utils"
@@ -32,6 +32,10 @@ func New(api *config.API) *cobra.Command {
 }
 
 func showLogs(ctx context.Context, outW, errW io.Writer, cfg *config.Logs) error {
+	if cfg.Job == "" {
+		return fmt.Errorf("must specify --job")
+	}
+
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -46,16 +50,6 @@ func showLogs(ctx context.Context, outW, errW io.Writer, cfg *config.Logs) error
 
 	_, err := ShowLogs(ctx, cfg.API, w, cfg.Job, cfg.Stream, "", int(cfg.TailLines))
 	return err
-}
-
-type event struct {
-	Event string `sse:"event"`
-	Data  string `sse:"data"`
-}
-
-type message struct {
-	Message string `json:"message"`
-	Cursor  string `json:"cursor"`
 }
 
 func ShowLogs(ctx context.Context, cfg *config.API, out io.Writer, jobName, stream, cursor string, tailLines int) (string, error) {
@@ -95,7 +89,7 @@ func ShowLogs(ctx context.Context, cfg *config.API, out io.Writer, jobName, stre
 
 			go func() {
 				// parse the SSE stream
-				lastCursor, err = parseSSEStream(reader, out)
+				lastCursor, err = sdkprint.ParseSSEStream(reader, out)
 				if errors.Is(err, io.ErrClosedPipe) {
 					err = nil // ignore ErrClosedPipe error
 				}
@@ -119,45 +113,3 @@ func ShowLogs(ctx context.Context, cfg *config.API, out io.Writer, jobName, stre
 	return lastCursor, err
 }
 
-func parseSSEStream(reader io.Reader, out io.Writer) (string, error) {
-	scanner := sseparser.NewStreamScanner(reader)
-	var lastCursor string
-
-	for {
-		// Then, we call `UnmarshalNext`, and log each completion chunk, until we
-		// encounter an error or reach the end of the stream.
-		var e event
-		_, err := scanner.UnmarshalNext(&e)
-		if err != nil {
-			if errors.Is(err, sseparser.ErrStreamEOF) {
-				err = nil
-			}
-			return lastCursor, err
-		}
-
-		switch e.Event {
-		case "message":
-			var m message
-			err = json.Unmarshal([]byte(e.Data), &m)
-			if err != nil {
-				return lastCursor, err
-			}
-			if m.Message == "" {
-				continue
-			}
-			out.Write([]byte(m.Message))
-
-			lastCursor = m.Cursor
-		case "error":
-			return lastCursor, errors.New(string(e.Data))
-		case "signal":
-			switch e.Data {
-			case "EOF":
-				return lastCursor, nil
-			case "RESTART":
-				out.Write([]byte("\n\n-------------------------------------------------------------------------------\n"))
-				out.Write([]byte("WARNING: The job execution has been restarted...\n\n"))
-			}
-		}
-	}
-}
