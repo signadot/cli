@@ -21,6 +21,7 @@ import (
 	"github.com/signadot/cli/internal/command/resourceplugin"
 	"github.com/signadot/cli/internal/command/routegroup"
 	"github.com/signadot/cli/internal/command/sandbox"
+	"github.com/signadot/cli/internal/command/secret"
 	"github.com/signadot/cli/internal/command/smarttest"
 	"github.com/signadot/cli/internal/command/traffic"
 	"github.com/signadot/cli/internal/config"
@@ -61,6 +62,7 @@ func New() *cobra.Command {
 		smarttest.New(cfg),
 		traffic.New(cfg),
 		plan.New(cfg),
+		secret.New(cfg),
 
 		// hidden commands
 		hostedtest.New(cfg),
