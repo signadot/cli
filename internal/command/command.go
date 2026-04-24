@@ -16,6 +16,8 @@ import (
 	"github.com/signadot/cli/internal/command/locald"
 	"github.com/signadot/cli/internal/command/logs"
 	"github.com/signadot/cli/internal/command/mcp"
+	"github.com/signadot/cli/internal/command/plan"
+	"github.com/signadot/cli/internal/command/planrunnergroup"
 	"github.com/signadot/cli/internal/command/resourceplugin"
 	"github.com/signadot/cli/internal/command/routegroup"
 	"github.com/signadot/cli/internal/command/sandbox"
@@ -58,9 +60,11 @@ func New() *cobra.Command {
 		mcp.New(cfg),
 		smarttest.New(cfg),
 		traffic.New(cfg),
+		plan.New(cfg),
 
 		// hidden commands
 		hostedtest.New(cfg),
+		planrunnergroup.New(cfg),
 	)
 
 	return cmd
