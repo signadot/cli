@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
-	"time"
 
 	"github.com/docker/go-units"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
-	"github.com/xeonx/timeago"
 )
 
 // PrintRunResult prints execution details with output summary for plan run.
@@ -88,32 +86,85 @@ func printExecDetails(out io.Writer, ex *models.PlanExecution) error {
 		return err
 	}
 
-	// Print step status table if steps are present.
+	if ex.Status != nil && len(ex.Status.Inputs) > 0 {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Inputs:")
+		printPlanInputs(out, ex.Status.Inputs)
+	}
+
 	if ex.Status != nil && len(ex.Status.Steps) > 0 {
 		fmt.Fprintln(out)
-		return printStepTable(out, ex.Status.Steps)
+		fmt.Fprintln(out, "Steps:")
+		printSteps(out, ex.Status.Steps)
 	}
 
 	return nil
 }
 
-type stepRow struct {
-	ID    string `sdtab:"STEP"`
-	Phase string `sdtab:"PHASE"`
-	Error string `sdtab:"ERROR,trunc"`
+// isInterestingInput reports whether an input's resolution mechanism is
+// worth showing in the per-step detail. Pure literal/default/unbound
+// resolutions are noise; refs and secret-backed inputs are the
+// actionable cases. Unknown enum values are treated as interesting so
+// a server-side schema addition surfaces rather than getting silently
+// filtered.
+func isInterestingInput(via models.PlansInputResolvedVia) bool {
+	switch via {
+	case models.PlansInputResolvedViaLiteral,
+		models.PlansInputResolvedViaDefault,
+		models.PlansInputResolvedViaUnbound:
+		return false
+	}
+	return true
 }
 
-func printStepTable(out io.Writer, steps []*models.PlanStepStatus) error {
-	t := sdtab.New[stepRow](out)
-	t.AddHeader()
-	for _, s := range steps {
-		t.AddRow(stepRow{
-			ID:    s.ID,
-			Phase: string(s.Phase),
-			Error: s.Error,
-		})
+// printPlanInputs prints plan-level params in the indented arrow form
+// used throughout the steps section. All plan-level inputs are shown
+// (including literal/default/unbound) since this is the authoritative
+// view of what bound at dispatch time.
+func printPlanInputs(out io.Writer, inputs []*models.PlanInputStatus) {
+	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	for _, i := range inputs {
+		detail := ""
+		if i.SecretName != "" {
+			detail = i.SecretName
+		}
+		printInputLine(tw, "  ", i.Name, detail, string(i.ResolvedVia))
 	}
-	return t.Flush()
+	tw.Flush()
+}
+
+func printSteps(out io.Writer, steps []*models.PlanStepStatus) {
+	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	for _, s := range steps {
+		fmt.Fprintf(tw, "  %s\t%s\n", s.ID, s.Phase)
+		if s.Error != "" {
+			fmt.Fprintf(tw, "      error:\t%s\n", s.Error)
+		}
+		for _, i := range s.Inputs {
+			if !isInterestingInput(i.ResolvedVia) {
+				continue
+			}
+			printInputLine(tw, "      ", i.Name, i.Ref, string(i.ResolvedVia))
+		}
+	}
+	tw.Flush()
+}
+
+// printInputLine emits one input row in the form
+//
+//	<indent><name>  ←  <detail>  (<via>)
+//
+// or, when there's no detail to show:
+//
+//	<indent><name>  (<via>)
+//
+// Tab stops keep the arrows aligned within a single tabwriter scope.
+func printInputLine(tw io.Writer, indent, name, detail, via string) {
+	if detail == "" {
+		fmt.Fprintf(tw, "%s%s\t\t(%s)\n", indent, name, via)
+		return
+	}
+	fmt.Fprintf(tw, "%s%s\t← %s\t(%s)\n", indent, name, detail, via)
 }
 
 type outputRow struct {
@@ -185,8 +236,8 @@ func printAllOutputsTable(out io.Writer, outputs []allOutput) error {
 			Step:    o.Step,
 			Scope:   o.Scope,
 			Storage: o.Type,
-			Size:  size,
-			Ready: ready,
+			Size:    size,
+			Ready:   ready,
 		})
 	}
 	return t.Flush()
@@ -214,11 +265,7 @@ func printExecTable(out io.Writer, results []*models.PlanExecutionQueryResult) e
 				total := sc.Init + sc.Waiting + sc.Running + sc.Completed + sc.Failed + sc.Skipped
 				steps = fmt.Sprintf("%d/%d", sc.Completed, total)
 			}
-			if r.Status.CreatedAt != "" {
-				if ts, err := time.Parse(time.RFC3339, r.Status.CreatedAt); err == nil {
-					created = timeago.NoMax(timeago.English).Format(ts)
-				}
-			}
+			created = utils.TimeAgo(r.Status.CreatedAt)
 		}
 		t.AddRow(execRow{
 			ID:      r.ID,
