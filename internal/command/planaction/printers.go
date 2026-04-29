@@ -1,6 +1,7 @@
 package planaction
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -96,20 +97,23 @@ func printActionDetails(out io.Writer, a *models.PlanAction) error {
 	if a.Spec != nil && a.Spec.Body != "" {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Body:")
-		printBody(out, a.Spec.Body)
+		if err := printBody(out, a.Spec.Body); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func printBody(out io.Writer, body string) {
+func printBody(out io.Writer, body string) error {
 	body = strings.TrimRight(body, "\n")
 	rendered, ok := renderMarkdown(out, body)
 	if !ok {
-		fmt.Fprintln(out, body)
-		return
+		_, err := fmt.Fprintln(out, body)
+		return err
 	}
-	fmt.Fprint(out, rendered)
+	_, err := fmt.Fprint(out, rendered)
+	return err
 }
 
 func renderMarkdown(out io.Writer, body string) (string, bool) {
@@ -150,7 +154,7 @@ func formatImage(ref *models.PlanImageRef) string {
 		return ref.Literal
 	}
 	if ref.InputName != "" {
-		return fmt.Sprintf("input=%s", ref.InputName)
+		return fmt.Sprintf("(from input %q)", ref.InputName)
 	}
 	return ""
 }
@@ -207,9 +211,22 @@ func printValidations(out io.Writer, vs []*models.PlanActionValidationStatus) er
 	return t.Flush()
 }
 
+// formatAny renders a PlanField default for the table column. Scalars
+// pass through fmt.Sprintf so a string default reads as its bare text;
+// objects and arrays go through json.Marshal so they render as
+// faithful JSON the reader can paste back into a plan spec, instead
+// of Go's default map[a:1] / [1 2] forms.
 func formatAny(v any) string {
 	if v == nil {
 		return ""
+	}
+	switch v.(type) {
+	case map[string]any, []any:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		return string(b)
 	}
 	return fmt.Sprintf("%v", v)
 }
@@ -222,6 +239,9 @@ func formatSchema(f *models.PlanField) string {
 		return ""
 	}
 	if m, ok := f.Schema.(map[string]any); ok {
+		if enums, ok := m["enum"].([]any); ok && len(enums) > 0 {
+			return fmt.Sprintf("enum(%d)", len(enums))
+		}
 		if t, ok := m["type"].(string); ok && t != "" {
 			return t
 		}
