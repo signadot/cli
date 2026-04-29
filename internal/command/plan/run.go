@@ -108,7 +108,7 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 
 	// Fire-and-forget mode.
 	if !cfg.Wait {
-		return writeRunOutput(cfg, out, createResp.Payload)
+		return writeRunOutput(cfg, out, createResp.Payload, planSpec)
 	}
 
 	// Wait for completion: attach streams structured events, otherwise poll with spinner.
@@ -156,17 +156,17 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 	// On failure/cancellation, write details to stderr so stdout stays clean.
 	switch exec.Status.Phase {
 	case models.PlansExecutionPhaseFailed:
-		if err := writeRunOutput(cfg, log, exec); err != nil {
+		if err := writeRunOutput(cfg, log, exec, planSpec); err != nil {
 			fmt.Fprintf(log, "error rendering output: %v\n", err)
 		}
 		os.Exit(1)
 	case models.PlansExecutionPhaseCancelled:
-		if err := writeRunOutput(cfg, log, exec); err != nil {
+		if err := writeRunOutput(cfg, log, exec, planSpec); err != nil {
 			fmt.Fprintf(log, "error rendering output: %v\n", err)
 		}
 		os.Exit(2)
 	default:
-		return writeRunOutput(cfg, out, exec)
+		return writeRunOutput(cfg, out, exec, planSpec)
 	}
 	return nil
 }
@@ -475,14 +475,14 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 	}
 }
 
-func writeRunOutput(cfg *config.PlanRun, out io.Writer, exec *models.PlanExecution) error {
+func writeRunOutput(cfg *config.PlanRun, out io.Writer, exec *models.PlanExecution, planSpec *models.PlanSpec) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatJSON:
 		return sdkprint.RawJSON(out, exec)
 	case config.OutputFormatYAML:
 		return sdkprint.RawYAML(out, exec)
 	default:
-		return planexec.PrintRunResult(out, exec)
+		return planexec.PrintRunResult(out, exec, planSpec)
 	}
 }
 

@@ -1,22 +1,24 @@
 package planexec
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"text/tabwriter"
-	"time"
 
 	"github.com/docker/go-units"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
-	"github.com/xeonx/timeago"
 )
 
 // PrintRunResult prints execution details with output summary for plan run.
 // Inline values are printed to stdout; artifact outputs are listed by reference.
-func PrintRunResult(out io.Writer, ex *models.PlanExecution) error {
-	if err := printExecDetails(out, ex); err != nil {
+// planSpec is the compiled plan being executed; when non-nil it is used to
+// resolve literal/default input values into the per-step detail. Pass nil
+// when the plan spec isn't available (e.g. the plan was deleted).
+func PrintRunResult(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) error {
+	if err := printExecDetails(out, ex, planSpec); err != nil {
 		return err
 	}
 
@@ -46,7 +48,7 @@ func PrintRunResult(out io.Writer, ex *models.PlanExecution) error {
 	return nil
 }
 
-func printExecDetails(out io.Writer, ex *models.PlanExecution) error {
+func printExecDetails(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	fmt.Fprintf(tw, "ID:\t%s\n", ex.ID)
@@ -88,32 +90,248 @@ func printExecDetails(out io.Writer, ex *models.PlanExecution) error {
 		return err
 	}
 
-	// Print step status table if steps are present.
+	if ex.Status != nil && len(ex.Status.Inputs) > 0 {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Inputs:")
+		printPlanInputs(out, ex, planSpec)
+	}
+
 	if ex.Status != nil && len(ex.Status.Steps) > 0 {
 		fmt.Fprintln(out)
-		return printStepTable(out, ex.Status.Steps)
+		fmt.Fprintln(out, "Steps:")
+		printSteps(out, ex.Status.Steps, planSpec)
 	}
 
 	return nil
 }
 
-type stepRow struct {
-	ID    string `sdtab:"STEP"`
-	Phase string `sdtab:"PHASE"`
-	Error string `sdtab:"ERROR,trunc"`
+// printPlanInputs prints plan-level params in the indented arrow form
+// used throughout the steps section. All entries are shown so the
+// reader sees the authoritative view of what bound at dispatch time.
+// Literal values are taken from execution.spec.params; default values
+// are pulled from the plan spec when it's available.
+func printPlanInputs(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) {
+	inputs := ex.Status.Inputs
+	maxName := 0
+	for _, i := range inputs {
+		if len(i.Name) > maxName {
+			maxName = len(i.Name)
+		}
+	}
+	suppliedParams := paramsAsMap(execParams(ex))
+	for _, i := range inputs {
+		detail := ""
+		switch i.ResolvedVia {
+		case models.PlansInputResolvedViaCallerSecret:
+			detail = i.SecretName
+		case models.PlansInputResolvedViaLiteral:
+			if v, ok := suppliedParams[i.Name]; ok {
+				detail = formatValue(v)
+			}
+		case models.PlansInputResolvedViaDefault:
+			if p := findPlanParam(planSpec, i.Name); p != nil && p.Default != nil {
+				detail = formatValue(p.Default)
+			}
+		}
+		printInputLine(out, "  ", maxName, i.Name, detail, planLevelVia(i.ResolvedVia))
+	}
 }
 
-func printStepTable(out io.Writer, steps []*models.PlanStepStatus) error {
-	t := sdtab.New[stepRow](out)
-	t.AddHeader()
-	for _, s := range steps {
-		t.AddRow(stepRow{
-			ID:    s.ID,
-			Phase: string(s.Phase),
-			Error: s.Error,
-		})
+// planLevelVia renders a plan-level input's resolution method as
+// human-readable prose. The plain enum names (literal, default, ...)
+// are ambiguous at this level: "literal" really means "the caller
+// passed --param" and "default" means "the plan's declared default
+// kicked in".
+func planLevelVia(via models.PlansInputResolvedVia) string {
+	switch via {
+	case models.PlansInputResolvedViaLiteral:
+		return "from --param"
+	case models.PlansInputResolvedViaCallerSecret:
+		return "from --param-secret"
+	case models.PlansInputResolvedViaDefault:
+		return "plan default"
+	case models.PlansInputResolvedViaUnbound:
+		return "unbound"
 	}
-	return t.Flush()
+	return string(via)
+}
+
+// stepLevelVia renders a step-level input's resolution method as
+// human-readable prose. "literal" at this level means the plan author
+// wrote the value directly into step args (rather than the caller
+// supplying it), so we say "set in plan".
+func stepLevelVia(via models.PlansInputResolvedVia) string {
+	switch via {
+	case models.PlansInputResolvedViaLiteral:
+		return "set in plan"
+	case models.PlansInputResolvedViaRef:
+		return "ref"
+	case models.PlansInputResolvedViaDefault:
+		return "default"
+	case models.PlansInputResolvedViaUnbound:
+		return "unbound"
+	}
+	return string(via)
+}
+
+func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.PlanSpec) {
+	maxID := 0
+	for _, s := range steps {
+		if len(s.ID) > maxID {
+			maxID = len(s.ID)
+		}
+	}
+	for i, s := range steps {
+		if i > 0 && hasStepBody(s) {
+			fmt.Fprintln(out)
+		}
+		fmt.Fprintf(out, "  %-*s   %s\n", maxID, s.ID, s.Phase)
+		if !hasStepBody(s) {
+			continue
+		}
+		if s.Error != "" {
+			fmt.Fprintf(out, "    error: %s\n", s.Error)
+		}
+		if len(s.Inputs) == 0 {
+			continue
+		}
+		fmt.Fprintln(out, "    inputs:")
+		step := findStep(planSpec, s.ID)
+		stepValues := paramsAsMap(stepArgsValues(step))
+		maxName := 0
+		for _, in := range s.Inputs {
+			if len(in.Name) > maxName {
+				maxName = len(in.Name)
+			}
+		}
+		for _, in := range s.Inputs {
+			detail := ""
+			switch in.ResolvedVia {
+			case models.PlansInputResolvedViaRef:
+				detail = in.Ref
+			case models.PlansInputResolvedViaLiteral:
+				if v, ok := stepValues[in.Name]; ok {
+					detail = formatValue(v)
+				}
+			case models.PlansInputResolvedViaDefault:
+				if p := findStepInputDecl(step, in.Name); p != nil && p.Default != nil {
+					detail = formatValue(p.Default)
+				}
+			}
+			printInputLine(out, "      ", maxName, in.Name, detail, stepLevelVia(in.ResolvedVia))
+		}
+	}
+}
+
+func hasStepBody(s *models.PlanStepStatus) bool {
+	return len(s.Inputs) > 0 || s.Error != ""
+}
+
+// printInputLine emits one input row in the form
+//
+//	<indent><name padded>   ← <detail>   (<via>)
+//
+// or, when there's no detail to show:
+//
+//	<indent><name padded>   (<via>)
+//
+// Manual padding is used (rather than tabwriter) because rows with
+// and without a detail cell have different "shapes"; a single
+// tabwriter scope would size the empty middle column based on the
+// longest detail and leave the (via) tag for no-detail rows pushed
+// far to the right.
+func printInputLine(out io.Writer, indent string, nameWidth int, name, detail, via string) {
+	if detail == "" {
+		fmt.Fprintf(out, "%s%-*s   (%s)\n", indent, nameWidth, name, via)
+		return
+	}
+	fmt.Fprintf(out, "%s%-*s   ← %s   (%s)\n", indent, nameWidth, name, detail, via)
+}
+
+// formatValue renders a parameter value for a detail column. Strings
+// pass through as bare text; everything else round-trips through JSON
+// so objects/arrays stay copy-pasteable into a plan spec rather than
+// rendering as Go's map[a:1] / [1 2] forms.
+func formatValue(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return string(b)
+}
+
+func execParams(ex *models.PlanExecution) any {
+	if ex == nil || ex.Spec == nil {
+		return nil
+	}
+	return ex.Spec.Params
+}
+
+func stepArgsValues(step *models.PlanStep) any {
+	if step == nil || step.Args == nil {
+		return nil
+	}
+	return step.Args.Values
+}
+
+func paramsAsMap(v any) map[string]any {
+	if m, ok := v.(map[string]any); ok {
+		return m
+	}
+	return nil
+}
+
+func findPlanParam(planSpec *models.PlanSpec, name string) *models.PlanField {
+	if planSpec == nil {
+		return nil
+	}
+	for _, p := range planSpec.Params {
+		if p != nil && p.Name == name {
+			return p
+		}
+	}
+	return nil
+}
+
+func findStep(planSpec *models.PlanSpec, stepID string) *models.PlanStep {
+	if planSpec == nil {
+		return nil
+	}
+	for _, s := range planSpec.Steps {
+		if s != nil && s.ID == stepID {
+			return s
+		}
+	}
+	return nil
+}
+
+// findStepInputDecl looks up a step input by name, searching the
+// action's declared params first and falling back to the step's
+// declared extra_inputs. Either can carry a Default the runner
+// resolved against.
+func findStepInputDecl(step *models.PlanStep, name string) *models.PlanField {
+	if step == nil {
+		return nil
+	}
+	if step.Action != nil {
+		for _, p := range step.Action.Params {
+			if p != nil && p.Name == name {
+				return p
+			}
+		}
+	}
+	for _, p := range step.ExtraInputs {
+		if p != nil && p.Name == name {
+			return p
+		}
+	}
+	return nil
 }
 
 type outputRow struct {
@@ -185,8 +403,8 @@ func printAllOutputsTable(out io.Writer, outputs []allOutput) error {
 			Step:    o.Step,
 			Scope:   o.Scope,
 			Storage: o.Type,
-			Size:  size,
-			Ready: ready,
+			Size:    size,
+			Ready:   ready,
 		})
 	}
 	return t.Flush()
@@ -214,11 +432,7 @@ func printExecTable(out io.Writer, results []*models.PlanExecutionQueryResult) e
 				total := sc.Init + sc.Waiting + sc.Running + sc.Completed + sc.Failed + sc.Skipped
 				steps = fmt.Sprintf("%d/%d", sc.Completed, total)
 			}
-			if r.Status.CreatedAt != "" {
-				if ts, err := time.Parse(time.RFC3339, r.Status.CreatedAt); err == nil {
-					created = timeago.NoMax(timeago.English).Format(ts)
-				}
-			}
+			created = utils.TimeAgo(r.Status.CreatedAt)
 		}
 		t.AddRow(execRow{
 			ID:      r.ID,

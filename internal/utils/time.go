@@ -20,6 +20,17 @@ func FormatTimestamp(in string) string {
 	return fmt.Sprintf("%s (%s ago)", local, elapsed)
 }
 
+// TimeAgo returns just the relative form ("4 days ago") for an RFC3339
+// timestamp, suitable for compact table columns. Returns the input
+// unchanged if it can't be parsed.
+func TimeAgo(in string) string {
+	t, err := time.Parse(time.RFC3339, in)
+	if err != nil {
+		return in
+	}
+	return timeago.NoMax(timeago.English).Format(t)
+}
+
 func GetTTLTimeAgoFromBase(baseTime time.Time, dur string) string {
 	n := len(dur)
 	count, unit := dur[0:n-1], dur[n-1:]

@@ -7,6 +7,8 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	planexecs "github.com/signadot/go-sdk/client/plan_executions"
+	sdkplans "github.com/signadot/go-sdk/client/plans"
+	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +41,7 @@ func getExec(cfg *config.PlanExecGet, out io.Writer, execID string) error {
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printExecDetails(out, resp.Payload)
+		return printExecDetails(out, resp.Payload, fetchPlanSpec(cfg.API, resp.Payload))
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
@@ -47,4 +49,21 @@ func getExec(cfg *config.PlanExecGet, out io.Writer, execID string) error {
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
+}
+
+// fetchPlanSpec returns the spec of the plan referenced by ex, or nil
+// if the plan can't be fetched (deleted, network error, etc). The
+// detail printer renders without resolved values when the spec is nil.
+func fetchPlanSpec(api *config.API, ex *models.PlanExecution) *models.PlanSpec {
+	if ex == nil || ex.Spec == nil || ex.Spec.PlanID == "" {
+		return nil
+	}
+	params := sdkplans.NewGetPlanParams().
+		WithOrgName(api.Org).
+		WithPlanID(ex.Spec.PlanID)
+	resp, err := api.Client.Plans.GetPlan(params, nil)
+	if err != nil || resp.Payload == nil {
+		return nil
+	}
+	return resp.Payload.Spec
 }
