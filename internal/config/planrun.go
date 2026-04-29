@@ -15,6 +15,7 @@ type PlanRun struct {
 	Sandbox    string
 	RouteGroup string
 	Params     TemplateVals
+	Secrets    TemplateVals
 	Wait       bool
 	Attach    bool
 	Timeout   time.Duration
@@ -28,6 +29,7 @@ func (c *PlanRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.RouteGroup, "route-group", "", "run in the context of a route group")
 	cmd.MarkFlagsMutuallyExclusive("sandbox", "route-group")
 	cmd.Flags().Var(&c.Params, "param", "parameter in key=value form (can be repeated)")
+	cmd.Flags().Var(&c.Secrets, "param-secret", "bind a plan param to an org secret: param-name=secret-name (can be repeated)")
 	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for execution to complete")
 	cmd.Flags().BoolVar(&c.Attach, "attach", false, "stream structured events (logs, outputs, result) to stdout")
 	cmd.Flags().DurationVar(&c.Timeout, "timeout", 0, "timeout for waiting (0 means no timeout)")

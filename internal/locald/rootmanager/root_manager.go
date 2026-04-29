@@ -119,6 +119,7 @@ func (m *rootManager) runLocalnetService(ctx context.Context, socks5Addr string,
 		SOCKS5Addr:   socks5Addr,
 		VirtualIPNet: m.ciConfig.VirtualIPNet,
 		ListenAddr:   "127.0.0.1:2223",
+		LocalNetPath: m.ciConfig.LocalNetPath,
 	}, m.ciConfig.ConnectionConfig)
 
 	// Register the localnet service in root api

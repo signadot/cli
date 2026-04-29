@@ -136,6 +136,16 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		connConfig.KubeConfigPath = &kcp
 	}
 
+	// Resolve $SIGNADOT_LOCALNET_PATH at invocation time while we can
+	// still see the user's shell env. Unset defaults to /usr/sbin:/sbin
+	// (covering iptables/pfctl/route on typical Linux and macOS);
+	// explicitly empty disables the prepend, for environments where the
+	// default search is incorrect.
+	localNetPath, ok := os.LookupEnv("SIGNADOT_LOCALNET_PATH")
+	if !ok {
+		localNetPath = "/usr/sbin:/sbin"
+	}
+
 	// Compute ConnectInvocationConfig
 	ciConfig := &config.ConnectInvocationConfig{
 		WithRootManager: withRootManager,
@@ -160,6 +170,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		ConnectTimeout:   cfg.WaitTimeout.String(),
 		DevboxID:         devboxID,
 		DevboxSessionID:  devboxSessionID,
+		LocalNetPath:     localNetPath,
 	}
 	if cfg.DumpCIConfig {
 		d, _ := yaml.Marshal(ciConfig)

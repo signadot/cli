@@ -84,6 +84,13 @@ type ConnectInvocationConfig struct {
 	ConnectTimeout   string                       `json:"connectTimeout"`
 	DevboxID         string                       `json:"devboxID"`
 	DevboxSessionID  string                       `json:"devboxSessionID"`
+
+	// LocalNetPath is prepended to PATH when the root-manager invokes
+	// tunnel-setup commands (iptables on linux; pfctl and route on
+	// darwin). Captured from $SIGNADOT_LOCALNET_PATH at invocation time;
+	// defaults to "/usr/sbin:/sbin" when unset. Empty string (set
+	// explicitly by the user) means no prepend.
+	LocalNetPath string `json:"localNetPath"`
 }
 
 type ConnectInvocationUser struct {
