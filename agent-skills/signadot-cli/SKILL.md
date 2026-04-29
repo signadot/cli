@@ -1,7 +1,7 @@
 ---
 name: signadot-cli
-description: Manage Signadot sandboxes, route groups, clusters, resource plugins, jobs, and smart tests using the signadot CLI. Use when a developer or platform engineer needs to create, update, inspect, or delete Signadot resources.
-argument-hint: "[resource: sandbox|routegroup|cluster|job|resourceplugin|smart-test]"
+description: Manage Signadot sandboxes, route groups, clusters, resource plugins, secrets, jobs, and smart tests using the signadot CLI. Use when a developer or platform engineer needs to create, update, inspect, or delete Signadot resources.
+argument-hint: "[resource: sandbox|routegroup|cluster|job|resourceplugin|secret|smart-test]"
 ---
 
 # Signadot CLI
@@ -271,6 +271,50 @@ signadot resourceplugin get my-plugin
 # Delete
 signadot resourceplugin delete my-plugin
 ```
+
+## Secrets (alias: secrets)
+
+Org-level encrypted secrets. The plaintext value is **write-only** — `get`/`list` return metadata only (`name`, `description`, `createdAt`, `updatedAt`) and never expose the value.
+
+```bash
+# Create — value can come from a literal, a file, or stdin
+signadot secret create my-db-password --value 'hunter2'
+signadot secret create my-db-password --value-file ./password.txt
+echo -n 'hunter2' | signadot secret create my-db-password --value-stdin
+
+# Or from a flat YAML/JSON file with optional --set expansion
+signadot secret create -f secret.yaml --set VALUE=hunter2
+
+# Update — value is required (same flag set as create)
+signadot secret update my-db-password --value 'newpass'
+
+# Inspect (metadata only)
+signadot secret get my-db-password
+signadot secret list
+signadot secret list -o json
+
+# Delete
+signadot secret delete my-db-password
+signadot secret delete -f secret.yaml
+```
+
+Secret file shape (no `spec:` stanza):
+
+```yaml
+name: my-db-password
+description: Prod DB password
+value: '@{VALUE}'
+```
+
+### Binding secrets to plan params
+
+Plan runs pull a secret value into a parameter via `--param-secret param-name=secret-name` (parallel to `--param`, repeatable):
+
+```bash
+signadot plan run my-plan --param-secret db_pass=my-db-password
+```
+
+A given param name must use either `--param` or `--param-secret`, not both.
 
 ## Job Management
 
