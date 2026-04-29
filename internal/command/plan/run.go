@@ -30,7 +30,7 @@ func newRun(plan *config.Plan) *cobra.Command {
 	cfg := &config.PlanRun{Plan: plan}
 
 	cmd := &cobra.Command{
-		Use:   "run [PLAN_ID] [--tag TAG_NAME] [--param key=value ...]",
+		Use:   "run [PLAN_ID] [--tag TAG_NAME] [--param key=value ...] [--param-secret param-name=secret-name ...]",
 		Short: "Run a plan: create execution, wait for completion, print results",
 		Long: `Creates an execution of a compiled plan and polls until completion.
 
@@ -79,11 +79,19 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		return err
 	}
 
+	secrets := buildSecrets(cfg.Secrets)
+	for name := range secrets {
+		if _, ok := params[name]; ok {
+			return fmt.Errorf("param %q appears in both --param and --param-secret; specify only one", name)
+		}
+	}
+
 	// Create execution.
 	spec := &models.PlanExecutionSpec{
 		PlanID:  planID,
 		Cluster: cfg.Cluster,
 		Params:  params,
+		Secrets: secrets,
 	}
 	createParams := planexecs.NewCreatePlanExecutionParams().
 		WithContext(ctx).
@@ -215,6 +223,17 @@ func buildParams(tplVals config.TemplateVals) map[string]any {
 		params[tv.Var] = v
 	}
 	return params
+}
+
+func buildSecrets(tplVals config.TemplateVals) map[string]string {
+	if len(tplVals) == 0 {
+		return nil
+	}
+	secrets := make(map[string]string, len(tplVals))
+	for _, tv := range tplVals {
+		secrets[tv.Var] = tv.Val
+	}
+	return secrets
 }
 
 func looksLikeJSON(s string) bool {
