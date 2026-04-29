@@ -40,7 +40,7 @@ func cancelExec(cfg *config.PlanExecCancel, out, log io.Writer, execID string) e
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printExecDetails(out, resp.Payload)
+		return printExecDetails(out, resp.Payload, fetchPlanSpec(cfg.API, resp.Payload))
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:

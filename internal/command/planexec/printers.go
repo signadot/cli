@@ -1,6 +1,7 @@
 package planexec
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"text/tabwriter"
@@ -13,8 +14,11 @@ import (
 
 // PrintRunResult prints execution details with output summary for plan run.
 // Inline values are printed to stdout; artifact outputs are listed by reference.
-func PrintRunResult(out io.Writer, ex *models.PlanExecution) error {
-	if err := printExecDetails(out, ex); err != nil {
+// planSpec is the compiled plan being executed; when non-nil it is used to
+// resolve literal/default input values into the per-step detail. Pass nil
+// when the plan spec isn't available (e.g. the plan was deleted).
+func PrintRunResult(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) error {
+	if err := printExecDetails(out, ex, planSpec); err != nil {
 		return err
 	}
 
@@ -44,7 +48,7 @@ func PrintRunResult(out io.Writer, ex *models.PlanExecution) error {
 	return nil
 }
 
-func printExecDetails(out io.Writer, ex *models.PlanExecution) error {
+func printExecDetails(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
 	fmt.Fprintf(tw, "ID:\t%s\n", ex.ID)
@@ -89,82 +93,245 @@ func printExecDetails(out io.Writer, ex *models.PlanExecution) error {
 	if ex.Status != nil && len(ex.Status.Inputs) > 0 {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Inputs:")
-		printPlanInputs(out, ex.Status.Inputs)
+		printPlanInputs(out, ex, planSpec)
 	}
 
 	if ex.Status != nil && len(ex.Status.Steps) > 0 {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Steps:")
-		printSteps(out, ex.Status.Steps)
+		printSteps(out, ex.Status.Steps, planSpec)
 	}
 
 	return nil
 }
 
-// isInterestingInput reports whether an input's resolution mechanism is
-// worth showing in the per-step detail. Pure literal/default/unbound
-// resolutions are noise; refs and secret-backed inputs are the
-// actionable cases. Unknown enum values are treated as interesting so
-// a server-side schema addition surfaces rather than getting silently
-// filtered.
-func isInterestingInput(via models.PlansInputResolvedVia) bool {
-	switch via {
-	case models.PlansInputResolvedViaLiteral,
-		models.PlansInputResolvedViaDefault,
-		models.PlansInputResolvedViaUnbound:
-		return false
-	}
-	return true
-}
-
 // printPlanInputs prints plan-level params in the indented arrow form
-// used throughout the steps section. All plan-level inputs are shown
-// (including literal/default/unbound) since this is the authoritative
-// view of what bound at dispatch time.
-func printPlanInputs(out io.Writer, inputs []*models.PlanInputStatus) {
-	tw := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+// used throughout the steps section. All entries are shown so the
+// reader sees the authoritative view of what bound at dispatch time.
+// Literal values are taken from execution.spec.params; default values
+// are pulled from the plan spec when it's available.
+func printPlanInputs(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) {
+	inputs := ex.Status.Inputs
+	maxName := 0
+	for _, i := range inputs {
+		if len(i.Name) > maxName {
+			maxName = len(i.Name)
+		}
+	}
+	suppliedParams := paramsAsMap(execParams(ex))
 	for _, i := range inputs {
 		detail := ""
-		if i.SecretName != "" {
+		switch i.ResolvedVia {
+		case models.PlansInputResolvedViaCallerSecret:
 			detail = i.SecretName
+		case models.PlansInputResolvedViaLiteral:
+			if v, ok := suppliedParams[i.Name]; ok {
+				detail = formatValue(v)
+			}
+		case models.PlansInputResolvedViaDefault:
+			if p := findPlanParam(planSpec, i.Name); p != nil && p.Default != nil {
+				detail = formatValue(p.Default)
+			}
 		}
-		printInputLine(tw, "  ", i.Name, detail, string(i.ResolvedVia))
+		printInputLine(out, "  ", maxName, i.Name, detail, planLevelVia(i.ResolvedVia))
 	}
-	tw.Flush()
 }
 
-func printSteps(out io.Writer, steps []*models.PlanStepStatus) {
-	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+// planLevelVia renders a plan-level input's resolution method as
+// human-readable prose. The plain enum names (literal, default, ...)
+// are ambiguous at this level: "literal" really means "the caller
+// passed --param" and "default" means "the plan's declared default
+// kicked in".
+func planLevelVia(via models.PlansInputResolvedVia) string {
+	switch via {
+	case models.PlansInputResolvedViaLiteral:
+		return "from --param"
+	case models.PlansInputResolvedViaCallerSecret:
+		return "from --param-secret"
+	case models.PlansInputResolvedViaDefault:
+		return "plan default"
+	case models.PlansInputResolvedViaUnbound:
+		return "unbound"
+	}
+	return string(via)
+}
+
+// stepLevelVia renders a step-level input's resolution method as
+// human-readable prose. "literal" at this level means the plan author
+// wrote the value directly into step args (rather than the caller
+// supplying it), so we say "set in plan".
+func stepLevelVia(via models.PlansInputResolvedVia) string {
+	switch via {
+	case models.PlansInputResolvedViaLiteral:
+		return "set in plan"
+	case models.PlansInputResolvedViaRef:
+		return "ref"
+	case models.PlansInputResolvedViaDefault:
+		return "default"
+	case models.PlansInputResolvedViaUnbound:
+		return "unbound"
+	}
+	return string(via)
+}
+
+func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.PlanSpec) {
+	maxID := 0
 	for _, s := range steps {
-		fmt.Fprintf(tw, "  %s\t%s\n", s.ID, s.Phase)
-		if s.Error != "" {
-			fmt.Fprintf(tw, "      error:\t%s\n", s.Error)
-		}
-		for _, i := range s.Inputs {
-			if !isInterestingInput(i.ResolvedVia) {
-				continue
-			}
-			printInputLine(tw, "      ", i.Name, i.Ref, string(i.ResolvedVia))
+		if len(s.ID) > maxID {
+			maxID = len(s.ID)
 		}
 	}
-	tw.Flush()
+	for i, s := range steps {
+		if i > 0 && hasStepBody(s) {
+			fmt.Fprintln(out)
+		}
+		fmt.Fprintf(out, "  %-*s   %s\n", maxID, s.ID, s.Phase)
+		if !hasStepBody(s) {
+			continue
+		}
+		if s.Error != "" {
+			fmt.Fprintf(out, "    error: %s\n", s.Error)
+		}
+		if len(s.Inputs) == 0 {
+			continue
+		}
+		fmt.Fprintln(out, "    inputs:")
+		step := findStep(planSpec, s.ID)
+		stepValues := paramsAsMap(stepArgsValues(step))
+		maxName := 0
+		for _, in := range s.Inputs {
+			if len(in.Name) > maxName {
+				maxName = len(in.Name)
+			}
+		}
+		for _, in := range s.Inputs {
+			detail := ""
+			switch in.ResolvedVia {
+			case models.PlansInputResolvedViaRef:
+				detail = in.Ref
+			case models.PlansInputResolvedViaLiteral:
+				if v, ok := stepValues[in.Name]; ok {
+					detail = formatValue(v)
+				}
+			case models.PlansInputResolvedViaDefault:
+				if p := findStepInputDecl(step, in.Name); p != nil && p.Default != nil {
+					detail = formatValue(p.Default)
+				}
+			}
+			printInputLine(out, "      ", maxName, in.Name, detail, stepLevelVia(in.ResolvedVia))
+		}
+	}
+}
+
+func hasStepBody(s *models.PlanStepStatus) bool {
+	return len(s.Inputs) > 0 || s.Error != ""
 }
 
 // printInputLine emits one input row in the form
 //
-//	<indent><name>  ←  <detail>  (<via>)
+//	<indent><name padded>   ← <detail>   (<via>)
 //
 // or, when there's no detail to show:
 //
-//	<indent><name>  (<via>)
+//	<indent><name padded>   (<via>)
 //
-// Tab stops keep the arrows aligned within a single tabwriter scope.
-func printInputLine(tw io.Writer, indent, name, detail, via string) {
+// Manual padding is used (rather than tabwriter) because rows with
+// and without a detail cell have different "shapes"; a single
+// tabwriter scope would size the empty middle column based on the
+// longest detail and leave the (via) tag for no-detail rows pushed
+// far to the right.
+func printInputLine(out io.Writer, indent string, nameWidth int, name, detail, via string) {
 	if detail == "" {
-		fmt.Fprintf(tw, "%s%s\t\t(%s)\n", indent, name, via)
+		fmt.Fprintf(out, "%s%-*s   (%s)\n", indent, nameWidth, name, via)
 		return
 	}
-	fmt.Fprintf(tw, "%s%s\t← %s\t(%s)\n", indent, name, detail, via)
+	fmt.Fprintf(out, "%s%-*s   ← %s   (%s)\n", indent, nameWidth, name, detail, via)
+}
+
+// formatValue renders a parameter value for a detail column. Strings
+// pass through as bare text; everything else round-trips through JSON
+// so objects/arrays stay copy-pasteable into a plan spec rather than
+// rendering as Go's map[a:1] / [1 2] forms.
+func formatValue(v any) string {
+	if v == nil {
+		return ""
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return string(b)
+}
+
+func execParams(ex *models.PlanExecution) any {
+	if ex == nil || ex.Spec == nil {
+		return nil
+	}
+	return ex.Spec.Params
+}
+
+func stepArgsValues(step *models.PlanStep) any {
+	if step == nil || step.Args == nil {
+		return nil
+	}
+	return step.Args.Values
+}
+
+func paramsAsMap(v any) map[string]any {
+	if m, ok := v.(map[string]any); ok {
+		return m
+	}
+	return nil
+}
+
+func findPlanParam(planSpec *models.PlanSpec, name string) *models.PlanField {
+	if planSpec == nil {
+		return nil
+	}
+	for _, p := range planSpec.Params {
+		if p != nil && p.Name == name {
+			return p
+		}
+	}
+	return nil
+}
+
+func findStep(planSpec *models.PlanSpec, stepID string) *models.PlanStep {
+	if planSpec == nil {
+		return nil
+	}
+	for _, s := range planSpec.Steps {
+		if s != nil && s.ID == stepID {
+			return s
+		}
+	}
+	return nil
+}
+
+// findStepInputDecl looks up a step input by name, searching the
+// action's declared params first and falling back to the step's
+// declared extra_inputs. Either can carry a Default the runner
+// resolved against.
+func findStepInputDecl(step *models.PlanStep, name string) *models.PlanField {
+	if step == nil {
+		return nil
+	}
+	if step.Action != nil {
+		for _, p := range step.Action.Params {
+			if p != nil && p.Name == name {
+				return p
+			}
+		}
+	}
+	for _, p := range step.ExtraInputs {
+		if p != nil && p.Name == name {
+			return p
+		}
+	}
+	return nil
 }
 
 type outputRow struct {
