@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,8 +21,8 @@ import (
 	sdkclient "github.com/signadot/go-sdk/client"
 	planlogs "github.com/signadot/go-sdk/client/plan_execution_logs"
 	planexecs "github.com/signadot/go-sdk/client/plan_executions"
-	sdkplans "github.com/signadot/go-sdk/client/plans"
 	plantags "github.com/signadot/go-sdk/client/plan_tags"
+	sdkplans "github.com/signadot/go-sdk/client/plans"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
@@ -443,6 +444,14 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 			ex := resp.Payload
 			// Emit output events for resolved plan-level outputs.
 			if ex.Status != nil {
+				// Drill-in outputs and artifact-backed whole outputs leave
+				// PlanOutputStatus.Value nil — the runner records the ref
+				// + drill path but doesn't materialize the resolved value
+				// until something asks for it via GetPlanExecutionOutput.
+				// Fill them in now so attach streams the actual values
+				// instead of nil. Best-effort: fetch failures are logged
+				// but don't abort the stream.
+				resolveAttachOutputs(cfg, log, ex.ID, ex.Status.Outputs)
 				for _, o := range ex.Status.Outputs {
 					aw.Emit(sdkprint.AttachEvent{
 						Type:  "output",
@@ -483,6 +492,61 @@ func writeRunOutput(cfg *config.PlanRun, out io.Writer, exec *models.PlanExecuti
 		return sdkprint.RawYAML(out, exec)
 	default:
 		return planexec.PrintRunResult(out, exec)
+	}
+}
+
+// resolveAttachOutputs fills in PlanOutputStatus.Value for any outputs
+// the server didn't materialize inline. The runner records drill-in
+// outputs and artifact-backed whole outputs without populating Value;
+// the resolved bytes come from GetPlanExecutionOutput at serve time.
+// Mutates outputs in place. Best-effort: per-output errors are logged
+// to log and the corresponding Value stays nil rather than aborting
+// the whole attach stream.
+func resolveAttachOutputs(cfg *config.PlanRun, log io.Writer, execID string, outputs []*models.PlanOutputStatus) {
+	needsFetch := false
+	for _, o := range outputs {
+		if o != nil && o.Value == nil {
+			needsFetch = true
+			break
+		}
+	}
+	if !needsFetch {
+		return
+	}
+
+	transportCfg := cfg.GetBaseTransport()
+	transportCfg.OverrideConsumers = true
+	transportCfg.Consumers = map[string]runtime.Consumer{
+		"*/*": runtime.ByteStreamConsumer(),
+	}
+	err := cfg.APIClientWithCustomTransport(transportCfg,
+		func(c *sdkclient.SignadotAPI) error {
+			for _, o := range outputs {
+				if o == nil || o.Value != nil {
+					continue
+				}
+				var buf bytes.Buffer
+				params := planexecs.NewGetPlanExecutionOutputParams().
+					WithOrgName(cfg.Org).
+					WithExecutionID(execID).
+					WithOutputName(o.Name)
+				if _, _, err := c.PlanExecutions.GetPlanExecutionOutput(params, nil, &buf); err != nil {
+					fmt.Fprintf(log, "warning: resolving output %q for attach: %v\n", o.Name, err)
+					continue
+				}
+				var v any
+				if err := json.Unmarshal(buf.Bytes(), &v); err != nil {
+					// Non-JSON output (binary, plain text). Emit the raw
+					// bytes as a string so the stream still surfaces
+					// something meaningful.
+					v = buf.String()
+				}
+				o.Value = v
+			}
+			return nil
+		})
+	if err != nil {
+		fmt.Fprintf(log, "warning: resolving attach outputs: %v\n", err)
 	}
 }
 

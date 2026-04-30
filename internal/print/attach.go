@@ -71,7 +71,7 @@ func formatText(e AttachEvent) string {
 		fmt.Fprintf(&b, " msg=%s", quoteIfNeeded(strings.TrimRight(e.Msg, "\n")))
 	case "output":
 		fmt.Fprintf(&b, " name=%s", e.Name)
-		fmt.Fprintf(&b, " value=%s", quoteIfNeeded(fmt.Sprint(e.Value)))
+		fmt.Fprintf(&b, " value=%s", quoteIfNeeded(formatAttachValue(e.Value)))
 	case "result":
 		fmt.Fprintf(&b, " id=%s", e.ID)
 		fmt.Fprintf(&b, " phase=%s", e.Phase)
@@ -81,6 +81,27 @@ func formatText(e AttachEvent) string {
 	}
 
 	return b.String()
+}
+
+// formatAttachValue renders an output value for the slog-style text
+// stream. Strings stay unquoted (the common case for plan outputs).
+// Structured values (maps, slices) are JSON-encoded so the reader
+// sees `{"check":"..."}` instead of Go's default `map[check:...]`.
+// nil renders as <nil> matching the prior behavior. Numbers and bools
+// render as their JSON forms (`200`, `true`).
+func formatAttachValue(v any) string {
+	switch x := v.(type) {
+	case nil:
+		return "<nil>"
+	case string:
+		return x
+	default:
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprint(v)
+		}
+		return string(b)
+	}
 }
 
 func quoteIfNeeded(s string) string {
