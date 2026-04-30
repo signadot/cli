@@ -23,6 +23,7 @@ func New(api *config.API) *cobra.Command {
 		newGet(cfg),
 		newDelete(cfg),
 		newRecompile(cfg),
+		newSchema(cfg),
 		plantag.New(cfg),
 		planexec.New(cfg),
 		planaction.New(cfg),

@@ -54,3 +54,7 @@ func (c *PlanRecompile) AddFlags(cmd *cobra.Command) {
 type PlanDelete struct {
 	*Plan
 }
+
+type PlanSchema struct {
+	*Plan
+}
