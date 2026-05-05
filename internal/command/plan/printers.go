@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"text/tabwriter"
 
 	"github.com/signadot/cli/internal/print"
@@ -35,9 +34,6 @@ func printPlanDetails(out io.Writer, p *models.RunnablePlan) error {
 			case c.Pattern != "":
 				fmt.Fprintf(tw, "Cluster:\tpattern %q\n", c.Pattern)
 			}
-		}
-		if len(p.Spec.Requires) > 0 {
-			fmt.Fprintf(tw, "Requires:\t%s\n", strings.Join(p.Spec.Requires, ", "))
 		}
 	}
 	if p.Status != nil {
@@ -136,13 +132,18 @@ func printPlanSteps(out io.Writer, steps []*models.PlanStep) {
 		}
 		fmt.Fprintf(out, "  %s\n", s.ID)
 		if s.Action != nil {
-			line := "    action: " + s.Action.ActionID
+			line := "    action: " + actionLabel(s.Action)
 			if s.Action.Revision > 0 {
 				line += fmt.Sprintf("   (revision %d)", s.Action.Revision)
 			}
 			fmt.Fprintln(out, line)
 			if img := formatImage(s.Action.Image); img != "" {
 				fmt.Fprintf(out, "    image: %s\n", img)
+			}
+			if s.Action.Timeout != "" {
+				fmt.Fprintf(out, "    timeout: %s\n", s.Action.Timeout)
+			} else if s.Action.TimeoutInputName != "" {
+				fmt.Fprintf(out, "    timeout: (from input %q)\n", s.Action.TimeoutInputName)
 			}
 		}
 		if s.Condition != "" {
@@ -248,6 +249,23 @@ func formatValue(v any) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return string(b)
+}
+
+// actionLabel renders the step's action as "name (id)" when the
+// server returns both, name alone when the ID is empty, or ID alone
+// when the name isn't populated yet (older plans compiled before the
+// Name field was added).
+func actionLabel(a *models.PlanStepAction) string {
+	if a == nil {
+		return ""
+	}
+	if a.Name == "" {
+		return a.ActionID
+	}
+	if a.ActionID == "" {
+		return a.Name
+	}
+	return fmt.Sprintf("%s (%s)", a.Name, a.ActionID)
 }
 
 func formatImage(ref *models.PlanImageRef) string {

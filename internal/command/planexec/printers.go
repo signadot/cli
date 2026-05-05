@@ -182,12 +182,19 @@ func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.
 		}
 	}
 	for i, s := range steps {
-		if i > 0 && hasStepBody(s) {
+		step := findStep(planSpec, s.ID)
+		hasAction := step != nil && step.Action != nil
+		hasBody := hasStepBody(s) || hasAction
+		if i > 0 && hasBody {
 			fmt.Fprintln(out)
 		}
 		fmt.Fprintf(out, "  %-*s   %s\n", maxID, s.ID, s.Phase)
-		if !hasStepBody(s) {
-			continue
+		if hasAction {
+			label := actionLabel(step.Action)
+			if step.Action.Revision > 0 {
+				label += fmt.Sprintf("   (revision %d)", step.Action.Revision)
+			}
+			fmt.Fprintf(out, "    action: %s\n", label)
 		}
 		if s.Error != "" {
 			fmt.Fprintf(out, "    error: %s\n", s.Error)
@@ -196,7 +203,6 @@ func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.
 			continue
 		}
 		fmt.Fprintln(out, "    inputs:")
-		step := findStep(planSpec, s.ID)
 		stepValues := paramsAsMap(stepArgsValues(step))
 		maxName := 0
 		for _, in := range s.Inputs {
@@ -225,6 +231,23 @@ func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.
 
 func hasStepBody(s *models.PlanStepStatus) bool {
 	return len(s.Inputs) > 0 || s.Error != ""
+}
+
+// actionLabel renders the step's action as "name (id)" when the
+// server returns both, name alone when the ID is empty, or ID alone
+// when the name isn't populated yet (older plans compiled before the
+// Name field was added).
+func actionLabel(a *models.PlanStepAction) string {
+	if a == nil {
+		return ""
+	}
+	if a.Name == "" {
+		return a.ActionID
+	}
+	if a.ActionID == "" {
+		return a.Name
+	}
+	return fmt.Sprintf("%s (%s)", a.Name, a.ActionID)
 }
 
 // printInputLine emits one input row in the form

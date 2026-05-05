@@ -71,9 +71,6 @@ func printActionDetails(out io.Writer, a *models.PlanAction) error {
 		if a.Status.UpdatedAt != "" {
 			fmt.Fprintf(tw, "Updated:\t%s\n", utils.FormatTimestamp(a.Status.UpdatedAt))
 		}
-		if len(a.Status.Requires) > 0 {
-			fmt.Fprintf(tw, "Requires:\t%s\n", strings.Join(a.Status.Requires, ", "))
-		}
 		if img := formatImage(a.Status.BodyImage); img != "" {
 			fmt.Fprintf(tw, "Image:\t%s\n", img)
 		}
@@ -87,9 +84,6 @@ func printActionDetails(out io.Writer, a *models.PlanAction) error {
 			return err
 		}
 		if err := printFields(out, "Outputs", a.Status.BodyOutputs); err != nil {
-			return err
-		}
-		if err := printValidations(out, a.Status.Validations); err != nil {
 			return err
 		}
 	}
@@ -180,32 +174,6 @@ func printFields(out io.Writer, label string, fields []*models.PlanField) error 
 			Required: fmt.Sprintf("%t", f.Required),
 			Default:  formatAny(f.Default),
 			Schema:   formatSchema(f),
-		})
-	}
-	return t.Flush()
-}
-
-type validationRow struct {
-	RunnerGroup string `sdtab:"RUNNER GROUP"`
-	Valid       string `sdtab:"VALID"`
-	Stale       string `sdtab:"STALE"`
-	Validated   string `sdtab:"VALIDATED"`
-}
-
-func printValidations(out io.Writer, vs []*models.PlanActionValidationStatus) error {
-	if len(vs) == 0 {
-		return nil
-	}
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Validations:")
-	t := sdtab.New[validationRow](out)
-	t.AddHeader()
-	for _, v := range vs {
-		t.AddRow(validationRow{
-			RunnerGroup: v.RunnerGroup,
-			Valid:       fmt.Sprintf("%t", v.Valid),
-			Stale:       fmt.Sprintf("%t", v.Stale),
-			Validated:   utils.FormatTimestamp(v.ValidatedAt),
 		})
 	}
 	return t.Flush()
