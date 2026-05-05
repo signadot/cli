@@ -54,7 +54,8 @@ func compile(cfg *config.PlanCompile, out, log io.Writer) error {
 	params := sdkplans.NewCompilePlanParams().
 		WithOrgName(cfg.Org).
 		WithData(&models.PlanCompileInput{
-			Prompt: prompt,
+			Prompt:        prompt,
+			SelectionHint: cfg.SelectionHint,
 		})
 	resp, err := cfg.Client.Plans.CompilePlan(params, nil)
 	if err != nil {

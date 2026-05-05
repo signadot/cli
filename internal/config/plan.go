@@ -10,14 +10,16 @@ type PlanCompile struct {
 	*Plan
 
 	// Flags
-	Filename string
-	Tag      string
+	Filename      string
+	Tag           string
+	SelectionHint string
 }
 
 func (c *PlanCompile) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "file containing the prompt to compile")
 	cmd.MarkFlagRequired("filename")
 	cmd.Flags().StringVar(&c.Tag, "tag", "", "tag the compiled plan with this name")
+	cmd.Flags().StringVar(&c.SelectionHint, "selection-hint", "", "short description shown in plan tag list (helps pick a plan)")
 }
 
 type PlanCreate struct {
