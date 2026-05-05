@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/docker/go-units"
@@ -12,40 +13,12 @@ import (
 	"github.com/signadot/go-sdk/models"
 )
 
-// PrintRunResult prints execution details with output summary for plan run.
-// Inline values are printed to stdout; artifact outputs are listed by reference.
-// planSpec is the compiled plan being executed; when non-nil it is used to
-// resolve literal/default input values into the per-step detail. Pass nil
-// when the plan spec isn't available (e.g. the plan was deleted).
+// PrintRunResult is a thin wrapper around printExecDetails for the
+// plan run path. The output-rendering logic that used to live here
+// now lives in printExecDetails so plan x get and plan x cancel see
+// the same trailing inline values + artifact outputs section.
 func PrintRunResult(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) error {
-	if err := printExecDetails(out, ex, planSpec); err != nil {
-		return err
-	}
-
-	if ex.Status == nil || len(ex.Status.Outputs) == 0 {
-		return nil
-	}
-
-	// Print inline values directly.
-	for _, o := range ex.Status.Outputs {
-		if o.Value != nil {
-			fmt.Fprintf(out, "\n--- %s ---\n%v\n", o.Name, o.Value)
-		}
-	}
-
-	// List artifact outputs by reference.
-	var artifacts []*models.PlanOutputStatus
-	for _, o := range ex.Status.Outputs {
-		if o.Artifact != nil {
-			artifacts = append(artifacts, o)
-		}
-	}
-	if len(artifacts) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Artifact outputs:")
-		return printOutputsTable(out, artifacts)
-	}
-	return nil
+	return printExecDetails(out, ex, planSpec)
 }
 
 func printExecDetails(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) error {
@@ -102,7 +75,86 @@ func printExecDetails(out io.Writer, ex *models.PlanExecution, planSpec *models.
 		printSteps(out, ex.Status.Steps, planSpec)
 	}
 
+	printExecOutputs(out, ex)
 	return nil
+}
+
+// printExecOutputs renders an execution's plan-level outputs in the
+// indented arrow form used by the rest of the detail view. Inline
+// values get the arrow + truncated value; artifacts show kind/size.
+// Each row is annotated with the source step (StepRef) when set.
+// Skipped for executions with no plan-level outputs.
+func printExecOutputs(out io.Writer, ex *models.PlanExecution) {
+	if ex.Status == nil || len(ex.Status.Outputs) == 0 {
+		return
+	}
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "Outputs:")
+	maxName := 0
+	for _, o := range ex.Status.Outputs {
+		if o != nil && len(o.Name) > maxName {
+			maxName = len(o.Name)
+		}
+	}
+	for _, o := range ex.Status.Outputs {
+		if o == nil {
+			continue
+		}
+		stepID := ""
+		if o.StepRef != nil {
+			stepID = o.StepRef.StepID
+		}
+		printOutputRow(out, "  ", maxName, o.Name, o.Value, o.Artifact, o.Metadata, stepID)
+	}
+}
+
+// printOutputRow emits one output entry. Inline values use the arrow
+// form; artifacts have no inline value, just the kind/size tag.
+// stepID, when non-empty, is appended to the tag as ", from <stepID>"
+// — used for plan-level outputs to surface which step produced them.
+func printOutputRow(out io.Writer, indent string, nameWidth int, name string, value any, art *models.PlanArtifactRef, metadata map[string]string, stepID string) {
+	detail := ""
+	if value != nil {
+		detail = formatValue(value)
+	}
+	printInputLine(out, indent, nameWidth, name, detail, formatOutputTag(art, metadata, stepID))
+}
+
+// formatOutputTag renders the parenthesized tag content for an
+// output:
+//
+//	inline                      — for inline values
+//	artifact, <size>, ready     — for artifacts (ready state always shown)
+//	artifact, <size>, not ready
+//
+// When the output's metadata carries a "contentType" key it's
+// appended after the ready flag. A non-empty stepID adds a trailing
+// ", from <stepID>" for plan-level rollups.
+func formatOutputTag(art *models.PlanArtifactRef, metadata map[string]string, stepID string) string {
+	var parts []string
+	if art != nil {
+		parts = append(parts, "artifact")
+		if art.Size > 0 {
+			parts = append(parts, units.HumanSize(float64(art.Size)))
+		}
+		if art.Ready {
+			parts = append(parts, "ready")
+		} else {
+			parts = append(parts, "not ready")
+		}
+		if ct := metadata["contentType"]; ct != "" {
+			parts = append(parts, ct)
+		}
+		if art.Error != "" {
+			parts = append(parts, "error: "+art.Error)
+		}
+	} else {
+		parts = append(parts, "inline")
+	}
+	if stepID != "" {
+		parts = append(parts, "from "+stepID)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // printPlanInputs prints plan-level params in the indented arrow form
@@ -199,38 +251,52 @@ func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.
 		if s.Error != "" {
 			fmt.Fprintf(out, "    error: %s\n", s.Error)
 		}
-		if len(s.Inputs) == 0 {
-			continue
-		}
-		fmt.Fprintln(out, "    inputs:")
-		stepValues := paramsAsMap(stepArgsValues(step))
-		maxName := 0
-		for _, in := range s.Inputs {
-			if len(in.Name) > maxName {
-				maxName = len(in.Name)
-			}
-		}
-		for _, in := range s.Inputs {
-			detail := ""
-			switch in.ResolvedVia {
-			case models.PlansInputResolvedViaRef:
-				detail = in.Ref
-			case models.PlansInputResolvedViaLiteral:
-				if v, ok := stepValues[in.Name]; ok {
-					detail = formatValue(v)
-				}
-			case models.PlansInputResolvedViaDefault:
-				if p := findStepInputDecl(step, in.Name); p != nil && p.Default != nil {
-					detail = formatValue(p.Default)
+		if len(s.Inputs) > 0 {
+			fmt.Fprintln(out, "    inputs:")
+			stepValues := paramsAsMap(stepArgsValues(step))
+			maxName := 0
+			for _, in := range s.Inputs {
+				if len(in.Name) > maxName {
+					maxName = len(in.Name)
 				}
 			}
-			printInputLine(out, "      ", maxName, in.Name, detail, stepLevelVia(in.ResolvedVia))
+			for _, in := range s.Inputs {
+				detail := ""
+				switch in.ResolvedVia {
+				case models.PlansInputResolvedViaRef:
+					detail = in.Ref
+				case models.PlansInputResolvedViaLiteral:
+					if v, ok := stepValues[in.Name]; ok {
+						detail = formatValue(v)
+					}
+				case models.PlansInputResolvedViaDefault:
+					if p := findStepInputDecl(step, in.Name); p != nil && p.Default != nil {
+						detail = formatValue(p.Default)
+					}
+				}
+				printInputLine(out, "      ", maxName, in.Name, detail, stepLevelVia(in.ResolvedVia))
+			}
+		}
+		if len(s.Outputs) > 0 {
+			fmt.Fprintln(out, "    outputs:")
+			maxName := 0
+			for _, o := range s.Outputs {
+				if o != nil && len(o.Name) > maxName {
+					maxName = len(o.Name)
+				}
+			}
+			for _, o := range s.Outputs {
+				if o == nil {
+					continue
+				}
+				printOutputRow(out, "      ", maxName, o.Name, o.Value, o.Artifact, o.Metadata, "")
+			}
 		}
 	}
 }
 
 func hasStepBody(s *models.PlanStepStatus) bool {
-	return len(s.Inputs) > 0 || s.Error != ""
+	return len(s.Inputs) > 0 || len(s.Outputs) > 0 || s.Error != ""
 }
 
 // actionLabel renders the step's action as "name (id)" when the
@@ -274,19 +340,48 @@ func printInputLine(out io.Writer, indent string, nameWidth int, name, detail, v
 // formatValue renders a parameter value for a detail column. Strings
 // pass through as bare text; everything else round-trips through JSON
 // so objects/arrays stay copy-pasteable into a plan spec rather than
-// rendering as Go's map[a:1] / [1 2] forms.
+// rendering as Go's map[a:1] / [1 2] forms. Multi-line and very long
+// values are summarised so they don't break the inline arrow form;
+// users who want the full value can use -o yaml.
 func formatValue(v any) string {
 	if v == nil {
 		return ""
 	}
+	var raw string
 	if s, ok := v.(string); ok {
-		return s
+		raw = s
+	} else {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		raw = string(b)
 	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%v", v)
+	return truncateForDisplay(raw)
+}
+
+// maxValueDisplay caps single-line value rendering. Keeps room on a
+// 100-column terminal for the indent + name + arrow + via tag
+// surrounding the value.
+const maxValueDisplay = 80
+
+// truncateForDisplay collapses a value into a single line suitable
+// for the inline arrow form. Multi-line values are reduced to the
+// first line + a (N lines) marker; over-long single lines get a
+// trailing ellipsis.
+func truncateForDisplay(s string) string {
+	trimmed := strings.TrimRight(s, "\n")
+	if firstLine, _, multiline := strings.Cut(trimmed, "\n"); multiline {
+		nLines := strings.Count(trimmed, "\n") + 1
+		if len(firstLine) > maxValueDisplay {
+			firstLine = firstLine[:maxValueDisplay]
+		}
+		return fmt.Sprintf("%s… (%d lines)", firstLine, nLines)
 	}
-	return string(b)
+	if len(trimmed) > maxValueDisplay {
+		return trimmed[:maxValueDisplay] + "…"
+	}
+	return trimmed
 }
 
 func execParams(ex *models.PlanExecution) any {
@@ -355,45 +450,6 @@ func findStepInputDecl(step *models.PlanStep, name string) *models.PlanField {
 		}
 	}
 	return nil
-}
-
-type outputRow struct {
-	Name  string `sdtab:"NAME"`
-	Step  string `sdtab:"STEP"`
-	Type  string `sdtab:"TYPE"`
-	Size  string `sdtab:"SIZE"`
-	Ready string `sdtab:"READY"`
-}
-
-func printOutputsTable(out io.Writer, outputs []*models.PlanOutputStatus) error {
-	t := sdtab.New[outputRow](out)
-	t.AddHeader()
-	for _, o := range outputs {
-		step := ""
-		if o.StepRef != nil {
-			step = o.StepRef.StepID
-		}
-		typ := "inline"
-		size := ""
-		ready := "-"
-		if o.Artifact != nil {
-			typ = "artifact"
-			size = units.HumanSize(float64(o.Artifact.Size))
-			if o.Artifact.Ready {
-				ready = "true"
-			} else {
-				ready = "false"
-			}
-		}
-		t.AddRow(outputRow{
-			Name:  o.Name,
-			Step:  step,
-			Type:  typ,
-			Size:  size,
-			Ready: ready,
-		})
-	}
-	return t.Flush()
 }
 
 type allOutputRow struct {

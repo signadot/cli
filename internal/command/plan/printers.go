@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/signadot/cli/internal/print"
@@ -55,20 +56,20 @@ func printPlanDetails(out io.Writer, p *models.RunnablePlan) error {
 
 	if len(p.Spec.Params) > 0 {
 		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Params:")
+		fmt.Fprintln(out, "Inputs:")
 		printPlanParams(out, p.Spec.Params)
-	}
-
-	if len(p.Spec.Output) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Outputs:")
-		printPlanOutputs(out, p.Spec.Output)
 	}
 
 	if len(p.Spec.Steps) > 0 {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Steps:")
 		printPlanSteps(out, p.Spec.Steps)
+	}
+
+	if len(p.Spec.Output) > 0 {
+		fmt.Fprintln(out)
+		fmt.Fprintln(out, "Outputs:")
+		printPlanOutputs(out, p.Spec.Output)
 	}
 
 	return nil
@@ -236,19 +237,46 @@ func printInputLine(out io.Writer, indent string, nameWidth int, name, detail, v
 // formatValue renders a parameter value for a detail column. Strings
 // pass through as bare text; everything else round-trips through JSON
 // so objects/arrays stay copy-pasteable into a plan spec rather than
-// rendering as Go's map[a:1] / [1 2] forms.
+// rendering as Go's map[a:1] / [1 2] forms. Multi-line and very long
+// values are summarised so they don't break the inline arrow form;
+// users who want the full value can use -o yaml.
 func formatValue(v any) string {
 	if v == nil {
 		return ""
 	}
+	var raw string
 	if s, ok := v.(string); ok {
-		return s
+		raw = s
+	} else {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf("%v", v)
+		}
+		raw = string(b)
 	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return fmt.Sprintf("%v", v)
+	return truncateForDisplay(raw)
+}
+
+// maxValueDisplay caps single-line value rendering.
+const maxValueDisplay = 80
+
+// truncateForDisplay collapses a value into a single line suitable
+// for the inline arrow form. Multi-line values are reduced to the
+// first line + a (N lines) marker; over-long single lines get a
+// trailing ellipsis.
+func truncateForDisplay(s string) string {
+	trimmed := strings.TrimRight(s, "\n")
+	if firstLine, _, multiline := strings.Cut(trimmed, "\n"); multiline {
+		nLines := strings.Count(trimmed, "\n") + 1
+		if len(firstLine) > maxValueDisplay {
+			firstLine = firstLine[:maxValueDisplay]
+		}
+		return fmt.Sprintf("%s… (%d lines)", firstLine, nLines)
 	}
-	return string(b)
+	if len(trimmed) > maxValueDisplay {
+		return trimmed[:maxValueDisplay] + "…"
+	}
+	return trimmed
 }
 
 // actionLabel renders the step's action as "name (id)" when the
