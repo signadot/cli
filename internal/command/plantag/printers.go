@@ -4,20 +4,18 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
-	"time"
 
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
-	"github.com/xeonx/timeago"
 )
 
 type tagRow struct {
 	Name    string `sdtab:"NAME"`
 	PlanID  string `sdtab:"PLAN ID"`
 	Steps   string `sdtab:"STEPS"`
-	Prompt  string `sdtab:"PROMPT"`
+	Hint    string `sdtab:"SELECTION HINT"`
 	Created string `sdtab:"CREATED"`
 	Updated string `sdtab:"UPDATED"`
 }
@@ -26,31 +24,23 @@ func printTagTable(out io.Writer, tags []*models.PlanTag) error {
 	t := sdtab.New[tagRow](out)
 	t.AddHeader()
 	for _, tag := range tags {
-		var planID, steps, prompt, created, updated string
+		var planID, steps, hint, created, updated string
 		if tag.Spec != nil {
 			planID = tag.Spec.PlanID
 		}
 		if tag.Plan != nil && tag.Plan.Spec != nil {
 			steps = fmt.Sprintf("%d", len(tag.Plan.Spec.Steps))
-			prompt = print.FirstLine(tag.Plan.Spec.Prompt)
+			hint = print.FirstLine(tag.Plan.Spec.SelectionHint)
 		}
 		if tag.Status != nil {
-			if tag.Status.CreatedAt != "" {
-				if ts, err := time.Parse(time.RFC3339, tag.Status.CreatedAt); err == nil {
-					created = timeago.NoMax(timeago.English).Format(ts)
-				}
-			}
-			if tag.Status.UpdatedAt != "" {
-				if ts, err := time.Parse(time.RFC3339, tag.Status.UpdatedAt); err == nil {
-					updated = timeago.NoMax(timeago.English).Format(ts)
-				}
-			}
+			created = utils.TimeAgo(tag.Status.CreatedAt)
+			updated = utils.TimeAgo(tag.Status.UpdatedAt)
 		}
 		t.AddRow(tagRow{
 			Name:    tag.Name,
 			PlanID:  planID,
 			Steps:   steps,
-			Prompt:  prompt,
+			Hint:    hint,
 			Created: created,
 			Updated: updated,
 		})
@@ -114,21 +104,13 @@ func printHistoryTable(out io.Writer, history []*models.TagMapping) error {
 	t := sdtab.New[historyRow](out)
 	t.AddHeader()
 	for _, h := range history {
-		tagged := ""
-		if h.TaggedAt != "" {
-			if ts, err := time.Parse(time.RFC3339, h.TaggedAt); err == nil {
-				tagged = timeago.NoMax(timeago.English).Format(ts)
-			}
-		}
 		untagged := "(current)"
 		if h.UntaggedAt != "" {
-			if ts, err := time.Parse(time.RFC3339, h.UntaggedAt); err == nil {
-				untagged = timeago.NoMax(timeago.English).Format(ts)
-			}
+			untagged = utils.TimeAgo(h.UntaggedAt)
 		}
 		t.AddRow(historyRow{
-			PlanID:    h.PlanID,
-			TaggedAt:  tagged,
+			PlanID:     h.PlanID,
+			TaggedAt:   utils.TimeAgo(h.TaggedAt),
 			UntaggedAt: untagged,
 		})
 	}

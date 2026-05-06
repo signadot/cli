@@ -102,19 +102,23 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		return fmt.Errorf("creating execution: %w", err)
 	}
 	execID := createResp.Payload.ID
-	if cfg.OutputFormat == config.OutputFormatDefault {
+	// In --attach mode the "created" notice is emitted as a structured
+	// event from inside attachExecution so it shares timestamping and
+	// formatting with the rest of the stream. Otherwise print a plain
+	// banner to stderr (only for default text output).
+	if cfg.OutputFormat == config.OutputFormatDefault && !cfg.Attach {
 		fmt.Fprintf(log, "Created execution %s for plan %s\n", execID, planID)
 	}
 
 	// Fire-and-forget mode.
 	if !cfg.Wait {
-		return writeRunOutput(cfg, out, createResp.Payload)
+		return writeRunOutput(cfg, out, createResp.Payload, planSpec)
 	}
 
 	// Wait for completion: attach streams structured events, otherwise poll with spinner.
 	var exec *models.PlanExecution
 	if cfg.Attach {
-		exec, err = attachExecution(ctx, cfg, out, log, execID)
+		exec, err = attachExecution(ctx, cfg, out, log, execID, planID)
 	} else {
 		exec, err = pollExecution(ctx, cfg, log, execID)
 	}
@@ -156,17 +160,17 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 	// On failure/cancellation, write details to stderr so stdout stays clean.
 	switch exec.Status.Phase {
 	case models.PlansExecutionPhaseFailed:
-		if err := writeRunOutput(cfg, log, exec); err != nil {
+		if err := writeRunOutput(cfg, log, exec, planSpec); err != nil {
 			fmt.Fprintf(log, "error rendering output: %v\n", err)
 		}
 		os.Exit(1)
 	case models.PlansExecutionPhaseCancelled:
-		if err := writeRunOutput(cfg, log, exec); err != nil {
+		if err := writeRunOutput(cfg, log, exec, planSpec); err != nil {
 			fmt.Fprintf(log, "error rendering output: %v\n", err)
 		}
 		os.Exit(2)
 	default:
-		return writeRunOutput(cfg, out, exec)
+		return writeRunOutput(cfg, out, exec, planSpec)
 	}
 	return nil
 }
@@ -300,6 +304,35 @@ func applyRoutingFlags(cfg *config.PlanRun, planSpec *models.PlanSpec, params ma
 	return nil
 }
 
+// buildOutputEvent translates a plan-level PlanOutputStatus into the
+// AttachEvent shape so an --attach text/JSON consumer can tell inline
+// outputs (Kind=inline, Value set) from artifact outputs (Kind=artifact,
+// Size/Ready/ContentType set) instead of seeing value=<nil> for the
+// latter.
+func buildOutputEvent(o *models.PlanOutputStatus) sdkprint.AttachEvent {
+	evt := sdkprint.AttachEvent{
+		Type: "output",
+		Name: o.Name,
+	}
+	if o.StepRef != nil {
+		evt.Step = o.StepRef.StepID
+	}
+	if o.Artifact != nil {
+		evt.Kind = "artifact"
+		evt.Size = o.Artifact.Size
+		ready := o.Artifact.Ready
+		evt.Ready = &ready
+		if ct := o.Metadata["contentType"]; ct != "" {
+			evt.ContentType = ct
+		}
+		evt.Error = o.Artifact.Error
+	} else {
+		evt.Kind = "inline"
+		evt.Value = o.Value
+	}
+	return evt
+}
+
 func isTerminal(phase models.PlansExecutionPhase) bool {
 	switch phase {
 	case models.PlansExecutionPhaseCompleted,
@@ -367,7 +400,7 @@ func pollExecution(ctx context.Context, cfg *config.PlanRun, log io.Writer, exec
 	}
 }
 
-func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Writer, execID string) (*models.PlanExecution, error) {
+func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Writer, execID, planID string) (*models.PlanExecution, error) {
 	if cfg.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
@@ -376,6 +409,15 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 
 	jsonMode := cfg.OutputFormat == config.OutputFormatJSON
 	aw := sdkprint.NewAttachWriter(out, jsonMode)
+
+	// First event in the stream — same shape as the "Created execution"
+	// stderr banner emitted in non-attach mode, so consumers piping
+	// through jq see a consistent event sequence from creation to result.
+	aw.Emit(sdkprint.AttachEvent{
+		Type:   "created",
+		ID:     execID,
+		PlanID: planID,
+	})
 
 	// Stream aggregated logs in background, emitting structured events.
 	logCtx, logCancel := context.WithCancel(ctx)
@@ -444,11 +486,7 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 			// Emit output events for resolved plan-level outputs.
 			if ex.Status != nil {
 				for _, o := range ex.Status.Outputs {
-					aw.Emit(sdkprint.AttachEvent{
-						Type:  "output",
-						Name:  o.Name,
-						Value: o.Value,
-					})
+					aw.Emit(buildOutputEvent(o))
 				}
 			}
 			// Emit result event.
@@ -475,14 +513,14 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 	}
 }
 
-func writeRunOutput(cfg *config.PlanRun, out io.Writer, exec *models.PlanExecution) error {
+func writeRunOutput(cfg *config.PlanRun, out io.Writer, exec *models.PlanExecution, planSpec *models.PlanSpec) error {
 	switch cfg.OutputFormat {
 	case config.OutputFormatJSON:
 		return sdkprint.RawJSON(out, exec)
 	case config.OutputFormatYAML:
 		return sdkprint.RawYAML(out, exec)
 	default:
-		return planexec.PrintRunResult(out, exec)
+		return planexec.PrintRunResult(out, exec, planSpec)
 	}
 }
 

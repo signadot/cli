@@ -7,20 +7,30 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/docker/go-units"
 )
 
 // AttachEvent represents a structured event emitted during --attach mode.
 type AttachEvent struct {
 	Time   time.Time `json:"time"`
 	Type   string    `json:"type"`             // "log", "output", "result"
-	Step   string    `json:"step,omitempty"`   // for log events
+	Step   string    `json:"step,omitempty"`   // for log events; for output events, the step that produced a plan-level output
 	Stream string    `json:"stream,omitempty"` // "stdout" or "stderr", for log events
 	Msg    string    `json:"msg,omitempty"`    // for log events
 	Name   string    `json:"name,omitempty"`   // for output events
-	Value  any       `json:"value,omitempty"`  // for output events
-	ID     string    `json:"id,omitempty"`     // for result events
-	Phase  string    `json:"phase,omitempty"`  // for result events
-	Error  string    `json:"error,omitempty"`  // for result events (if failed)
+
+	// For output events:
+	Kind        string `json:"kind,omitempty"`        // "inline" | "artifact"
+	Value       any    `json:"value,omitempty"`       // present for inline outputs
+	Size        int64  `json:"size,omitempty"`        // bytes, for artifact outputs
+	Ready       *bool  `json:"ready,omitempty"`       // for artifact outputs (always set when Kind=artifact)
+	ContentType string `json:"contentType,omitempty"` // for artifact outputs, when metadata.contentType is set
+
+	ID     string `json:"id,omitempty"`     // for created/result events: the execution ID
+	PlanID string `json:"planID,omitempty"` // for created events: the source plan
+	Phase  string `json:"phase,omitempty"`  // for result events
+	Error  string `json:"error,omitempty"`  // for result events (if failed); for output events, an artifact-side error
 }
 
 // AttachWriter writes structured events to an io.Writer in either
@@ -71,7 +81,37 @@ func formatText(e AttachEvent) string {
 		fmt.Fprintf(&b, " msg=%s", quoteIfNeeded(strings.TrimRight(e.Msg, "\n")))
 	case "output":
 		fmt.Fprintf(&b, " name=%s", e.Name)
-		fmt.Fprintf(&b, " value=%s", quoteIfNeeded(fmt.Sprint(e.Value)))
+		if e.Step != "" {
+			fmt.Fprintf(&b, " step=%s", e.Step)
+		}
+		switch e.Kind {
+		case "artifact":
+			fmt.Fprintf(&b, " kind=artifact")
+			if e.Size > 0 {
+				fmt.Fprintf(&b, " size=%s", units.HumanSize(float64(e.Size)))
+			}
+			if e.Ready != nil {
+				fmt.Fprintf(&b, " ready=%t", *e.Ready)
+			}
+			if e.ContentType != "" {
+				fmt.Fprintf(&b, " content_type=%s", e.ContentType)
+			}
+			if e.Error != "" {
+				fmt.Fprintf(&b, " error=%s", quoteIfNeeded(e.Error))
+			}
+		case "inline":
+			fmt.Fprintf(&b, " kind=inline")
+			fmt.Fprintf(&b, " value=%s", quoteIfNeeded(fmt.Sprint(e.Value)))
+		default:
+			// Older emit sites that didn't set Kind: keep the legacy
+			// value=<...> shape so existing log consumers don't break.
+			fmt.Fprintf(&b, " value=%s", quoteIfNeeded(fmt.Sprint(e.Value)))
+		}
+	case "created":
+		fmt.Fprintf(&b, " id=%s", e.ID)
+		if e.PlanID != "" {
+			fmt.Fprintf(&b, " plan_id=%s", e.PlanID)
+		}
 	case "result":
 		fmt.Fprintf(&b, " id=%s", e.ID)
 		fmt.Fprintf(&b, " phase=%s", e.Phase)

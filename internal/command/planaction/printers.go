@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/signadot/cli/internal/command/planshared"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
@@ -71,10 +72,7 @@ func printActionDetails(out io.Writer, a *models.PlanAction) error {
 		if a.Status.UpdatedAt != "" {
 			fmt.Fprintf(tw, "Updated:\t%s\n", utils.FormatTimestamp(a.Status.UpdatedAt))
 		}
-		if len(a.Status.Requires) > 0 {
-			fmt.Fprintf(tw, "Requires:\t%s\n", strings.Join(a.Status.Requires, ", "))
-		}
-		if img := formatImage(a.Status.BodyImage); img != "" {
+		if img := planshared.FormatImage(a.Status.BodyImage); img != "" {
 			fmt.Fprintf(tw, "Image:\t%s\n", img)
 		}
 	}
@@ -87,9 +85,6 @@ func printActionDetails(out io.Writer, a *models.PlanAction) error {
 			return err
 		}
 		if err := printFields(out, "Outputs", a.Status.BodyOutputs); err != nil {
-			return err
-		}
-		if err := printValidations(out, a.Status.Validations); err != nil {
 			return err
 		}
 	}
@@ -146,19 +141,6 @@ func enabled(a *models.PlanAction) string {
 	return fmt.Sprintf("%t", a.Status.Enabled)
 }
 
-func formatImage(ref *models.PlanImageRef) string {
-	if ref == nil {
-		return ""
-	}
-	if ref.Literal != "" {
-		return ref.Literal
-	}
-	if ref.InputName != "" {
-		return fmt.Sprintf("(from input %q)", ref.InputName)
-	}
-	return ""
-}
-
 type fieldRow struct {
 	Name     string `sdtab:"NAME"`
 	Required string `sdtab:"REQUIRED"`
@@ -180,32 +162,6 @@ func printFields(out io.Writer, label string, fields []*models.PlanField) error 
 			Required: fmt.Sprintf("%t", f.Required),
 			Default:  formatAny(f.Default),
 			Schema:   formatSchema(f),
-		})
-	}
-	return t.Flush()
-}
-
-type validationRow struct {
-	RunnerGroup string `sdtab:"RUNNER GROUP"`
-	Valid       string `sdtab:"VALID"`
-	Stale       string `sdtab:"STALE"`
-	Validated   string `sdtab:"VALIDATED"`
-}
-
-func printValidations(out io.Writer, vs []*models.PlanActionValidationStatus) error {
-	if len(vs) == 0 {
-		return nil
-	}
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Validations:")
-	t := sdtab.New[validationRow](out)
-	t.AddHeader()
-	for _, v := range vs {
-		t.AddRow(validationRow{
-			RunnerGroup: v.RunnerGroup,
-			Valid:       fmt.Sprintf("%t", v.Valid),
-			Stale:       fmt.Sprintf("%t", v.Stale),
-			Validated:   utils.FormatTimestamp(v.ValidatedAt),
 		})
 	}
 	return t.Flush()
