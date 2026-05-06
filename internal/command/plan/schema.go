@@ -1,10 +1,11 @@
 package plan
 
 import (
-	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
+	"github.com/signadot/cli/internal/print"
 	sdkmeta "github.com/signadot/go-sdk/client/meta"
 	"github.com/spf13/cobra"
 )
@@ -33,13 +34,13 @@ func runSchema(cfg *config.PlanSchema, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	b, err := json.Marshal(resp.Payload)
-	if err != nil {
-		return err
+
+	switch cfg.OutputFormat {
+	case config.OutputFormatDefault, config.OutputFormatJSON:
+		return print.RawJSON(out, resp.Payload)
+	case config.OutputFormatYAML:
+		return print.RawYAML(out, resp.Payload)
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
-	if _, err := out.Write(b); err != nil {
-		return err
-	}
-	_, err = out.Write([]byte("\n"))
-	return err
 }
