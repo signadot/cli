@@ -1,13 +1,12 @@
 package plan
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
-	"strings"
 	"text/tabwriter"
 
+	"github.com/signadot/cli/internal/command/planshared"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
@@ -92,14 +91,14 @@ func printPlanParams(out io.Writer, params []*models.PlanField) {
 		var detail, via string
 		switch {
 		case p.Default != nil:
-			detail = formatValue(p.Default)
+			detail = planshared.FormatValue(p.Default)
 			via = "default"
 		case p.Required:
 			via = "required"
 		default:
 			via = "optional"
 		}
-		printInputLine(out, "  ", maxName, p.Name, detail, via)
+		planshared.PrintInputLine(out, "  ", maxName, p.Name, detail, via)
 	}
 }
 
@@ -133,12 +132,12 @@ func printPlanSteps(out io.Writer, steps []*models.PlanStep) {
 		}
 		fmt.Fprintf(out, "  %s\n", s.ID)
 		if s.Action != nil {
-			line := "    action: " + actionLabel(s.Action)
+			line := "    action: " + planshared.ActionLabel(s.Action)
 			if s.Action.Revision > 0 {
 				line += fmt.Sprintf("   (revision %d)", s.Action.Revision)
 			}
 			fmt.Fprintln(out, line)
-			if img := formatImage(s.Action.Image); img != "" {
+			if img := planshared.FormatImage(s.Action.Image); img != "" {
 				fmt.Fprintf(out, "    image: %s\n", img)
 			}
 			if s.Action.Timeout != "" {
@@ -162,7 +161,7 @@ func printPlanSteps(out io.Writer, steps []*models.PlanStep) {
 // aren't shown here; that resolution is per-execution and lives in
 // plan x get.
 func printStepInputs(out io.Writer, s *models.PlanStep) {
-	values := paramsAsMap(stepArgsValues(s))
+	values := planshared.ParamsAsMap(planshared.StepArgsValues(s))
 	var refs map[string]string
 	if s.Args != nil {
 		refs = s.Args.Refs
@@ -176,7 +175,7 @@ func printStepInputs(out io.Writer, s *models.PlanStep) {
 	}
 	var inputs []wired
 	for name, v := range values {
-		inputs = append(inputs, wired{name, formatValue(v), "set in plan"})
+		inputs = append(inputs, wired{name, planshared.FormatValue(v), "set in plan"})
 	}
 	for name, r := range refs {
 		inputs = append(inputs, wired{name, r, "ref"})
@@ -191,7 +190,7 @@ func printStepInputs(out io.Writer, s *models.PlanStep) {
 		}
 	}
 	for _, in := range inputs {
-		printInputLine(out, "      ", maxName, in.name, in.detail, in.via)
+		planshared.PrintInputLine(out, "      ", maxName, in.name, in.detail, in.via)
 	}
 }
 
@@ -219,96 +218,6 @@ func printStepOutputs(out io.Writer, s *models.PlanStep) {
 	}
 }
 
-// printInputLine emits one input row in the form
-//
-//	<indent><name padded>   ← <detail>   (<via>)
-//
-// or, when there's no detail to show:
-//
-//	<indent><name padded>   (<via>)
-func printInputLine(out io.Writer, indent string, nameWidth int, name, detail, via string) {
-	if detail == "" {
-		fmt.Fprintf(out, "%s%-*s   (%s)\n", indent, nameWidth, name, via)
-		return
-	}
-	fmt.Fprintf(out, "%s%-*s   ← %s   (%s)\n", indent, nameWidth, name, detail, via)
-}
-
-// formatValue renders a parameter value for a detail column. Strings
-// pass through as bare text; everything else round-trips through JSON
-// so objects/arrays stay copy-pasteable into a plan spec rather than
-// rendering as Go's map[a:1] / [1 2] forms. Multi-line and very long
-// values are summarised so they don't break the inline arrow form;
-// users who want the full value can use -o yaml.
-func formatValue(v any) string {
-	if v == nil {
-		return ""
-	}
-	var raw string
-	if s, ok := v.(string); ok {
-		raw = s
-	} else {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprintf("%v", v)
-		}
-		raw = string(b)
-	}
-	return truncateForDisplay(raw)
-}
-
-// maxValueDisplay caps single-line value rendering.
-const maxValueDisplay = 80
-
-// truncateForDisplay collapses a value into a single line suitable
-// for the inline arrow form. Multi-line values are reduced to the
-// first line + a (N lines) marker; over-long single lines get a
-// trailing ellipsis.
-func truncateForDisplay(s string) string {
-	trimmed := strings.TrimRight(s, "\n")
-	if firstLine, _, multiline := strings.Cut(trimmed, "\n"); multiline {
-		nLines := strings.Count(trimmed, "\n") + 1
-		if len(firstLine) > maxValueDisplay {
-			firstLine = firstLine[:maxValueDisplay]
-		}
-		return fmt.Sprintf("%s… (%d lines)", firstLine, nLines)
-	}
-	if len(trimmed) > maxValueDisplay {
-		return trimmed[:maxValueDisplay] + "…"
-	}
-	return trimmed
-}
-
-// actionLabel renders the step's action as "name (id)" when the
-// server returns both, name alone when the ID is empty, or ID alone
-// when the name isn't populated yet (older plans compiled before the
-// Name field was added).
-func actionLabel(a *models.PlanStepAction) string {
-	if a == nil {
-		return ""
-	}
-	if a.Name == "" {
-		return a.ActionID
-	}
-	if a.ActionID == "" {
-		return a.Name
-	}
-	return fmt.Sprintf("%s (%s)", a.Name, a.ActionID)
-}
-
-func formatImage(ref *models.PlanImageRef) string {
-	if ref == nil {
-		return ""
-	}
-	if ref.Literal != "" {
-		return ref.Literal
-	}
-	if ref.InputName != "" {
-		return fmt.Sprintf("(from input %q)", ref.InputName)
-	}
-	return ""
-}
-
 func formatFieldSchema(f *models.PlanField) string {
 	if f.SchemaRef != "" {
 		return fmt.Sprintf("schema: %s", f.SchemaRef)
@@ -319,18 +228,4 @@ func formatFieldSchema(f *models.PlanField) string {
 		}
 	}
 	return ""
-}
-
-func stepArgsValues(s *models.PlanStep) any {
-	if s == nil || s.Args == nil {
-		return nil
-	}
-	return s.Args.Values
-}
-
-func paramsAsMap(v any) map[string]any {
-	if m, ok := v.(map[string]any); ok {
-		return m
-	}
-	return nil
 }

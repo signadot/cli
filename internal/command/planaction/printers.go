@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/charmbracelet/glamour"
+	"github.com/signadot/cli/internal/command/planshared"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
@@ -71,7 +72,7 @@ func printActionDetails(out io.Writer, a *models.PlanAction) error {
 		if a.Status.UpdatedAt != "" {
 			fmt.Fprintf(tw, "Updated:\t%s\n", utils.FormatTimestamp(a.Status.UpdatedAt))
 		}
-		if img := formatImage(a.Status.BodyImage); img != "" {
+		if img := planshared.FormatImage(a.Status.BodyImage); img != "" {
 			fmt.Fprintf(tw, "Image:\t%s\n", img)
 		}
 	}
@@ -138,19 +139,6 @@ func enabled(a *models.PlanAction) string {
 		return ""
 	}
 	return fmt.Sprintf("%t", a.Status.Enabled)
-}
-
-func formatImage(ref *models.PlanImageRef) string {
-	if ref == nil {
-		return ""
-	}
-	if ref.Literal != "" {
-		return ref.Literal
-	}
-	if ref.InputName != "" {
-		return fmt.Sprintf("(from input %q)", ref.InputName)
-	}
-	return ""
 }
 
 type fieldRow struct {

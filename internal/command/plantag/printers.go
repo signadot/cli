@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
-	"time"
 
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
-	"github.com/xeonx/timeago"
 )
 
 type tagRow struct {
@@ -106,21 +104,13 @@ func printHistoryTable(out io.Writer, history []*models.TagMapping) error {
 	t := sdtab.New[historyRow](out)
 	t.AddHeader()
 	for _, h := range history {
-		tagged := ""
-		if h.TaggedAt != "" {
-			if ts, err := time.Parse(time.RFC3339, h.TaggedAt); err == nil {
-				tagged = timeago.NoMax(timeago.English).Format(ts)
-			}
-		}
 		untagged := "(current)"
 		if h.UntaggedAt != "" {
-			if ts, err := time.Parse(time.RFC3339, h.UntaggedAt); err == nil {
-				untagged = timeago.NoMax(timeago.English).Format(ts)
-			}
+			untagged = utils.TimeAgo(h.UntaggedAt)
 		}
 		t.AddRow(historyRow{
-			PlanID:    h.PlanID,
-			TaggedAt:  tagged,
+			PlanID:     h.PlanID,
+			TaggedAt:   utils.TimeAgo(h.TaggedAt),
 			UntaggedAt: untagged,
 		})
 	}

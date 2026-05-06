@@ -1,13 +1,13 @@
 package planexec
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/docker/go-units"
+	"github.com/signadot/cli/internal/command/planshared"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
@@ -66,7 +66,11 @@ func printExecDetails(out io.Writer, ex *models.PlanExecution, planSpec *models.
 	if ex.Status != nil && len(ex.Status.Inputs) > 0 {
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Inputs:")
-		printPlanInputs(out, ex, planSpec)
+		var supplied any
+		if ex.Spec != nil {
+			supplied = ex.Spec.Params
+		}
+		printPlanInputs(out, ex.Status.Inputs, supplied, planSpec)
 	}
 
 	if ex.Status != nil && len(ex.Status.Steps) > 0 {
@@ -115,9 +119,9 @@ func printExecOutputs(out io.Writer, ex *models.PlanExecution) {
 func printOutputRow(out io.Writer, indent string, nameWidth int, name string, value any, art *models.PlanArtifactRef, metadata map[string]string, stepID string) {
 	detail := ""
 	if value != nil {
-		detail = formatValue(value)
+		detail = planshared.FormatValue(value)
 	}
-	printInputLine(out, indent, nameWidth, name, detail, formatOutputTag(art, metadata, stepID))
+	planshared.PrintInputLine(out, indent, nameWidth, name, detail, formatOutputTag(art, metadata, stepID))
 }
 
 // formatOutputTag renders the parenthesized tag content for an
@@ -160,32 +164,32 @@ func formatOutputTag(art *models.PlanArtifactRef, metadata map[string]string, st
 // printPlanInputs prints plan-level params in the indented arrow form
 // used throughout the steps section. All entries are shown so the
 // reader sees the authoritative view of what bound at dispatch time.
-// Literal values are taken from execution.spec.params; default values
-// are pulled from the plan spec when it's available.
-func printPlanInputs(out io.Writer, ex *models.PlanExecution, planSpec *models.PlanSpec) {
-	inputs := ex.Status.Inputs
+// suppliedParams is execution.spec.params (the raw any from the
+// SDK); default values are pulled from the plan spec when it's
+// available.
+func printPlanInputs(out io.Writer, inputs []*models.PlanInputStatus, suppliedParams any, planSpec *models.PlanSpec) {
 	maxName := 0
 	for _, i := range inputs {
 		if len(i.Name) > maxName {
 			maxName = len(i.Name)
 		}
 	}
-	suppliedParams := paramsAsMap(execParams(ex))
+	supplied := planshared.ParamsAsMap(suppliedParams)
 	for _, i := range inputs {
 		detail := ""
 		switch i.ResolvedVia {
 		case models.PlansInputResolvedViaCallerSecret:
 			detail = i.SecretName
 		case models.PlansInputResolvedViaLiteral:
-			if v, ok := suppliedParams[i.Name]; ok {
-				detail = formatValue(v)
+			if v, ok := supplied[i.Name]; ok {
+				detail = planshared.FormatValue(v)
 			}
 		case models.PlansInputResolvedViaDefault:
 			if p := findPlanParam(planSpec, i.Name); p != nil && p.Default != nil {
-				detail = formatValue(p.Default)
+				detail = planshared.FormatValue(p.Default)
 			}
 		}
-		printInputLine(out, "  ", maxName, i.Name, detail, planLevelVia(i.ResolvedVia))
+		planshared.PrintInputLine(out, "  ", maxName, i.Name, detail, planLevelVia(i.ResolvedVia))
 	}
 }
 
@@ -242,7 +246,7 @@ func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.
 		}
 		fmt.Fprintf(out, "  %-*s   %s\n", maxID, s.ID, s.Phase)
 		if hasAction {
-			label := actionLabel(step.Action)
+			label := planshared.ActionLabel(step.Action)
 			if step.Action.Revision > 0 {
 				label += fmt.Sprintf("   (revision %d)", step.Action.Revision)
 			}
@@ -253,7 +257,7 @@ func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.
 		}
 		if len(s.Inputs) > 0 {
 			fmt.Fprintln(out, "    inputs:")
-			stepValues := paramsAsMap(stepArgsValues(step))
+			stepValues := planshared.ParamsAsMap(planshared.StepArgsValues(step))
 			maxName := 0
 			for _, in := range s.Inputs {
 				if len(in.Name) > maxName {
@@ -267,14 +271,14 @@ func printSteps(out io.Writer, steps []*models.PlanStepStatus, planSpec *models.
 					detail = in.Ref
 				case models.PlansInputResolvedViaLiteral:
 					if v, ok := stepValues[in.Name]; ok {
-						detail = formatValue(v)
+						detail = planshared.FormatValue(v)
 					}
 				case models.PlansInputResolvedViaDefault:
 					if p := findStepInputDecl(step, in.Name); p != nil && p.Default != nil {
-						detail = formatValue(p.Default)
+						detail = planshared.FormatValue(p.Default)
 					}
 				}
-				printInputLine(out, "      ", maxName, in.Name, detail, stepLevelVia(in.ResolvedVia))
+				planshared.PrintInputLine(out, "      ", maxName, in.Name, detail, stepLevelVia(in.ResolvedVia))
 			}
 		}
 		if len(s.Outputs) > 0 {
@@ -299,111 +303,6 @@ func hasStepBody(s *models.PlanStepStatus) bool {
 	return len(s.Inputs) > 0 || len(s.Outputs) > 0 || s.Error != ""
 }
 
-// actionLabel renders the step's action as "name (id)" when the
-// server returns both, name alone when the ID is empty, or ID alone
-// when the name isn't populated yet (older plans compiled before the
-// Name field was added).
-func actionLabel(a *models.PlanStepAction) string {
-	if a == nil {
-		return ""
-	}
-	if a.Name == "" {
-		return a.ActionID
-	}
-	if a.ActionID == "" {
-		return a.Name
-	}
-	return fmt.Sprintf("%s (%s)", a.Name, a.ActionID)
-}
-
-// printInputLine emits one input row in the form
-//
-//	<indent><name padded>   ← <detail>   (<via>)
-//
-// or, when there's no detail to show:
-//
-//	<indent><name padded>   (<via>)
-//
-// Manual padding is used (rather than tabwriter) because rows with
-// and without a detail cell have different "shapes"; a single
-// tabwriter scope would size the empty middle column based on the
-// longest detail and leave the (via) tag for no-detail rows pushed
-// far to the right.
-func printInputLine(out io.Writer, indent string, nameWidth int, name, detail, via string) {
-	if detail == "" {
-		fmt.Fprintf(out, "%s%-*s   (%s)\n", indent, nameWidth, name, via)
-		return
-	}
-	fmt.Fprintf(out, "%s%-*s   ← %s   (%s)\n", indent, nameWidth, name, detail, via)
-}
-
-// formatValue renders a parameter value for a detail column. Strings
-// pass through as bare text; everything else round-trips through JSON
-// so objects/arrays stay copy-pasteable into a plan spec rather than
-// rendering as Go's map[a:1] / [1 2] forms. Multi-line and very long
-// values are summarised so they don't break the inline arrow form;
-// users who want the full value can use -o yaml.
-func formatValue(v any) string {
-	if v == nil {
-		return ""
-	}
-	var raw string
-	if s, ok := v.(string); ok {
-		raw = s
-	} else {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprintf("%v", v)
-		}
-		raw = string(b)
-	}
-	return truncateForDisplay(raw)
-}
-
-// maxValueDisplay caps single-line value rendering. Keeps room on a
-// 100-column terminal for the indent + name + arrow + via tag
-// surrounding the value.
-const maxValueDisplay = 80
-
-// truncateForDisplay collapses a value into a single line suitable
-// for the inline arrow form. Multi-line values are reduced to the
-// first line + a (N lines) marker; over-long single lines get a
-// trailing ellipsis.
-func truncateForDisplay(s string) string {
-	trimmed := strings.TrimRight(s, "\n")
-	if firstLine, _, multiline := strings.Cut(trimmed, "\n"); multiline {
-		nLines := strings.Count(trimmed, "\n") + 1
-		if len(firstLine) > maxValueDisplay {
-			firstLine = firstLine[:maxValueDisplay]
-		}
-		return fmt.Sprintf("%s… (%d lines)", firstLine, nLines)
-	}
-	if len(trimmed) > maxValueDisplay {
-		return trimmed[:maxValueDisplay] + "…"
-	}
-	return trimmed
-}
-
-func execParams(ex *models.PlanExecution) any {
-	if ex == nil || ex.Spec == nil {
-		return nil
-	}
-	return ex.Spec.Params
-}
-
-func stepArgsValues(step *models.PlanStep) any {
-	if step == nil || step.Args == nil {
-		return nil
-	}
-	return step.Args.Values
-}
-
-func paramsAsMap(v any) map[string]any {
-	if m, ok := v.(map[string]any); ok {
-		return m
-	}
-	return nil
-}
 
 func findPlanParam(planSpec *models.PlanSpec, name string) *models.PlanField {
 	if planSpec == nil {
