@@ -45,21 +45,28 @@ func PrintInputLine(out io.Writer, indent string, nameWidth int, name, detail, v
 // rendering as Go's map[a:1] / [1 2] forms. Multi-line and very long
 // values are summarised so they don't break the inline arrow form;
 // users who want the full value can use -o yaml.
+//
+// Empty strings render as the literal "" (with quotes) so they're
+// distinguishable from nil/missing values. An explicit empty string
+// can be a meaningful value the action interprets specifically (e.g.
+// run-image treats image:"" as "run on the host runner without a
+// container"); collapsing it to the same shape as "value not
+// provided" would hide that intent from the reader.
 func FormatValue(v any) string {
 	if v == nil {
 		return ""
 	}
-	var raw string
 	if s, ok := v.(string); ok {
-		raw = s
-	} else {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprintf("%v", v)
+		if s == "" {
+			return `""`
 		}
-		raw = string(b)
+		return truncateForDisplay(s)
 	}
-	return truncateForDisplay(raw)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return truncateForDisplay(string(b))
 }
 
 // truncateForDisplay collapses a value into a single line suitable
