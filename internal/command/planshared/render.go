@@ -97,6 +97,43 @@ func FormatImage(ref *models.PlanImageRef) string {
 	return ""
 }
 
+// FormatCreatedBy renders a PlanStatus.CreatedBy actor for the plan
+// header. Resolution by ActorType:
+//
+//	user     → UserEmail (e.g. daniel@signadot.com)
+//	api_key  → "api key " + APIKeyMasked
+//	system   → "system"
+//
+// Returns "" when the actor is nil or unrecognised with no usable
+// fields, so the caller can suppress the row.
+func FormatCreatedBy(c *models.CreatedBy) string {
+	if c == nil {
+		return ""
+	}
+	switch c.ActorType {
+	case "user":
+		return c.UserEmail
+	case "api_key":
+		if c.APIKeyMasked != "" {
+			return "api key " + c.APIKeyMasked
+		}
+		return "api key"
+	case "system":
+		return "system"
+	}
+	// Unknown actor type — fall back to whatever the server returned
+	// so future server-side additions surface rather than getting
+	// silently dropped.
+	switch {
+	case c.UserEmail != "":
+		return c.UserEmail
+	case c.APIKeyMasked != "":
+		return c.APIKeyMasked
+	default:
+		return c.ActorType
+	}
+}
+
 // ActionLabel renders the step's action as "name (id)" when the
 // server returns both, name alone when the ID is empty, or ID alone
 // when the name isn't populated yet (older plans compiled before the

@@ -81,10 +81,10 @@ func printActionDetails(out io.Writer, a *models.PlanAction) error {
 	}
 
 	if a.Status != nil {
-		if err := printFields(out, "Inputs", a.Status.BodyParams); err != nil {
+		if err := printInputFields(out, a.Status.BodyParams); err != nil {
 			return err
 		}
-		if err := printFields(out, "Outputs", a.Status.BodyOutputs); err != nil {
+		if err := printOutputFields(out, a.Status.BodyOutputs); err != nil {
 			return err
 		}
 	}
@@ -141,27 +141,55 @@ func enabled(a *models.PlanAction) string {
 	return fmt.Sprintf("%t", a.Status.Enabled)
 }
 
-type fieldRow struct {
+type inputFieldRow struct {
 	Name     string `sdtab:"NAME"`
 	Required string `sdtab:"REQUIRED"`
 	Default  string `sdtab:"DEFAULT"`
 	Schema   string `sdtab:"SCHEMA"`
 }
 
-func printFields(out io.Writer, label string, fields []*models.PlanField) error {
+// printInputFields renders an action's declared input parameters.
+// Inputs carry name, required-ness, default, and schema — all four
+// columns are meaningful here.
+func printInputFields(out io.Writer, fields []*models.PlanField) error {
 	if len(fields) == 0 {
 		return nil
 	}
 	fmt.Fprintln(out)
-	fmt.Fprintf(out, "%s:\n", label)
-	t := sdtab.New[fieldRow](out)
+	fmt.Fprintln(out, "Inputs:")
+	t := sdtab.New[inputFieldRow](out)
 	t.AddHeader()
 	for _, f := range fields {
-		t.AddRow(fieldRow{
+		t.AddRow(inputFieldRow{
 			Name:     f.Name,
 			Required: fmt.Sprintf("%t", f.Required),
 			Default:  formatAny(f.Default),
 			Schema:   formatSchema(f),
+		})
+	}
+	return t.Flush()
+}
+
+type outputFieldRow struct {
+	Name   string `sdtab:"NAME"`
+	Schema string `sdtab:"SCHEMA"`
+}
+
+// printOutputFields renders an action's declared output fields.
+// Outputs don't have required-ness or defaults (those are inputs
+// concepts) — only name and schema apply.
+func printOutputFields(out io.Writer, fields []*models.PlanField) error {
+	if len(fields) == 0 {
+		return nil
+	}
+	fmt.Fprintln(out)
+	fmt.Fprintln(out, "Outputs:")
+	t := sdtab.New[outputFieldRow](out)
+	t.AddHeader()
+	for _, f := range fields {
+		t.AddRow(outputFieldRow{
+			Name:   f.Name,
+			Schema: formatSchema(f),
 		})
 	}
 	return t.Flush()
