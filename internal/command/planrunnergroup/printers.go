@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"io"
 	"text/tabwriter"
-	"time"
 
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
 	"github.com/signadot/go-sdk/models"
-	"github.com/xeonx/timeago"
 )
 
 type planRunnerGroupRow struct {
@@ -23,15 +21,10 @@ func printPlanRunnerGroupTable(out io.Writer, prgs []*models.PlanRunnerGroup) er
 	t := sdtab.New[planRunnerGroupRow](out)
 	t.AddHeader()
 	for _, prg := range prgs {
-		createdAt, err := time.Parse(time.RFC3339, prg.CreatedAt)
-		if err != nil {
-			return err
-		}
-
 		t.AddRow(planRunnerGroupRow{
 			Name:    prg.Name,
 			Cluster: prg.Spec.Cluster,
-			Created: timeago.NoMax(timeago.English).Format(createdAt),
+			Created: utils.TimeAgo(prg.CreatedAt),
 			Status:  readiness(prg),
 		})
 	}

@@ -5,6 +5,7 @@ import (
 	"io"
 	"text/tabwriter"
 
+	"github.com/signadot/cli/internal/command/planshared"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/sdtab"
 	"github.com/signadot/cli/internal/utils"
@@ -55,33 +56,32 @@ func printTagDetails(out io.Writer, tag *models.PlanTag) error {
 	if tag.Spec != nil {
 		fmt.Fprintf(tw, "Plan ID:\t%s\n", tag.Spec.PlanID)
 	}
+	if tag.Plan != nil && tag.Plan.Spec != nil && tag.Plan.Spec.SelectionHint != "" {
+		fmt.Fprintf(tw, "Selection Hint:\t%s\n", tag.Plan.Spec.SelectionHint)
+	}
+	if tag.Plan != nil && tag.Plan.Status != nil {
+		if by := planshared.FormatCreatedBy(tag.Plan.Status.CreatedBy); by != "" {
+			// "Plan Created By" rather than "Created By" so it's
+			// unambiguous against the tag-level Created/Updated fields
+			// just below.
+			fmt.Fprintf(tw, "Plan Created By:\t%s\n", by)
+		}
+	}
 	if tag.Status != nil {
 		fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(tag.Status.CreatedAt))
 		fmt.Fprintf(tw, "Updated:\t%s\n", utils.FormatTimestamp(tag.Status.UpdatedAt))
 	}
-
 	if err := tw.Flush(); err != nil {
 		return err
 	}
 
-	// If the tag has an inlined plan, show its details.
+	// If the tag has an inlined plan, render its body (Inputs / Steps
+	// / Outputs) with the same shape plan get uses. Plan-level
+	// metadata (ID, prompt, runner, ...) is omitted: ID and
+	// SelectionHint are already at the tag level above; the rest is
+	// one signadot plan get away.
 	if tag.Plan != nil {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, "Plan:")
-		tw = tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-		fmt.Fprintf(tw, "  ID:\t%s\n", tag.Plan.ID)
-		if tag.Plan.Spec != nil {
-			fmt.Fprintf(tw, "  Steps:\t%d\n", len(tag.Plan.Spec.Steps))
-			if tag.Plan.Spec.Prompt != "" {
-				fmt.Fprintf(tw, "  Prompt:\t%s\n", print.FirstLine(tag.Plan.Spec.Prompt))
-			}
-		}
-		if tag.Plan.Status != nil {
-			fmt.Fprintf(tw, "  Created:\t%s\n", utils.FormatTimestamp(tag.Plan.Status.CreatedAt))
-		}
-		if err := tw.Flush(); err != nil {
-			return err
-		}
+		planshared.PrintPlanBody(out, tag.Plan)
 	}
 
 	// Print tag history if present.

@@ -45,21 +45,28 @@ func PrintInputLine(out io.Writer, indent string, nameWidth int, name, detail, v
 // rendering as Go's map[a:1] / [1 2] forms. Multi-line and very long
 // values are summarised so they don't break the inline arrow form;
 // users who want the full value can use -o yaml.
+//
+// Empty strings render as the literal "" (with quotes) so they're
+// distinguishable from nil/missing values. An explicit empty string
+// can be a meaningful value the action interprets specifically (e.g.
+// run-image treats image:"" as "run on the host runner without a
+// container"); collapsing it to the same shape as "value not
+// provided" would hide that intent from the reader.
 func FormatValue(v any) string {
 	if v == nil {
 		return ""
 	}
-	var raw string
 	if s, ok := v.(string); ok {
-		raw = s
-	} else {
-		b, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprintf("%v", v)
+		if s == "" {
+			return `""`
 		}
-		raw = string(b)
+		return truncateForDisplay(s)
 	}
-	return truncateForDisplay(raw)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return truncateForDisplay(string(b))
 }
 
 // truncateForDisplay collapses a value into a single line suitable
@@ -95,6 +102,43 @@ func FormatImage(ref *models.PlanImageRef) string {
 		return fmt.Sprintf("(from input %q)", ref.InputName)
 	}
 	return ""
+}
+
+// FormatCreatedBy renders a PlanStatus.CreatedBy actor for the plan
+// header. Resolution by ActorType:
+//
+//	user     → UserEmail (e.g. daniel@signadot.com)
+//	api_key  → "api key " + APIKeyMasked
+//	system   → "system"
+//
+// Returns "" when the actor is nil or unrecognised with no usable
+// fields, so the caller can suppress the row.
+func FormatCreatedBy(c *models.CreatedBy) string {
+	if c == nil {
+		return ""
+	}
+	switch c.ActorType {
+	case "user":
+		return c.UserEmail
+	case "api_key":
+		if c.APIKeyMasked != "" {
+			return "api key " + c.APIKeyMasked
+		}
+		return "api key"
+	case "system":
+		return "system"
+	}
+	// Unknown actor type — fall back to whatever the server returned
+	// so future server-side additions surface rather than getting
+	// silently dropped.
+	switch {
+	case c.UserEmail != "":
+		return c.UserEmail
+	case c.APIKeyMasked != "":
+		return c.APIKeyMasked
+	default:
+		return c.ActorType
+	}
 }
 
 // ActionLabel renders the step's action as "name (id)" when the
