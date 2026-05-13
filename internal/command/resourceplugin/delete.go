@@ -14,7 +14,7 @@ func newDelete(resourcePlugin *config.ResourcePlugin) *cobra.Command {
 	cfg := &config.ResourcePluginDelete{ResourcePlugin: resourcePlugin}
 
 	cmd := &cobra.Command{
-		Use:   "delete { NAME | -f FILENAME [ --set var1=val1 --set var2=val2 ... ] }",
+		Use:   "delete { NAME[@VERSION] | -f FILENAME [ --set var1=val1 --set var2=val2 ... ] }",
 		Short: "Delete resource plugin",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -31,8 +31,8 @@ func rpDelete(cfg *config.ResourcePluginDelete, log io.Writer, args []string) er
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	// Get the name either from a file or from the command line.
-	var name string
+	// Get the name (and optional version) either from a file or from the command line.
+	var name, version string
 	if cfg.Filename == "" {
 		if len(args) == 0 {
 			return errors.New("must specify filename (-f) or resource plugin name")
@@ -40,7 +40,7 @@ func rpDelete(cfg *config.ResourcePluginDelete, log io.Writer, args []string) er
 		if len(cfg.TemplateVals) != 0 {
 			return errors.New("must specify filename (-f) to use --set")
 		}
-		name = args[0]
+		name, version = splitNameVersion(args[0])
 	} else {
 		if len(args) != 0 {
 			return errors.New("must not provide args when filename (-f) specified")
@@ -49,7 +49,7 @@ func rpDelete(cfg *config.ResourcePluginDelete, log io.Writer, args []string) er
 		if err != nil {
 			return err
 		}
-		name = rp.Name
+		name, version = rp.Name, rp.Version
 	}
 
 	if name == "" {
@@ -60,11 +60,14 @@ func rpDelete(cfg *config.ResourcePluginDelete, log io.Writer, args []string) er
 	params := resourceplugins.NewDeleteResourcePluginParams().
 		WithOrgName(cfg.Org).
 		WithPluginName(name)
+	if version != "" {
+		params = params.WithVersion(&version)
+	}
 	_, err := cfg.Client.ResourcePlugins.DeleteResourcePlugin(params, nil)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(log, "Deleted resource plugin %q.\n\n", name)
+	fmt.Fprintf(log, "Deleted resource plugin %s.\n\n", formatNameRef(name, version))
 	return nil
 }

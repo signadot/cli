@@ -43,8 +43,14 @@ func apply(cfg *config.ResourcePluginApply, out, log io.Writer, args []string) e
 		WithOrgName(cfg.Org).WithPluginName(req.Name).WithData(req)
 	_, err = cfg.Client.ResourcePlugins.ApplyResourcePlugin(params, nil)
 	if err != nil {
+		var conflict *resourceplugins.ApplyResourcePluginConflict
+		if errors.As(err, &conflict) {
+			return fmt.Errorf(
+				"resource plugin %q version %q already exists; versions are immutable — bump the version field to publish a new revision",
+				req.Name, req.Version)
+		}
 		return err
 	}
-	fmt.Fprintf(log, "Created resource plugin with name %q\n\n", req.Name)
+	fmt.Fprintf(log, "Created resource plugin %s\n\n", formatNameRef(req.Name, req.Version))
 	return nil
 }

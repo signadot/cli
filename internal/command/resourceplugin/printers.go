@@ -22,7 +22,7 @@ func printResourcePluginTable(out io.Writer, rps []*models.ResourcePlugin) error
 	t.AddHeader()
 	for _, rp := range rps {
 		t.AddRow(resourcePluginRow{
-			Name:    rp.Name,
+			Name:    formatNameRef(rp.Name, rp.Version),
 			Created: rp.CreatedAt,
 			Status:  status(rp.Status),
 		})
@@ -33,7 +33,7 @@ func printResourcePluginTable(out io.Writer, rps []*models.ResourcePlugin) error
 func printResourcePluginDetails(cfg *config.ResourcePlugin, out io.Writer, rp *models.ResourcePlugin) error {
 	tw := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 
-	fmt.Fprintf(tw, "Name:\t%s\n", rp.Name)
+	fmt.Fprintf(tw, "Name:\t%s\n", formatNameRef(rp.Name, rp.Version))
 	fmt.Fprintf(tw, "Created:\t%s\n", utils.FormatTimestamp(rp.CreatedAt))
 	fmt.Fprintf(tw, "Status:\t%s\n", status(rp.Status))
 

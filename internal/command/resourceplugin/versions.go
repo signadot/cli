@@ -10,38 +10,35 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newGet(resourcePlugin *config.ResourcePlugin) *cobra.Command {
-	cfg := &config.ResourcePluginGet{ResourcePlugin: resourcePlugin}
+func newVersions(resourcePlugin *config.ResourcePlugin) *cobra.Command {
+	cfg := &config.ResourcePluginVersions{ResourcePlugin: resourcePlugin}
 
 	cmd := &cobra.Command{
-		Use:   "get NAME[@VERSION]",
-		Short: "Get resource plugin",
+		Use:   "versions NAME",
+		Short: "List published versions of a resource plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return get(cfg, cmd.OutOrStdout(), args[0])
+			return versions(cfg, cmd.OutOrStdout(), args[0])
 		},
 	}
 
 	return cmd
 }
 
-func get(cfg *config.ResourcePluginGet, out io.Writer, ref string) error {
+func versions(cfg *config.ResourcePluginVersions, out io.Writer, name string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	name, version := splitNameVersion(ref)
-	params := resourceplugins.NewGetResourcePluginParams().WithOrgName(cfg.Org).WithPluginName(name)
-	if version != "" {
-		params = params.WithVersion(&version)
-	}
-	resp, err := cfg.Client.ResourcePlugins.GetResourcePlugin(params, nil)
+	params := resourceplugins.NewListResourcePluginVersionsParams().
+		WithOrgName(cfg.Org).WithPluginName(name)
+	resp, err := cfg.Client.ResourcePlugins.ListResourcePluginVersions(params, nil)
 	if err != nil {
 		return err
 	}
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printResourcePluginDetails(cfg.ResourcePlugin, out, resp.Payload)
+		return printResourcePluginTable(out, resp.Payload)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:

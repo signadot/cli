@@ -258,18 +258,35 @@ signadot devbox delete <devbox-id>
 
 Resource plugins provision ephemeral resources (databases, queues, etc.) for sandboxes.
 
+Plugins are versioned with semver. The `name:` field in the spec accepts an
+optional `@<semver>` suffix; omit it to publish to the default version (`0.0.0`).
+Versions are immutable except for `0.0.0`, which can be re-applied to update
+in place. Sandboxes reference a plugin as `plugin: name[@version]`; omitting the
+version (or using `@latest`) resolves to the highest-semver published version.
+
+```yaml
+# my-plugin.yaml
+name: my-plugin@1.2.0
+spec: { ... }
+```
+
 ```bash
-# Apply a resource plugin spec
+# Apply a resource plugin spec (publishes the version from the file)
 signadot resourceplugin apply -f my-plugin.yaml
 
-# List plugins
+# List plugins (latest version of each)
 signadot resourceplugin list
 
-# Get details
-signadot resourceplugin get my-plugin
+# List every published version of one plugin (highest semver first)
+signadot resourceplugin versions my-plugin
 
-# Delete
-signadot resourceplugin delete my-plugin
+# Get details — omit @version for latest
+signadot resourceplugin get my-plugin
+signadot resourceplugin get my-plugin@1.2.0
+
+# Delete — omit @version for latest; specific versions are deletable if
+# no sandbox references that exact version
+signadot resourceplugin delete my-plugin@1.2.0
 ```
 
 ## Secrets (alias: secrets)

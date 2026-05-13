@@ -42,3 +42,7 @@ type ResourcePluginGet struct {
 type ResourcePluginList struct {
 	*ResourcePlugin
 }
+
+type ResourcePluginVersions struct {
+	*ResourcePlugin
+}
