@@ -58,13 +58,16 @@ func UnstructuredToNameAndSpec(un any) (name string, spec any, err error) {
 	return
 }
 
+// extractName strips the unstructured doc down to the identity fields used by
+// delete-by-file: `name` (always) and `version` (preserved for resource plugins,
+// harmless for other resources that don't carry a top-level version).
 func extractName(rpt any) map[string]any {
 	topLevel, ok := rpt.(map[string]any)
 	if !ok {
 		return map[string]any{}
 	}
 	for k := range topLevel {
-		if k == "name" {
+		if k == "name" || k == "version" {
 			continue
 		}
 		delete(topLevel, k)

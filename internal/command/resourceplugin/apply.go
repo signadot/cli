@@ -46,11 +46,30 @@ func apply(cfg *config.ResourcePluginApply, out, log io.Writer, args []string) e
 		var conflict *resourceplugins.ApplyResourcePluginConflict
 		if errors.As(err, &conflict) {
 			return fmt.Errorf(
-				"resource plugin %q version %q already exists; versions are immutable — bump the version field to publish a new revision",
-				req.Name, req.Version)
+				"resource plugin %q %s already exists; versions are immutable — bump the version field to publish a new revision",
+				req.Name, versionDescription(req.Version))
 		}
 		return err
 	}
-	fmt.Fprintf(log, "Created resource plugin %s\n\n", formatNameRef(req.Name, req.Version))
+	fmt.Fprintf(log, "Created resource plugin %s\n\n", effectiveNameRef(req.Name, req.Version))
 	return nil
+}
+
+// versionDescription renders the version for user-facing messages, calling out
+// the implicit default when the request body omitted version.
+func versionDescription(version string) string {
+	if version == "" {
+		return "default version (0.0.0)"
+	}
+	return fmt.Sprintf("version %q", version)
+}
+
+// effectiveNameRef renders name@version using the server-side default when the
+// request omitted the version. Use this for post-success messages so the user
+// sees the version that was actually published, not the empty string they sent.
+func effectiveNameRef(name, version string) string {
+	if version == "" {
+		version = "0.0.0"
+	}
+	return name + "@" + version
 }

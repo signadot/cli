@@ -265,9 +265,15 @@ in place. Sandboxes reference a plugin as `plugin: name[@version]`; omitting the
 version (or using `@latest`) resolves to the highest-semver published version.
 
 ```yaml
-# my-plugin.yaml
+# my-plugin.yaml — version may go in the name suffix or as a top-level field,
+# but not both. Omit it entirely to publish the default 0.0.0 version.
 name: my-plugin@1.2.0
 spec: { ... }
+
+# Equivalent form:
+# name: my-plugin
+# version: 1.2.0
+# spec: { ... }
 ```
 
 ```bash
