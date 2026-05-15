@@ -55,7 +55,7 @@ func apply(cfg *config.ResourcePluginApply, out, log io.Writer, args []string) e
 		}
 		return err
 	}
-	fmt.Fprintf(log, "Created resource plugin %s\n\n", effectiveNameRef(bareName, version))
+	fmt.Fprintf(log, "Created resource plugin %s\n\n", formatNameRef(bareName, version))
 	return nil
 }
 
@@ -66,14 +66,4 @@ func versionDescription(version string) string {
 		return "default version (0.0.0)"
 	}
 	return fmt.Sprintf("version %q", version)
-}
-
-// effectiveNameRef renders name@version using the server-side default when the
-// request omitted the version. Use this for post-success messages so the user
-// sees the version that was actually published, not the empty string they sent.
-func effectiveNameRef(name, version string) string {
-	if version == "" {
-		version = "0.0.0"
-	}
-	return name + "@" + version
 }
