@@ -39,19 +39,23 @@ func apply(cfg *config.ResourcePluginApply, out, log io.Writer, args []string) e
 		return err
 	}
 
+	// req.Name carries the combined wire form ("bareName[@semver]").
+	// Split it back for the URL path (which must be the bare name) and
+	// for the version description used in user-facing messages.
+	bareName, version := splitNameVersion(req.Name)
 	params := resourceplugins.NewApplyResourcePluginParams().
-		WithOrgName(cfg.Org).WithPluginName(req.Name).WithData(req)
+		WithOrgName(cfg.Org).WithPluginName(bareName).WithData(req)
 	_, err = cfg.Client.ResourcePlugins.ApplyResourcePlugin(params, nil)
 	if err != nil {
 		var conflict *resourceplugins.ApplyResourcePluginConflict
 		if errors.As(err, &conflict) {
 			return fmt.Errorf(
 				"resource plugin %q %s already exists; versions are immutable — bump the version field to publish a new revision",
-				req.Name, versionDescription(req.Version))
+				bareName, versionDescription(version))
 		}
 		return err
 	}
-	fmt.Fprintf(log, "Created resource plugin %s\n\n", effectiveNameRef(req.Name, req.Version))
+	fmt.Fprintf(log, "Created resource plugin %s\n\n", effectiveNameRef(bareName, version))
 	return nil
 }
 

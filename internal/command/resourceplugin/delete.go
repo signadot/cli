@@ -49,7 +49,8 @@ func rpDelete(cfg *config.ResourcePluginDelete, log io.Writer, args []string) er
 		if err != nil {
 			return err
 		}
-		name, version = rp.Name, rp.Version
+		// rp.Name carries the combined wire form ("bareName[@semver]").
+		name, version = splitNameVersion(rp.Name)
 	}
 
 	if name == "" {

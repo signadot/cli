@@ -64,11 +64,14 @@ func TestUnstructuredToResourcePlugin(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
 			}
-			if rp.Name != tc.wantName {
-				t.Errorf("Name = %q, want %q", rp.Name, tc.wantName)
+			// rp.Name carries the combined wire form; split it back
+			// to verify the loader's name/version resolution.
+			gotName, gotVersion := splitNameVersion(rp.Name)
+			if gotName != tc.wantName {
+				t.Errorf("Name = %q, want %q", gotName, tc.wantName)
 			}
-			if rp.Version != tc.wantVersion {
-				t.Errorf("Version = %q, want %q", rp.Version, tc.wantVersion)
+			if gotVersion != tc.wantVersion {
+				t.Errorf("Version = %q, want %q", gotVersion, tc.wantVersion)
 			}
 		})
 	}

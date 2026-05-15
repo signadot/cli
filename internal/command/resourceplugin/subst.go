@@ -42,7 +42,10 @@ func unstructuredToResourcePlugin(un any) (*models.ResourcePlugin, error) {
 	if version == "" {
 		version = topVersion
 	}
-	rp := &models.ResourcePlugin{Name: name, Version: version}
+	// The wire model carries a single `name` field of the form
+	// "bareName[@semver]"; the CLI's two-form YAML (suffix-on-name or
+	// top-level `version:`) is collapsed here before the rp is sent.
+	rp := &models.ResourcePlugin{Name: formatNameRef(name, version)}
 	if err := jsonexact.Unmarshal(d, &rp.Spec); err != nil {
 		return nil, err
 	}
