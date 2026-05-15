@@ -2,7 +2,6 @@ package resourceplugin
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/signadot/cli/internal/config"
@@ -28,48 +27,16 @@ func unstructuredToResourcePlugin(un any) (*models.ResourcePlugin, error) {
 	if err != nil {
 		return nil, err
 	}
-	name, suffixVersion := splitNameVersion(rawName)
-	topVersion, err := optionalStringField(un, "version")
-	if err != nil {
-		return nil, err
-	}
-	// Reject the version being supplied in both forms — even when the values
-	// match — so the spec has a single source of truth.
-	if suffixVersion != "" && topVersion != "" {
-		return nil, fmt.Errorf("version is set in both 'name' (%q) and the top-level 'version' field (%q); pick one", rawName, topVersion)
-	}
-	version := suffixVersion
-	if version == "" {
-		version = topVersion
-	}
-	// The wire model carries a single `name` field of the form
-	// "bareName[@semver]"; the CLI's two-form YAML (suffix-on-name or
-	// top-level `version:`) is collapsed here before the rp is sent.
-	rp := &models.ResourcePlugin{Name: formatNameRef(name, version)}
+	// The YAML `name:` field carries the wire form directly — either a
+	// bare name (publishes the default 0.0.0) or "bareName@semver". Any
+	// top-level `version:` field is ignored (the parser is non-strict);
+	// users on the older two-form syntax should fold the version into
+	// the name suffix.
+	rp := &models.ResourcePlugin{Name: rawName}
 	if err := jsonexact.Unmarshal(d, &rp.Spec); err != nil {
 		return nil, err
 	}
 	return rp, nil
-}
-
-// optionalStringField returns the named top-level field as a string, or "" if
-// absent. It errors if the field is present but not a string so a YAML typo
-// like `version: 1.2.0` (parsed as a number by some parsers) fails loudly
-// rather than being silently treated as missing.
-func optionalStringField(un any, key string) (string, error) {
-	m, ok := un.(map[string]any)
-	if !ok {
-		return "", nil
-	}
-	v, present := m[key]
-	if !present {
-		return "", nil
-	}
-	s, ok := v.(string)
-	if !ok {
-		return "", fmt.Errorf("%q field must be a string, got %T", key, v)
-	}
-	return s, nil
 }
 
 // splitNameVersion parses "name[@version]" into its parts. An empty version

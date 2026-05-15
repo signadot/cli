@@ -26,25 +26,12 @@ func TestUnstructuredToResourcePlugin(t *testing.T) {
 			wantVersion: "1.2.0",
 		},
 		{
-			name:        "top-level version field",
-			in:          map[string]any{"name": "foo", "version": "1.2.0", "spec": map[string]any{}},
-			wantName:    "foo",
-			wantVersion: "1.2.0",
-		},
-		{
-			name:    "version in both forms is rejected even when equal",
-			in:      map[string]any{"name": "foo@1.2.0", "version": "1.2.0", "spec": map[string]any{}},
-			wantErr: "set in both",
-		},
-		{
-			name:    "version in both forms with different values",
-			in:      map[string]any{"name": "foo@1.2.0", "version": "2.0.0", "spec": map[string]any{}},
-			wantErr: "set in both",
-		},
-		{
-			name:    "non-string version errors loudly",
-			in:      map[string]any{"name": "foo", "version": 1.2, "spec": map[string]any{}},
-			wantErr: "must be a string",
+			// The top-level `version:` field is no longer parsed — the
+			// only supported form is the @ suffix on `name:`. A stray
+			// `version:` should be ignored, not fold into rp.Name.
+			name:     "top-level version field is ignored",
+			in:       map[string]any{"name": "foo", "version": "1.2.0", "spec": map[string]any{}},
+			wantName: "foo",
 		},
 	}
 	for _, tc := range cases {

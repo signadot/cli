@@ -258,9 +258,9 @@ signadot devbox delete <devbox-id>
 
 Resource plugins provision ephemeral resources (databases, queues, etc.) for sandboxes.
 
-Plugins are versioned with semver. The version may be supplied either as an
-`@<semver>` suffix on `name:` or as a top-level `version:` field — but not
-both. Omit both forms to publish to the default version (`0.0.0`).
+Plugins are versioned with semver. The `name:` field carries the wire identity
+as a single token of the form `bareName[@semver]` — e.g. `my-plugin@1.2.0`.
+A bare name with no `@` suffix publishes to the default version (`0.0.0`).
 
 Every published `(name, version)` pair is immutable, including `0.0.0` — to
 roll out changes, bump the version. Re-applying an existing version returns a
@@ -272,21 +272,13 @@ Sandboxes reference a plugin as `plugin: name[@version]`; omitting the version
 sandbox-creation time, after which the resolved version is persisted on the
 sandbox.
 
-Identity on the wire is a single `name` field of the form `bareName[@semver]`
-— `get -o yaml` round-trips back into `apply -f` without renaming. The
-top-level `version:` is a CLI YAML convenience only; it never appears in
-server-returned JSON/YAML.
+`get -o yaml` round-trips straight back into `apply -f` — the output's `name`
+field is the input form.
 
 ```yaml
-# my-plugin.yaml — version may go in the name suffix or as a top-level field,
-# but not both. Omit it entirely to publish the default 0.0.0 version.
+# my-plugin.yaml
 name: my-plugin@1.2.0
 spec: { ... }
-
-# Equivalent form (collapsed to the suffix form before sending):
-# name: my-plugin
-# version: 1.2.0
-# spec: { ... }
 ```
 
 ```bash
