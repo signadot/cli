@@ -72,7 +72,17 @@ func list(cfg *config.DevboxList, out io.Writer, errOut io.Writer) error {
 		if !currentDevboxInList {
 			ddb, err := get(ctx, cfg, currentDevboxID)
 			if err != nil {
-				fmt.Fprintf(errOut, "Warning: Could not fetch devbox %s from ~/.signadot/.devbox-id: %v\n", currentDevboxID, err)
+				switch {
+				case devboxpkg.IsNotFound(err):
+					// Cached devbox no longer exists server-side (e.g. 30-day
+					// idle TTL). GetID self-heals on the next operation that
+					// needs it; here we just treat it as absent.
+					if cfg.Debug {
+						fmt.Fprintf(errOut, "debug: cached devbox %s is no longer registered\n", currentDevboxID)
+					}
+				default:
+					fmt.Fprintf(errOut, "Warning: Could not fetch devbox %s from ~/.signadot/.devbox-id: %v\n", currentDevboxID, err)
+				}
 				// set current to unknown
 				currentDevboxID = ""
 			} else {
