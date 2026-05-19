@@ -23,7 +23,7 @@ func printResourcePluginTable(out io.Writer, rps []*models.ResourcePlugin) error
 	for _, rp := range rps {
 		t.AddRow(resourcePluginRow{
 			Name:    rp.Name,
-			Created: rp.CreatedAt,
+			Created: utils.TimeAgo(rp.CreatedAt),
 			Status:  status(rp.Status),
 		})
 	}
