@@ -38,7 +38,7 @@ func versions(cfg *config.ResourcePluginVersions, out io.Writer, name string) er
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printResourcePluginTable(out, resp.Payload)
+		return printResourcePluginVersionsTable(out, resp.Payload)
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, resp.Payload)
 	case config.OutputFormatYAML:
