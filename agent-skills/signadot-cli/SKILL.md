@@ -264,8 +264,9 @@ A bare name with no `@` suffix publishes to the default version (`0.0.0`).
 
 Every published `(name, version)` pair is immutable, including `0.0.0` — to
 roll out changes, bump the version. Re-applying an existing version returns a
-409 from the server and `versions are immutable — bump the version field to
-publish a new revision` from the CLI.
+409 from the server; the CLI maps that to a tailored message naming the bare
+recovery path for users who don't yet have an `@semver` suffix
+(`add an @<semver> suffix to publish a new revision (e.g. my-plugin@0.0.1)`).
 
 Sandboxes reference a plugin as `plugin: name[@version]`; omitting the version
 (or using `@latest`) resolves to the highest-semver published version at
@@ -296,8 +297,13 @@ signadot resourceplugin get my-plugin
 signadot resourceplugin get my-plugin@1.2.0
 
 # Delete — omit @version for latest; specific versions are deletable if
-# no sandbox references that exact version
+# no sandbox references that exact version. The bare form removes only
+# the latest version; the CLI warns when other versions remain so users
+# don't mistake "delete my-plugin" for "delete every version".
 signadot resourceplugin delete my-plugin@1.2.0
+
+# Delete-in-use: 400 from the server is enriched client-side with the
+# names of the sandboxes still holding the version.
 ```
 
 ## Secrets (alias: secrets)
