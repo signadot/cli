@@ -286,8 +286,13 @@ spec: { ... }
 # Apply a resource plugin spec (publishes the version from the file)
 signadot resourceplugin apply -f my-plugin.yaml
 
-# List plugins (latest version of each)
+# List plugins (highest-semver version of each). When any plugin has
+# multiple versions, a footer hint points at --all-versions.
 signadot resourceplugin list
+
+# List every published version of every plugin (one row per name+version)
+signadot resourceplugin list --all-versions
+signadot resourceplugin list -A
 
 # List every published version of one plugin (highest semver first)
 signadot resourceplugin versions my-plugin

@@ -41,6 +41,14 @@ type ResourcePluginGet struct {
 
 type ResourcePluginList struct {
 	*ResourcePlugin
+
+	// Flags
+	AllVersions bool
+}
+
+func (c *ResourcePluginList) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVarP(&c.AllVersions, "all-versions", "A", false,
+		"return every published version of every plugin (one row per name+version), sorted by name then semver-descending; without this flag, list returns only the highest-semver version of each plugin")
 }
 
 type ResourcePluginVersions struct {
