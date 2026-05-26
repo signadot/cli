@@ -2,6 +2,7 @@ package devbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,7 +14,21 @@ import (
 	"github.com/signadot/cli/internal/utils/system"
 	"github.com/signadot/go-sdk/client/devboxes"
 	"github.com/signadot/go-sdk/models"
+	"github.com/signadot/go-sdk/transport"
 )
+
+// IsNotFound reports whether err represents a 404 response from the Signadot
+// API. Used to detect a cached devbox ID that the server has since deleted
+// (e.g. after the 30-day idle TTL). The SDK's transport middleware
+// (transport.FixAPIErrors) wraps every 4xx/5xx response in *transport.APIError
+// before the swagger reader sees it, so that is the type we unwrap to here.
+func IsNotFound(err error) bool {
+	var apiErr *transport.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == http.StatusNotFound
+	}
+	return false
+}
 
 // ValidateDevboxID validates that a devbox ID exists and returns an error if it doesn't.
 func ValidateDevboxID(ctx context.Context, apiConfig *config.API, devboxID string) error {
@@ -66,17 +81,7 @@ func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) 
 	id := string(d)
 	if err != nil {
 		if os.IsNotExist(err) {
-			id, err := getIDByAPI(ctx, apiConfig, claim, name)
-			if err != nil {
-				return "", err
-			}
-			if err := system.CreateDirIfNotExist(filepath.Dir(file)); err != nil {
-				return "", err
-			}
-			if err := os.WriteFile(file, []byte(id), 0600); err != nil {
-				return "", err
-			}
-			return id, nil
+			return registerAndPersist(ctx, apiConfig, claim, name)
 		}
 		return "", err
 	}
@@ -91,6 +96,11 @@ func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) 
 
 		resp, err := apiConfig.Client.Devboxes.GetDevbox(params)
 		if err != nil {
+			if IsNotFound(err) {
+				// Cached devbox was deleted server-side (e.g. 30-day idle
+				// TTL). Drop the stale file and re-register.
+				return registerAndPersist(ctx, apiConfig, claim, name)
+			}
 			return "", err
 		}
 		if resp.Code() == http.StatusOK && resp.Payload != nil {
@@ -120,6 +130,31 @@ func GetID(ctx context.Context, apiConfig *config.API, claim bool, name string) 
 
 	_, err = apiConfig.Client.Devboxes.ClaimDevbox(params)
 	if err != nil {
+		if IsNotFound(err) {
+			// Cached devbox was deleted server-side; re-register (which also
+			// claims when claim=true).
+			return registerAndPersist(ctx, apiConfig, claim, name)
+		}
+		return "", err
+	}
+	return id, nil
+}
+
+// registerAndPersist registers a new devbox via the API and writes the resulting
+// ID to the cache file, replacing any prior contents.
+func registerAndPersist(ctx context.Context, apiConfig *config.API, claim bool, name string) (string, error) {
+	id, err := getIDByAPI(ctx, apiConfig, claim, name)
+	if err != nil {
+		return "", err
+	}
+	file, err := IDFile()
+	if err != nil {
+		return "", err
+	}
+	if err := system.CreateDirIfNotExist(filepath.Dir(file)); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(file, []byte(id), 0600); err != nil {
 		return "", err
 	}
 	return id, nil
