@@ -58,6 +58,9 @@ func UnstructuredToNameAndSpec(un any) (name string, spec any, err error) {
 	return
 }
 
+// extractName strips the unstructured doc down to the identity field used by
+// delete-by-file: `name`. For resource plugins the `name` may carry an
+// `@<semver>` suffix that travels with it intact.
 func extractName(rpt any) map[string]any {
 	topLevel, ok := rpt.(map[string]any)
 	if !ok {

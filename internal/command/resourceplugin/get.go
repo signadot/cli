@@ -14,7 +14,7 @@ func newGet(resourcePlugin *config.ResourcePlugin) *cobra.Command {
 	cfg := &config.ResourcePluginGet{ResourcePlugin: resourcePlugin}
 
 	cmd := &cobra.Command{
-		Use:   "get NAME",
+		Use:   "get NAME[@VERSION]",
 		Short: "Get resource plugin",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -25,11 +25,15 @@ func newGet(resourcePlugin *config.ResourcePlugin) *cobra.Command {
 	return cmd
 }
 
-func get(cfg *config.ResourcePluginGet, out io.Writer, name string) error {
+func get(cfg *config.ResourcePluginGet, out io.Writer, ref string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
+	name, version := splitNameVersion(ref)
 	params := resourceplugins.NewGetResourcePluginParams().WithOrgName(cfg.Org).WithPluginName(name)
+	if version != "" {
+		params = params.WithVersion(&version)
+	}
 	resp, err := cfg.Client.ResourcePlugins.GetResourcePlugin(params, nil)
 	if err != nil {
 		return err

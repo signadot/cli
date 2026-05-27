@@ -18,6 +18,7 @@ func New(api *config.API) *cobra.Command {
 	cmd.AddCommand(
 		newGet(cfg),
 		newList(cfg),
+		newVersions(cfg),
 		newApply(cfg),
 		newDelete(cfg),
 	)

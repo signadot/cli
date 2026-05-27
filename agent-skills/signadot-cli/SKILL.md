@@ -258,18 +258,57 @@ signadot devbox delete <devbox-id>
 
 Resource plugins provision ephemeral resources (databases, queues, etc.) for sandboxes.
 
+Plugins are versioned with semver. The `name:` field carries the wire identity
+as a single token of the form `bareName[@semver]` — e.g. `my-plugin@1.2.0`.
+A bare name with no `@` suffix publishes to the default version (`0.0.0`).
+
+Every published `(name, version)` pair is immutable, including `0.0.0` — to
+roll out changes, bump the version. Re-applying an existing version returns a
+409 from the server; the CLI maps that to a tailored message naming the bare
+recovery path for users who don't yet have an `@semver` suffix
+(`add an @<semver> suffix to publish a new revision (e.g. my-plugin@0.0.1)`).
+
+Sandboxes reference a plugin as `plugin: name[@version]`; omitting the version
+(or using `@latest`) resolves to the highest-semver published version at
+sandbox-creation time, after which the resolved version is persisted on the
+sandbox.
+
+`get -o yaml` round-trips straight back into `apply -f` — the output's `name`
+field is the input form.
+
+```yaml
+# my-plugin.yaml
+name: my-plugin@1.2.0
+spec: { ... }
+```
+
 ```bash
-# Apply a resource plugin spec
+# Apply a resource plugin spec (publishes the version from the file)
 signadot resourceplugin apply -f my-plugin.yaml
 
-# List plugins
+# List plugins (highest-semver version of each). When any plugin has
+# multiple versions, a footer hint points at --all-versions.
 signadot resourceplugin list
 
-# Get details
-signadot resourceplugin get my-plugin
+# List every published version of every plugin (one row per name+version)
+signadot resourceplugin list --all-versions
+signadot resourceplugin list -A
 
-# Delete
-signadot resourceplugin delete my-plugin
+# List every published version of one plugin (highest semver first)
+signadot resourceplugin versions my-plugin
+
+# Get details — omit @version for latest
+signadot resourceplugin get my-plugin
+signadot resourceplugin get my-plugin@1.2.0
+
+# Delete — omit @version for latest; specific versions are deletable if
+# no sandbox references that exact version. The bare form removes only
+# the latest version; the CLI warns when other versions remain so users
+# don't mistake "delete my-plugin" for "delete every version".
+signadot resourceplugin delete my-plugin@1.2.0
+
+# Delete-in-use: 400 from the server is enriched client-side with the
+# names of the sandboxes still holding the version.
 ```
 
 ## Secrets (alias: secrets)
