@@ -162,6 +162,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		},
 		Env:              os.Environ(),
 		ConnectionConfig: connConfig,
+		EnableLocalDNS:   cfg.LocalDNS,
 		ProxyURL:         cfg.ProxyURL,
 		APIURL:           cfg.API.APIURL,
 		APIKey:           cfg.GetAPIKey(),
@@ -209,9 +210,13 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 	var cmd *exec.Cmd
 	if ciConfig.WithRootManager {
 		if os.Geteuid() != 0 {
+			dnsLine := "- updating /etc/hosts with cluster service names"
+			if ciConfig.EnableLocalDNS {
+				dnsLine = "- configuring the system DNS resolver for cluster service names"
+			}
 			fmt.Fprintf(out, "signadot local connect needs root privileges for:\n\t"+
-				"- updating /etc/hosts with cluster service names\n\t"+
-				"- configuring networking to direct local traffic to the cluster\n")
+				"%s\n\t"+
+				"- configuring networking to direct local traffic to the cluster\n", dnsLine)
 		}
 		// run the root-manager
 		args := []string{
