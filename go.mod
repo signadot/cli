@@ -183,6 +183,6 @@ require (
 )
 
 // Used for local dev
-// replace github.com/signadot/libconnect => ../libconnect/
+replace github.com/signadot/libconnect => ../libconnect/
 
 //replace github.com/signadot/go-sdk => ../go-sdk
