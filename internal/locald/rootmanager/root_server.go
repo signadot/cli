@@ -6,7 +6,9 @@ import (
 
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
+	"github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/fwdtun/etchosts"
+	"github.com/signadot/libconnect/fwdtun/localdns"
 	"github.com/signadot/libconnect/fwdtun/localnet"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -17,7 +19,11 @@ type rootServer struct {
 	mu          sync.RWMutex
 	localnetSVC *localnet.Service
 	etcHostsSVC *etchosts.EtcHosts
-	shutdownCh  chan struct{}
+	// localDNSSVC is the alternative to etcHostsSVC, selected by --local-dns.
+	// The CLI owns the injected tunnel-api client and closes it on teardown.
+	localDNSSVC       *localdns.Service
+	localDNSAPIClient apiclient.Client
+	shutdownCh        chan struct{}
 }
 
 var _ rootapi.RootManagerAPIServer = &rootServer{}
@@ -115,4 +121,17 @@ func (s *rootServer) getEtcHostsService() *etchosts.EtcHosts {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.etcHostsSVC
+}
+
+func (s *rootServer) setLocalDNSService(svc *localdns.Service, apiClient apiclient.Client) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.localDNSSVC = svc
+	s.localDNSAPIClient = apiClient
+}
+
+func (s *rootServer) getLocalDNSService() (*localdns.Service, apiclient.Client) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.localDNSSVC, s.localDNSAPIClient
 }
