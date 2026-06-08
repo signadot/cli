@@ -68,6 +68,10 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	// fast response and is safe to return an error here, but the check is _not_
 	// used to assume that we have the lock later on when starting.
 	withRootManager := !cfg.Unprivileged
+	if cfg.LocalDNS && !withRootManager {
+		return fmt.Errorf("--local-dns manages the system DNS resolver and requires root; " +
+			"it cannot be used with --unprivileged")
+	}
 	pidFile := config.GetLocaldPIDfile(signadotDir, withRootManager)
 	isRunning, err := processes.IsDaemonRunning(pidFile)
 	if err != nil {
