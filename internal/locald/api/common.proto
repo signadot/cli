@@ -30,6 +30,19 @@ message HostsStatus {
   google.protobuf.Timestamp last_update_time = 4;
 }
 
+// LocalDNS status (produced by root controller)
+message LocalDNSStatus {
+  ServiceHealth health = 1;
+  string mode = 2;
+  string bind_addr = 3;
+  repeated string suffixes = 4;
+  repeated string upstreams = 5;
+  uint32 record_count = 6;
+  google.protobuf.Timestamp last_refresh = 7;
+  bool resolv_conf_managed = 8;
+  string warning = 9;
+}
+
 // PortForward status (produced by local controller)
 message PortForwardStatus {
   ServiceHealth health = 1;

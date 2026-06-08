@@ -83,9 +83,41 @@ func (s *rootServer) Status(ctx context.Context, req *rootapi.StatusRequest) (*r
 		}
 	}
 
+	// Local DNS
+	var localDNSSt *commonapi.LocalDNSStatus
+	if s.localDNSSVC != nil {
+		status := s.localDNSSVC.Status()
+
+		var lastErrortime *timestamppb.Timestamp
+		if status.LastErrorTime != nil {
+			lastErrortime = timestamppb.New(*status.LastErrorTime)
+		}
+		var lastRefresh *timestamppb.Timestamp
+		if status.LastRefresh != nil {
+			lastRefresh = timestamppb.New(*status.LastRefresh)
+		}
+		localDNSSt = &commonapi.LocalDNSStatus{
+			Health: &commonapi.ServiceHealth{
+				Healthy:         status.Healthy,
+				ErrorCount:      uint32(status.ErrorCount),
+				LastErrorReason: status.LastErrorReason,
+				LastErrorTime:   lastErrortime,
+			},
+			Mode:              status.Mode,
+			BindAddr:          status.BindAddr,
+			Suffixes:          status.Suffixes,
+			Upstreams:         status.Upstreams,
+			RecordCount:       uint32(status.RecordCount),
+			LastRefresh:       lastRefresh,
+			ResolvConfManaged: status.ResolvConfManaged,
+			Warning:           status.Warning,
+		}
+	}
+
 	resp := &rootapi.StatusResponse{
 		Localnet: localnetSt,
 		Hosts:    etcHostsSt,
+		LocalDns: localDNSSt,
 	}
 	return resp, nil
 }

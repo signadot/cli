@@ -87,7 +87,7 @@ func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbap
 		Sandboxes:         s.sbStatuses(),
 		DevboxSession:     s.devboxSessionStatus(),
 	}
-	resp.Hosts, resp.Localnet = s.rootStatus()
+	resp.Hosts, resp.Localnet, resp.LocalDns = s.rootStatus()
 	return resp, nil
 }
 
@@ -125,16 +125,16 @@ func (s *sbmServer) GetResourceOutputs(ctx context.Context, req *sbapi.GetResour
 	return res, nil
 }
 
-func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
+func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus, *commonapi.LocalDNSStatus) {
 	if !s.ciConfig.WithRootManager {
 		// We are running without a root manager
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	rootClient := s.getRootClient()
 	if rootClient == nil {
 		s.log.Debug("no root client available for rootStatus()")
-		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}
+		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}, nil
 	}
 	req := &rootapi.StatusRequest{}
 	ctx, cancel := context.WithTimeout(context.Background(),
@@ -143,9 +143,9 @@ func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetSta
 	resp, err := rootClient.Status(ctx, req)
 	if err != nil {
 		s.log.Error("error getting status from root manager", "error", err)
-		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}
+		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}, nil
 	}
-	return resp.Hosts, resp.Localnet
+	return resp.Hosts, resp.Localnet, resp.LocalDns
 }
 
 func (s *sbmServer) getRootClient() rootapi.RootManagerAPIClient {
