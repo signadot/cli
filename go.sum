@@ -456,6 +456,8 @@ github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 h1:n661drycOFuPLCN
 github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3/go.mod h1:A0bzQcvG0E7Rwjx0REVgAGH58e96+X0MeOfepqsbeW4=
 github.com/signadot/go-sdk v0.3.8-0.20260616111829-cf476fc34600 h1:3mf6dzv+EQu/rvCGe7RTX84xTCK3F1Gyubw1YPYbgTM=
 github.com/signadot/go-sdk v0.3.8-0.20260616111829-cf476fc34600/go.mod h1:p+PG9uZvx5RTYtYovQQnrbzzB7a1SQ4A3WYNx6PC2xE=
+github.com/signadot/go-sdk v0.3.8-0.20260616140141-c7f267f6836e h1:Z2M0Zs3p/k9/kuXTYYS4/mZl65eZTp9mRk0vlJga+EM=
+github.com/signadot/go-sdk v0.3.8-0.20260616140141-c7f267f6836e/go.mod h1:p+PG9uZvx5RTYtYovQQnrbzzB7a1SQ4A3WYNx6PC2xE=
 github.com/signadot/libconnect v0.1.1-0.20260527212426-31fdd269494f h1:b8ZzCjMOat1IJ9Y5rTRoy7TjD0Ch/QDu8P5lHuSJoBQ=
 github.com/signadot/libconnect v0.1.1-0.20260527212426-31fdd269494f/go.mod h1:5/CHotq3FQnSv9XQUy3sQkJz240Al1MsJ2wm1wf3usE=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=

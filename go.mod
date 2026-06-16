@@ -22,7 +22,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/signadot/go-sdk v0.3.8-0.20260616111829-cf476fc34600
+	github.com/signadot/go-sdk v0.3.8-0.20260616140141-c7f267f6836e
 	github.com/signadot/libconnect v0.1.1-0.20260527212426-31fdd269494f
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
@@ -172,7 +172,7 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v2 v2.4.0
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.33.0
 	k8s.io/apimachinery v0.33.0
 	k8s.io/klog/v2 v2.130.1 // indirect
