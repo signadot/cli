@@ -160,15 +160,17 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) (success bool,
 		return true, false
 	}
 
-	mon.log.Info("restarting localnet and etchosts services")
+	mon.log.Info("restarting localnet and name-resolution services")
 
 	// Restart localnet
 	mon.root.stopLocalnetService()
 	mon.root.runLocalnetService(ctx, mon.tpLocalAddr, mon.ipMap)
 
-	// Restart etc hosts
-	mon.root.stopEtcHostsService()
-	mon.root.runEtcHostsService(ctx, mon.tpLocalAddr, mon.ipMap)
+	// Restart name resolution (localdns or etchosts)
+	mon.root.stopNameService()
+	if err := mon.root.runNameService(ctx, mon.tpLocalAddr, mon.ipMap); err != nil {
+		mon.log.Error("error starting name resolution; will retry", "error", err)
+	}
 
 	return false, true
 }

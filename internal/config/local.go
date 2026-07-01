@@ -102,6 +102,7 @@ type LocalConnect struct {
 	// Flags
 	Cluster      string
 	Unprivileged bool
+	LocalDNS     bool
 	Wait         ConnectWait
 	WaitTimeout  time.Duration
 
@@ -115,6 +116,8 @@ func (c *LocalConnect) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "specify cluster connection config")
 
 	cmd.Flags().BoolVar(&c.Unprivileged, "unprivileged", false, "run without root privileges")
+	cmd.Flags().BoolVar(&c.LocalDNS, "local-dns", false,
+		"resolve cluster service names with a local DNS resolver instead of /etc/hosts")
 	cmd.Flags().Var(&c.Wait, "wait", "status to wait for while connecting {none,connect,sandboxes}")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 10*time.Second, "timeout to wait")
 

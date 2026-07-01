@@ -33,6 +33,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 		OperatorInfo      any `json:"operatorInfo,omitempty"`
 		Localnet          any `json:"localnet,omitempty"`
 		Hosts             any `json:"hosts,omitempty"`
+		LocalDNS          any `json:"localDNS,omitempty"`
 		Portforward       any `json:"portforward,omitempty"`
 		ControlPlaneProxy any `json:"controlPlaneProxy,omitempty"`
 		SandboxesWatcher  any `json:"sandboxesWatcher,omitempty"`
@@ -45,6 +46,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 		OperatorInfo:      getRawOperatorInfo(cfg, status.OperatorInfo),
 		Localnet:          getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
 		Hosts:             getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
+		LocalDNS:          getRawLocalDNS(cfg, ciConfig, status.LocalDns, statusMap),
 		Portforward:       getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
 		ControlPlaneProxy: getRawControlPlaneProxy(cfg, ciConfig, status.ControlPlaneProxy, statusMap),
 		SandboxesWatcher:  getRawWatcher(cfg, status.Watcher, statusMap),
@@ -214,6 +216,46 @@ func getRawHosts(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConf
 		result = &PrintableHosts{
 			Healthy:         false,
 			LastErrorReason: hosts.Health.LastErrorReason,
+		}
+	}
+	return result
+}
+
+func getRawLocalDNS(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
+	ldns *commonapi.LocalDNSStatus, statusMap map[string]any) any {
+	if !ciConfig.WithRootManager || !ciConfig.EnableLocalDNS {
+		return nil
+	}
+
+	if cfg.Details {
+		// Details view
+		return statusMap["localDns"]
+	}
+
+	// Standard view
+	type PrintableLocalDNS struct {
+		Healthy         bool   `json:"healthy"`
+		RecordCount     uint32 `json:"recordCount,omitempty"`
+		BindAddr        string `json:"bindAddr,omitempty"`
+		Warning         string `json:"warning,omitempty"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintableLocalDNS{Healthy: false}
+	if ldns == nil || ldns.Health == nil {
+		return result
+	}
+	if ldns.Health.Healthy {
+		result = &PrintableLocalDNS{
+			Healthy:     true,
+			RecordCount: ldns.RecordCount,
+			BindAddr:    ldns.BindAddr,
+			Warning:     ldns.Warning,
+		}
+	} else {
+		result = &PrintableLocalDNS{
+			Healthy:         false,
+			LastErrorReason: ldns.Health.LastErrorReason,
 		}
 	}
 	return result
@@ -437,7 +479,11 @@ func (p *statusPrinter) printSuccess() {
 	}
 	if p.ciConfig.WithRootManager {
 		p.printLocalnetStatus()
-		p.printHostsStatus()
+		if p.ciConfig.EnableLocalDNS {
+			p.printLocalDNSStatus()
+		} else {
+			p.printHostsStatus()
+		}
 	}
 	p.printSandboxesWatcherStatus()
 	p.printSandboxStatus()
@@ -503,6 +549,41 @@ func (p *statusPrinter) printLocalnetStatus() {
 
 func (p *statusPrinter) printHostsStatus() {
 	p.printLine(p.out, 1, fmt.Sprintf("%d hosts accessible via /etc/hosts", p.status.Hosts.NumHosts), "*")
+}
+
+func (p *statusPrinter) printLocalDNSStatus() {
+	ldns := p.status.LocalDns
+	if ldns == nil || ldns.Health == nil {
+		p.printLine(p.out, 1, "local DNS resolver is not running", "*")
+		return
+	}
+	if ldns.Health.Healthy {
+		p.printLine(p.out, 1, fmt.Sprintf("%d cluster names resolvable via local DNS (%s)",
+			ldns.RecordCount, ldns.BindAddr), "*")
+	} else {
+		p.printLine(p.out, 1, fmt.Sprintf("local DNS resolver not healthy (%q)",
+			ldns.Health.LastErrorReason), "*")
+	}
+	if ldns.Warning != "" {
+		p.printLine(p.out, 2, "warning: "+ldns.Warning, p.red("!"))
+	}
+	if p.cfg.Details {
+		if ldns.Mode != "" {
+			p.printLine(p.out, 2, "mode: "+ldns.Mode, "*")
+		}
+		if len(ldns.Suffixes) > 0 {
+			p.printLine(p.out, 2, "Suffixes:", "*")
+			for _, s := range ldns.Suffixes {
+				p.printLine(p.out, 3, s, "-")
+			}
+		}
+		if len(ldns.Upstreams) > 0 {
+			p.printLine(p.out, 2, "Upstreams:", "*")
+			for _, u := range ldns.Upstreams {
+				p.printLine(p.out, 3, u, "-")
+			}
+		}
+	}
 }
 
 func (p *statusPrinter) printSandboxesWatcherStatus() {

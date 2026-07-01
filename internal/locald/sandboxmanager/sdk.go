@@ -72,8 +72,13 @@ func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.Co
 		if err != nil {
 			errs = append(errs, err)
 		}
-		// check hosts service
-		err = checkHostsStatus(status.Hosts)
+		// check name-resolution service: localdns when --local-dns,
+		// otherwise the /etc/hosts mechanism
+		if ciConfig.EnableLocalDNS {
+			err = checkLocalDNSStatus(status.LocalDns)
+		} else {
+			err = checkHostsStatus(status.Hosts)
+		}
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -142,6 +147,21 @@ func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 			}
 			if hosts.Health.LastErrorReason != "" {
 				errorMsg += fmt.Sprintf(" (%q)", hosts.Health.LastErrorReason)
+			}
+		}
+	}
+	return errors.New(errorMsg)
+}
+
+func checkLocalDNSStatus(localDNS *commonapi.LocalDNSStatus) error {
+	errorMsg := "failed to configure local DNS resolver"
+	if localDNS != nil {
+		if localDNS.Health != nil {
+			if localDNS.Health.Healthy {
+				return nil
+			}
+			if localDNS.Health.LastErrorReason != "" {
+				errorMsg += fmt.Sprintf(" (%q)", localDNS.Health.LastErrorReason)
 			}
 		}
 	}

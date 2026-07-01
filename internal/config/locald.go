@@ -76,6 +76,10 @@ type ConnectInvocationConfig struct {
 	Env              []string                     `json:"env"`
 	VirtualIPNet     string                       `json:"virtualIPNet"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
+
+	// EnableLocalDNS runs the libconnect localdns resolver (managing the OS
+	// resolver config) in place of the /etc/hosts mechanism for cluster names.
+	EnableLocalDNS bool `json:"enableLocalDNS,omitempty"`
 	ProxyURL         string                       `json:"proxyURL"`
 	APIURL           string                       `json:"apiURL"`
 	APIKey           string                       `json:"apiKey"`

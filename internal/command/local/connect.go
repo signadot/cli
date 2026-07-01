@@ -68,6 +68,10 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	// fast response and is safe to return an error here, but the check is _not_
 	// used to assume that we have the lock later on when starting.
 	withRootManager := !cfg.Unprivileged
+	if cfg.LocalDNS && !withRootManager {
+		return fmt.Errorf("--local-dns manages the system DNS resolver and requires root; " +
+			"it cannot be used with --unprivileged")
+	}
 	pidFile := config.GetLocaldPIDfile(signadotDir, withRootManager)
 	isRunning, err := processes.IsDaemonRunning(pidFile)
 	if err != nil {
@@ -162,6 +166,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		},
 		Env:              os.Environ(),
 		ConnectionConfig: connConfig,
+		EnableLocalDNS:   cfg.LocalDNS,
 		ProxyURL:         cfg.ProxyURL,
 		APIURL:           cfg.API.APIURL,
 		APIKey:           cfg.GetAPIKey(),
@@ -209,9 +214,13 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 	var cmd *exec.Cmd
 	if ciConfig.WithRootManager {
 		if os.Geteuid() != 0 {
+			dnsLine := "- updating /etc/hosts with cluster service names"
+			if ciConfig.EnableLocalDNS {
+				dnsLine = "- configuring the system DNS resolver for cluster service names"
+			}
 			fmt.Fprintf(out, "signadot local connect needs root privileges for:\n\t"+
-				"- updating /etc/hosts with cluster service names\n\t"+
-				"- configuring networking to direct local traffic to the cluster\n")
+				"%s\n\t"+
+				"- configuring networking to direct local traffic to the cluster\n", dnsLine)
 		}
 		// run the root-manager
 		args := []string{
