@@ -125,6 +125,25 @@ func (s *sbmServer) GetResourceOutputs(ctx context.Context, req *sbapi.GetResour
 	return res, nil
 }
 
+func (s *sbmServer) GetHosts(ctx context.Context, req *sbapi.GetHostsRequest) (*sbapi.GetHostsResponse, error) {
+	if !s.ciConfig.WithRootManager {
+		// Without a root manager there is no name-resolution service and hence
+		// no managed hosts.
+		return &sbapi.GetHostsResponse{}, nil
+	}
+	rootClient := s.getRootClient()
+	if rootClient == nil {
+		return nil, fmt.Errorf("no root manager client available")
+	}
+	rctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	resp, err := rootClient.GetHosts(rctx, &rootapi.GetHostsRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting hosts from root manager: %w", err)
+	}
+	return &sbapi.GetHostsResponse{Entries: resp.Entries}, nil
+}
+
 func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus, *commonapi.LocalDNSStatus) {
 	if !s.ciConfig.WithRootManager {
 		// We are running without a root manager

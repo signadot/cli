@@ -197,6 +197,13 @@ func (c *LocalStatus) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&c.Details, "details", false, "display status details")
 }
 
+type LocalHosts struct {
+	*Local
+}
+
+func (c *LocalHosts) AddFlags(cmd *cobra.Command) {
+}
+
 type LocalProxy struct {
 	*Local
 

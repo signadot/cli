@@ -2,12 +2,14 @@ package rootmanager
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	commonapi "github.com/signadot/cli/internal/locald/api"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	"github.com/signadot/libconnect/common/apiclient"
 	"github.com/signadot/libconnect/fwdtun/etchosts"
+	"github.com/signadot/libconnect/fwdtun/ipmap"
 	"github.com/signadot/libconnect/fwdtun/localdns"
 	"github.com/signadot/libconnect/fwdtun/localnet"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -23,7 +25,11 @@ type rootServer struct {
 	// The CLI owns the injected tunnel-api client and closes it on teardown.
 	localDNSSVC       *localdns.Service
 	localDNSAPIClient apiclient.Client
-	shutdownCh        chan struct{}
+	// ipMap is the shared host->address allocator that backs whichever
+	// name-resolution service is running; it is the source of truth for
+	// GetHosts in both /etc/hosts and local-DNS modes.
+	ipMap      *ipmap.IPMap
+	shutdownCh chan struct{}
 }
 
 var _ rootapi.RootManagerAPIServer = &rootServer{}
@@ -129,6 +135,44 @@ func (s *rootServer) Shutdown(ctx context.Context, req *rootapi.ShutdownRequest)
 		close(s.shutdownCh)
 	}
 	return &rootapi.ShutdownResponse{}, nil
+}
+
+func (s *rootServer) GetHosts(ctx context.Context, req *rootapi.GetHostsRequest) (*rootapi.GetHostsResponse, error) {
+	s.mu.RLock()
+	ipMap := s.ipMap
+	s.mu.RUnlock()
+
+	resp := &rootapi.GetHostsResponse{}
+	if ipMap == nil {
+		// No name-resolution service has started yet (e.g. tunnel-proxy link
+		// still coming up): report an empty set rather than an error.
+		return resp, nil
+	}
+
+	entries := ipMap.Entries()
+	resp.Entries = make([]*commonapi.HostEntry, 0, len(entries))
+	for name, ips := range entries {
+		strIPs := make([]string, len(ips))
+		for i, ip := range ips {
+			strIPs[i] = ip.String()
+		}
+		resp.Entries = append(resp.Entries, &commonapi.HostEntry{
+			Name: name,
+			Ips:  strIPs,
+		})
+	}
+	// Stable, name-sorted output so callers (and `signadot local hosts`) get a
+	// deterministic listing.
+	sort.Slice(resp.Entries, func(i, j int) bool {
+		return resp.Entries[i].Name < resp.Entries[j].Name
+	})
+	return resp, nil
+}
+
+func (s *rootServer) setIPMap(ipMap *ipmap.IPMap) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.ipMap = ipMap
 }
 
 func (s *rootServer) setLocalnetService(localnetSVC *localnet.Service) {

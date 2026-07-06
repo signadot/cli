@@ -13,6 +13,11 @@ service RootManagerAPI {
 
   // This method requests the root controller to shutdown
   rpc Shutdown(ShutdownRequest) returns (ShutdownResponse) {}
+
+  // This method returns the resolvable cluster hosts and their assigned
+  // addresses, regardless of whether name resolution is served via /etc/hosts
+  // or the local DNS resolver.
+  rpc GetHosts(GetHostsRequest) returns (GetHostsResponse) {}
 }
 
 // Status
@@ -34,4 +39,14 @@ message ShutdownRequest {
 }
 
 message ShutdownResponse {
+}
+
+// Hosts
+// ----------------------------------------------------------------------------
+
+message GetHostsRequest {
+}
+
+message GetHostsResponse {
+  repeated apicommon.HostEntry entries = 1;
 }

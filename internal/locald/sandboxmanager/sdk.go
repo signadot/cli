@@ -38,6 +38,23 @@ func GetStatus() (*sbmapi.StatusResponse, error) {
 	return sbStatus, nil
 }
 
+func GetHosts() (*sbmapi.GetHostsResponse, error) {
+	// get a sandbox manager API client
+	grpcConn, err := connectSandboxManager()
+	if err != nil {
+		return nil, err
+	}
+	defer grpcConn.Close()
+
+	// get the hosts
+	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
+	resp, err := sbManagerClient.GetHosts(context.Background(), &sbmapi.GetHostsRequest{})
+	if err != nil {
+		return nil, processGRPCError("unable to get hosts from sandboxmanager", err)
+	}
+	return resp, nil
+}
+
 func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.ConnectInvocationConfig) []error {
 	var errs []error
 

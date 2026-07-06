@@ -43,6 +43,15 @@ message LocalDNSStatus {
   string warning = 9;
 }
 
+// HostEntry is a single resolvable cluster name and the synthetic address(es)
+// assigned to it. It is the unit returned by the GetHosts RPCs and is
+// independent of the name-resolution mechanism (/etc/hosts or local DNS): both
+// draw from the same address allocator in the root controller.
+message HostEntry {
+  string name = 1;
+  repeated string ips = 2;
+}
+
 // PortForward status (produced by local controller)
 message PortForwardStatus {
   ServiceHealth health = 1;

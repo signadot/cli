@@ -18,6 +18,10 @@ service SandboxManagerAPI {
   // This method returns all the available resource outputs for a sandbox given
   // its routing key.
   rpc GetResourceOutputs(GetResourceOutputsRequest) returns (GetResourceOutputsResponse) {}
+
+  // This method returns the resolvable cluster hosts and their assigned
+  // addresses (relayed from the root controller).
+  rpc GetHosts(GetHostsRequest) returns (GetHostsResponse) {}
 }
 
 // Status
@@ -68,4 +72,13 @@ message ResourceOutputs {
 message ResourceOutputItem {
   string key = 1;
   string value = 2;
+}
+
+// Hosts
+// ---------------------------------------------------------------------------
+message GetHostsRequest {
+}
+
+message GetHostsResponse {
+  repeated apicommon.HostEntry entries = 1;
 }

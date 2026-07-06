@@ -69,6 +69,9 @@ func (m *rootManager) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error creating ipmap: %w", err)
 	}
+	// Publish the ipMap on the root API server so GetHosts can enumerate the
+	// host->address table regardless of which name-resolution service runs.
+	m.root.setIPMap(ipMap)
 
 	// Run the sandbox manager
 	go m.sbmMonitor.run()
