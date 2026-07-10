@@ -73,6 +73,16 @@ func (m *rootManager) Run(ctx context.Context) error {
 	// host->address table regardless of which name-resolution service runs.
 	m.root.setIPMap(ipMap)
 
+	// Repair OS resolver config left behind by a crashed prior --local-dns
+	// session, regardless of this session's mode. A --local-dns session that
+	// dies uncleanly can leave the system resolver pointing at our dead server
+	// (all DNS broken on Linux); the natural next move is a plain
+	// `signadot local connect`, so recovery must not be gated on --local-dns.
+	// Best-effort: never block connect on it. No-op when there's nothing to fix.
+	if err := localdns.Recover(localdns.Config{LocalNetPath: m.ciConfig.LocalNetPath}, m.log); err != nil {
+		m.log.Warn("localdns crash-recovery failed", "error", err)
+	}
+
 	// Run the sandbox manager
 	go m.sbmMonitor.run()
 
@@ -85,7 +95,10 @@ func (m *rootManager) Run(ctx context.Context) error {
 		// Start localnet and the name-resolution service (localdns or etchosts)
 		m.runLocalnetService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap)
 		if err := m.runNameService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap); err != nil {
-			_ = m.stopLocalnetService()
+			// Route through the full cleanup: the sandbox manager was already
+			// spawned above as a daemonized child and stop() is the only thing
+			// that reaps it, so a bare return here would orphan it.
+			_ = m.cleanup()
 			return fmt.Errorf("error starting name resolution: %w", err)
 		}
 	}
@@ -98,6 +111,13 @@ func (m *rootManager) Run(ctx context.Context) error {
 	}
 
 	// Clean up
+	return m.cleanup()
+}
+
+// cleanup tears down everything Run started. It is safe to call on the startup
+// error path as well as the normal shutdown path: each stop helper is a no-op
+// when its service was never started.
+func (m *rootManager) cleanup() error {
 	m.log.Info("Shutting down")
 	var me *multierror.Error
 	if m.tpMonitor != nil {
