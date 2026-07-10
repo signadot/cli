@@ -2,6 +2,7 @@ package rootmanager
 
 import (
 	"context"
+	"net"
 	"sort"
 	"sync"
 
@@ -152,13 +153,14 @@ func (s *rootServer) GetHosts(ctx context.Context, req *rootapi.GetHostsRequest)
 	entries := ipMap.Entries()
 	resp.Entries = make([]*commonapi.HostEntry, 0, len(entries))
 	for name, ips := range entries {
-		strIPs := make([]string, len(ips))
-		for i, ip := range ips {
-			strIPs[i] = ip.String()
+		ip := pickIP(ips)
+		if ip == "" {
+			// A host with no assigned address is not resolvable; skip it.
+			continue
 		}
 		resp.Entries = append(resp.Entries, &commonapi.HostEntry{
 			Name: name,
-			Ips:  strIPs,
+			Ip:   ip,
 		})
 	}
 	// Stable, name-sorted output so callers (and `signadot local hosts`) get a
@@ -167,6 +169,24 @@ func (s *rootServer) GetHosts(ctx context.Context, req *rootapi.GetHostsRequest)
 		return resp.Entries[i].Name < resp.Entries[j].Name
 	})
 	return resp, nil
+}
+
+// pickIP returns the single address to report for a host: the IPv4 address when
+// one is present, otherwise the first IPv6 address (covering an IPv6-only
+// allocation). It returns "" when the host has no address. A host is assigned
+// one virtual address in practice; the preference only makes the choice
+// deterministic should it ever carry both families.
+func pickIP(ips []net.IP) string {
+	var fallback string
+	for _, ip := range ips {
+		if ip.To4() != nil {
+			return ip.String()
+		}
+		if fallback == "" {
+			fallback = ip.String()
+		}
+	}
+	return fallback
 }
 
 func (s *rootServer) setIPMap(ipMap *ipmap.IPMap) {

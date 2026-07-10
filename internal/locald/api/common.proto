@@ -49,7 +49,10 @@ message LocalDNSStatus {
 // draw from the same address allocator in the root controller.
 message HostEntry {
   string name = 1;
-  repeated string ips = 2;
+  // Single resolvable address for the host. A host is assigned one virtual
+  // address (IPv4-preferred; IPv6 on an IPv6-only allocation), so there is no
+  // plurality to carry here.
+  string ip = 2;
 }
 
 // PortForward status (produced by local controller)
