@@ -462,6 +462,8 @@ github.com/signadot/libconnect v0.1.1-0.20260710092926-300395d4c4d8 h1:SM2xrpLR+
 github.com/signadot/libconnect v0.1.1-0.20260710092926-300395d4c4d8/go.mod h1:awUWZx6SnE/vqfB1Yh+n6YVUkgc0bkILEx+L55sWze0=
 github.com/signadot/libconnect v0.1.1-0.20260710145300-e1e03fd7f0cd h1:m4aGKr5M3oz3vFZt4IQLPC/z00N4yhlP5X7IJxZCZoQ=
 github.com/signadot/libconnect v0.1.1-0.20260710145300-e1e03fd7f0cd/go.mod h1:awUWZx6SnE/vqfB1Yh+n6YVUkgc0bkILEx+L55sWze0=
+github.com/signadot/libconnect v0.1.1-0.20260710163957-b168fa5c0712 h1:hSeEu/QUBkmRMJ1a6fYpox3URsa2qPU6/p8FVWo2yAY=
+github.com/signadot/libconnect v0.1.1-0.20260710163957-b168fa5c0712/go.mod h1:awUWZx6SnE/vqfB1Yh+n6YVUkgc0bkILEx+L55sWze0=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
 github.com/skeema/knownhosts v1.3.1 h1:X2osQ+RAjK76shCbvhHHHVl3ZlgDm8apHEHFqRjnBY8=
 github.com/skeema/knownhosts v1.3.1/go.mod h1:r7KTdC8l4uxWRyK2TpQZ/1o5HaSzh06ePQNxPwTcfiY=
