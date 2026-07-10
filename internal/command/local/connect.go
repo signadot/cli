@@ -68,10 +68,6 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	// fast response and is safe to return an error here, but the check is _not_
 	// used to assume that we have the lock later on when starting.
 	withRootManager := !cfg.Unprivileged
-	if cfg.LocalDNS && !withRootManager {
-		return fmt.Errorf("--local-dns manages the system DNS resolver and requires root; " +
-			"it cannot be used with --unprivileged")
-	}
 	pidFile := config.GetLocaldPIDfile(signadotDir, withRootManager)
 	isRunning, err := processes.IsDaemonRunning(pidFile)
 	if err != nil {
@@ -85,6 +81,24 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 	connConfig, err := cfg.GetConnectionConfig(cfg.Cluster)
 	if err != nil {
 		return err
+	}
+
+	// Resolve the effective name-resolution mode. The connection's `resolver:`
+	// config field is the encouraged way to opt in; the --local-dns flag is a
+	// per-invocation override that wins only when explicitly set (so
+	// --local-dns=false can also force /etc/hosts over a LocalDNS config).
+	enableLocalDNS := connConfig.Resolver == connectcfg.LocalDNSResolver
+	localDNSFromFlag := cmd.Flags().Changed("local-dns")
+	if localDNSFromFlag {
+		enableLocalDNS = cfg.LocalDNS
+	}
+	if enableLocalDNS && !withRootManager {
+		source := "the --local-dns flag"
+		if !localDNSFromFlag {
+			source = fmt.Sprintf("resolver: LocalDNS in the config for cluster %q", connConfig.Cluster)
+		}
+		return fmt.Errorf("%s manages the system DNS resolver and requires root; "+
+			"it cannot be used with --unprivileged", source)
 	}
 
 	// Get devbox claim and session
@@ -166,7 +180,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		},
 		Env:              os.Environ(),
 		ConnectionConfig: connConfig,
-		EnableLocalDNS:   cfg.LocalDNS,
+		EnableLocalDNS:   enableLocalDNS,
 		ProxyURL:         cfg.ProxyURL,
 		APIURL:           cfg.API.APIURL,
 		APIKey:           cfg.GetAPIKey(),
