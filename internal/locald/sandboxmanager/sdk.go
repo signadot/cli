@@ -50,6 +50,14 @@ func GetHosts() (*sbmapi.GetHostsResponse, error) {
 	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
 	resp, err := sbManagerClient.GetHosts(context.Background(), &sbmapi.GetHostsRequest{})
 	if err != nil {
+		// This call is CLI-to-local-daemon, so Unimplemented means the running
+		// locald predates 'local hosts' (the user upgraded the CLI while
+		// connected), not a stale operator. Give restart guidance rather than
+		// processGRPCError's "upgrade the operator" message.
+		if st, ok := status.FromError(err); ok && st.Code() == codes.Unimplemented {
+			return nil, fmt.Errorf("the running local daemon predates 'signadot local hosts'; " +
+				"run 'signadot local disconnect && signadot local connect' to restart it")
+		}
 		return nil, processGRPCError("unable to get hosts from sandboxmanager", err)
 	}
 	return resp, nil

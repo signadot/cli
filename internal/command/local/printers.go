@@ -188,6 +188,13 @@ func getRawHosts(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConf
 	if !ciConfig.WithRootManager {
 		return hosts
 	}
+	if ciConfig.EnableLocalDNS {
+		// In --local-dns mode /etc/hosts management is intentionally not
+		// running, so the root manager reports no hosts status. Omit the section
+		// (mirroring getRawLocalDNS when local DNS is disabled) rather than
+		// emitting a bogus {"healthy": false, "numHosts": 0}.
+		return nil
+	}
 
 	if cfg.Details {
 		// Details view
