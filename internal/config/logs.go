@@ -7,13 +7,40 @@ import (
 type Logs struct {
 	*API
 
-	Job       string
-	Stream    string
+	// Job log source (streamed).
+	Job    string
+	Stream string
+
+	// Sandbox log source (snapshot). Workload and Resource are mutually
+	// exclusive; Step only applies to Resource.
+	Sandbox   string
+	Workload  string
+	Resource  string
+	Step      string
+	Container string
+
+	// Selectors shared where applicable.
 	TailLines uint
+	Since     string
+	SinceTime string
 }
 
 func (c *Logs) AddFlags(cmd *cobra.Command) {
+	// Job path (existing, backward-compatible).
 	cmd.Flags().StringVarP(&c.Job, "job", "j", "", "job name whose log lines will be displayed")
-	cmd.Flags().StringVarP(&c.Stream, "stream", "s", "stdout", "stream from where to display log lines (stdout or stderr)")
-	cmd.Flags().UintVarP(&c.TailLines, "tail", "t", 0, "lines of recent log file to display, defaults to 0, showing all log lines")
+	cmd.Flags().StringVarP(&c.Stream, "stream", "s", "stdout", "stream to display for a job (stdout or stderr); job-only")
+	cmd.Flags().UintVarP(&c.TailLines, "tail", "t", 0, "lines of recent log to display, defaults to 0 (all)")
+
+	// Sandbox path.
+	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "sandbox name whose workload/resource logs will be displayed")
+	cmd.Flags().StringVar(&c.Workload, "workload", "", "sandboxed workload (fork) name from the sandbox spec")
+	cmd.Flags().StringVar(&c.Resource, "resource", "", "sandbox resource name from the sandbox spec")
+	cmd.Flags().StringVar(&c.Step, "step", "", "resource plugin step name (only with --resource)")
+	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container name to display; defaults to all containers")
+	cmd.Flags().StringVar(&c.Since, "since", "", "only display logs newer than a relative duration, e.g. 10m, 1h, 2h30m")
+	cmd.Flags().StringVar(&c.SinceTime, "since-time", "", "only display logs after an RFC3339 timestamp")
+
+	// --job and --sandbox select different sources; --stream is job-only.
+	cmd.MarkFlagsMutuallyExclusive("job", "sandbox")
+	cmd.MarkFlagsMutuallyExclusive("stream", "sandbox")
 }
