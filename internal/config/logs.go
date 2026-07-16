@@ -40,7 +40,15 @@ func (c *Logs) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Since, "since", "", "only display logs newer than a relative duration, e.g. 10m, 1h, 2h30m")
 	cmd.Flags().StringVar(&c.SinceTime, "since-time", "", "only display logs after an RFC3339 timestamp")
 
-	// --job and --sandbox select different sources; --stream is job-only.
+	// --job and --sandbox are different log sources. Reject cross-source flags
+	// rather than silently ignoring them:
+	//   - job-only flags (--stream, --tail) can't combine with --sandbox
+	//     (the sandbox path doesn't read them; server-side tail is a fast-follow),
+	//   - sandbox-only selectors can't combine with --job.
 	cmd.MarkFlagsMutuallyExclusive("job", "sandbox")
 	cmd.MarkFlagsMutuallyExclusive("stream", "sandbox")
+	cmd.MarkFlagsMutuallyExclusive("tail", "sandbox")
+	for _, sandboxOnly := range []string{"workload", "resource", "step", "container", "since", "since-time"} {
+		cmd.MarkFlagsMutuallyExclusive("job", sandboxOnly)
+	}
 }
