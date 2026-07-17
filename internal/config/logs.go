@@ -18,6 +18,7 @@ type Logs struct {
 	Resource  string
 	Step      string
 	Container string
+	Follow    bool
 
 	// Selectors shared where applicable.
 	TailLines uint
@@ -39,6 +40,7 @@ func (c *Logs) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&c.Container, "container", "c", "", "container name to display; defaults to all containers")
 	cmd.Flags().StringVar(&c.Since, "since", "", "only display logs newer than a relative duration, e.g. 10m, 1h, 2h30m")
 	cmd.Flags().StringVar(&c.SinceTime, "since-time", "", "only display logs after an RFC3339 timestamp")
+	cmd.Flags().BoolVarP(&c.Follow, "follow", "f", false, "follow the log output (sandbox path; jobs already stream)")
 
 	// --job and --sandbox are different log sources. Reject cross-source flags
 	// rather than silently ignoring them:

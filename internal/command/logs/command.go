@@ -34,7 +34,7 @@ func New(api *config.API) *cobra.Command {
 // run dispatches to the sandbox or job log source.
 func run(ctx context.Context, outW, errW io.Writer, cfg *config.Logs) error {
 	if cfg.Sandbox != "" {
-		return showSandboxLogs(ctx, outW, cfg)
+		return showSandboxLogs(ctx, outW, errW, cfg)
 	}
 	return showJobLogs(ctx, outW, errW, cfg)
 }
