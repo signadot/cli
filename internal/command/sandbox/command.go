@@ -19,6 +19,7 @@ func New(api *config.API) *cobra.Command {
 		newGet(cfg),
 		newList(cfg),
 		newApply(cfg),
+		newRender(cfg),
 		newDelete(cfg),
 		newGetEnv(cfg),
 		newGetFiles(cfg),

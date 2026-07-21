@@ -28,6 +28,51 @@ func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
 }
 
+type SandboxRender struct {
+	*Sandbox
+
+	// Input selection
+	Template     string
+	Filename     string
+	ValuesFile   string
+	TemplateVals TemplateVals
+	PatchFile    string
+
+	// Fork sugar / shared overrides
+	Cluster       string
+	Namespace     string
+	Forks         []string
+	Kind          string
+	Image         string
+	ImageTemplate string
+	Name          string
+	TTL           string
+
+	// CI context detection and validation
+	Context  string
+	Validate string
+}
+
+func (c *SandboxRender) AddFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&c.Template, "template", "", "built-in template to render (e.g. fork-deployment or fork-deployment@v1)")
+	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "user template file using @{var} placeholders (mutually exclusive with --template)")
+	cmd.Flags().StringVar(&c.ValuesFile, "values", "", "values document (schema v1) file, or '-' for stdin")
+	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val (for -f template files)")
+	cmd.Flags().StringVar(&c.PatchFile, "patch", "", "YAML merge patch applied last to the rendered spec")
+
+	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "target cluster name")
+	cmd.Flags().StringVar(&c.Namespace, "namespace", "", "default namespace for forks")
+	cmd.Flags().StringArrayVar(&c.Forks, "fork", nil, "workload to fork; repeatable. Optional inline attrs: name,image=...,namespace=...,kind=...")
+	cmd.Flags().StringVar(&c.Kind, "kind", "Deployment", "default kind for forks that omit one")
+	cmd.Flags().StringVar(&c.Image, "image", "", "image for the forked workload (single-fork only)")
+	cmd.Flags().StringVar(&c.ImageTemplate, "image-template", "", "image applied to forks without an explicit image, e.g. ghcr.io/acme/{workload}:{sha}")
+	cmd.Flags().StringVar(&c.Name, "name", "", "override the (default deterministic) sandbox name")
+	cmd.Flags().StringVar(&c.TTL, "ttl", "", "sandbox TTL (e.g. 2d); defaults applied in CI context")
+
+	cmd.Flags().StringVar(&c.Context, "context", "auto", "CI context detection: auto|none|github|gitlab|circleci")
+	cmd.Flags().StringVar(&c.Validate, "validate", "client", "validation mode: client|none")
+}
+
 type SandboxDelete struct {
 	*Sandbox
 
