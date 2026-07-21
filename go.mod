@@ -12,7 +12,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/go-git/go-git/v5 v5.18.0
 	github.com/go-openapi/runtime v0.31.0
-	github.com/go-openapi/strfmt v0.26.4
+	github.com/go-openapi/strfmt v0.27.0
 	github.com/goccy/go-yaml v1.10.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/gops v0.3.28
@@ -22,7 +22,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/signadot/go-sdk v0.3.8-0.20260714220321-1e32f63db17c
+	github.com/signadot/go-sdk v0.3.8-0.20260716213214-9b9414c5699b
 	github.com/signadot/libconnect v0.1.1-0.20260527212426-31fdd269494f
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
@@ -63,7 +63,7 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.8.0 // indirect
-	github.com/go-openapi/runtime/server-middleware v0.32.4 // indirect
+	github.com/go-openapi/runtime/server-middleware v0.32.5 // indirect
 	github.com/go-openapi/swag/cmdutils v0.27.0 // indirect
 	github.com/go-openapi/swag/conv v0.27.0 // indirect
 	github.com/go-openapi/swag/fileutils v0.27.0 // indirect
