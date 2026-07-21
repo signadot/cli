@@ -565,7 +565,11 @@ func (p *statusPrinter) printLocalDNSStatus() {
 		return
 	}
 	if ldns.Health.Healthy {
-		p.printLine(p.out, 1, fmt.Sprintf("%d cluster names resolvable via local DNS (%s)",
+		// RecordCount is the total resolvable DNS names, which includes the
+		// synthesized short forms (e.g. <svc>.<ns>, <svc>.<ns>.svc) — so it is a
+		// multiple of the host count shown by `local hosts`. Say "names", not
+		// "hosts", to avoid a confusing mismatch between the two commands.
+		p.printLine(p.out, 1, fmt.Sprintf("%d names resolvable via local DNS (%s)",
 			ldns.RecordCount, ldns.BindAddr), "*")
 	} else {
 		p.printLine(p.out, 1, fmt.Sprintf("local DNS resolver not healthy (%q)",
