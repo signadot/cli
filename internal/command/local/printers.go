@@ -570,9 +570,15 @@ func (p *statusPrinter) printLocalDNSStatus() {
 		// RecordCount is the total resolvable DNS names, which includes the
 		// synthesized short forms (e.g. <svc>.<ns>, <svc>.<ns>.svc); HostCount is
 		// the distinct hosts `local hosts` lists. Show both so the larger name
-		// count doesn't read as a discrepancy against `local hosts`.
-		p.printLine(p.out, 1, fmt.Sprintf("%d names (%d hosts) resolvable via local DNS (%s)",
-			ldns.RecordCount, ldns.HostCount, ldns.BindAddr), "*")
+		// count doesn't read as a discrepancy against `local hosts` — but omit the
+		// host count when it's absent (0), which is what an older daemon that
+		// predates the host_count field reports (a new CLI vs old locald).
+		msg := fmt.Sprintf("%d names resolvable via local DNS (%s)", ldns.RecordCount, ldns.BindAddr)
+		if ldns.HostCount > 0 {
+			msg = fmt.Sprintf("%d names (%d hosts) resolvable via local DNS (%s)",
+				ldns.RecordCount, ldns.HostCount, ldns.BindAddr)
+		}
+		p.printLine(p.out, 1, msg, "*")
 	} else {
 		p.printLine(p.out, 1, fmt.Sprintf("local DNS resolver not healthy (%q)",
 			ldns.Health.LastErrorReason), "*")

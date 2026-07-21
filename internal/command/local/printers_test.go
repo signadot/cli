@@ -1,13 +1,56 @@
 package local
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/signadot/cli/internal/config"
 	commonapi "github.com/signadot/cli/internal/locald/api"
+	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
 )
+
+// TestLocalDNSStatusLineCrossVersion covers the CLI-vs-daemon version skew for
+// the local-DNS status line: a new CLI rendering the status of a daemon that
+// does (new) or does not (old, pre-host_count) report the host count. protobuf
+// makes host_count decode as 0 against an older daemon, so the line must omit
+// "(0 hosts)" rather than read as a discrepancy against `local hosts`.
+func TestLocalDNSStatusLineCrossVersion(t *testing.T) {
+	line := func(ldns *commonapi.LocalDNSStatus) string {
+		var buf bytes.Buffer
+		p := &statusPrinter{cfg: &config.LocalStatus{}, status: &sbmapi.StatusResponse{LocalDns: ldns}, out: &buf}
+		p.printLocalDNSStatus()
+		return buf.String()
+	}
+
+	t.Run("new daemon reports host count", func(t *testing.T) {
+		got := line(&commonapi.LocalDNSStatus{
+			Health: &commonapi.ServiceHealth{Healthy: true}, RecordCount: 147, HostCount: 49, BindAddr: "127.0.0.54:53",
+		})
+		if !strings.Contains(got, "147 names (49 hosts) resolvable via local DNS") {
+			t.Errorf("got %q, want name and host counts", got)
+		}
+	})
+
+	t.Run("old daemon (host_count absent -> 0) omits the host count", func(t *testing.T) {
+		got := line(&commonapi.LocalDNSStatus{
+			Health: &commonapi.ServiceHealth{Healthy: true}, RecordCount: 147, HostCount: 0, BindAddr: "127.0.0.54:53",
+		})
+		if !strings.Contains(got, "147 names resolvable via local DNS") {
+			t.Errorf("got %q, want the plain name count", got)
+		}
+		if strings.Contains(got, "hosts)") {
+			t.Errorf("got %q, want no host count for a pre-host_count daemon", got)
+		}
+	})
+
+	t.Run("not running", func(t *testing.T) {
+		if got := line(nil); !strings.Contains(got, "not running") {
+			t.Errorf("got %q", got)
+		}
+	})
+}
 
 // TestGetRawHostsGating covers the section gating for the JSON/YAML status
 // output: /etc/hosts status is omitted under --local-dns (where the root
