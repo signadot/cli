@@ -104,40 +104,25 @@ func FormatImage(ref *models.PlanImageRef) string {
 	return ""
 }
 
-// FormatCreatedBy renders a PlanStatus.CreatedBy actor for the plan
-// header. Resolution by ActorType:
+// FormatCreatedBy renders a PlanStatus.CreatedBy principal for the plan
+// header. The principal model exposes Kind (e.g. user, serviceaccount,
+// system), a human-readable Name, and a PublicID. We prefer the Name,
+// fall back to the PublicID, then the Kind, so the row is as legible as
+// the server data allows.
 //
-//	user     → UserEmail (e.g. daniel@signadot.com)
-//	api_key  → "api key " + APIKeyMasked
-//	system   → "system"
-//
-// Returns "" when the actor is nil or unrecognised with no usable
-// fields, so the caller can suppress the row.
+// Returns "" when the principal is nil or carries no usable fields, so
+// the caller can suppress the row.
 func FormatCreatedBy(c *models.CreatedBy) string {
 	if c == nil {
 		return ""
 	}
-	switch c.ActorType {
-	case "user":
-		return c.UserEmail
-	case "api_key":
-		if c.APIKeyMasked != "" {
-			return "api key " + c.APIKeyMasked
-		}
-		return "api key"
-	case "system":
-		return "system"
-	}
-	// Unknown actor type — fall back to whatever the server returned
-	// so future server-side additions surface rather than getting
-	// silently dropped.
 	switch {
-	case c.UserEmail != "":
-		return c.UserEmail
-	case c.APIKeyMasked != "":
-		return c.APIKeyMasked
+	case c.Name != "":
+		return c.Name
+	case c.PublicID != "":
+		return c.PublicID
 	default:
-		return c.ActorType
+		return c.Kind
 	}
 }
 
