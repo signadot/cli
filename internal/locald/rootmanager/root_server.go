@@ -115,6 +115,7 @@ func (s *rootServer) Status(ctx context.Context, req *rootapi.StatusRequest) (*r
 			Suffixes:          status.Suffixes,
 			Upstreams:         status.Upstreams,
 			RecordCount:       uint32(status.RecordCount),
+			HostCount:         uint32(status.HostCount),
 			LastRefresh:       lastRefresh,
 			ResolvConfManaged: status.ResolvConfManaged,
 			Warning:           status.Warning,

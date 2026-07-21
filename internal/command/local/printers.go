@@ -243,6 +243,7 @@ func getRawLocalDNS(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationC
 	type PrintableLocalDNS struct {
 		Healthy         bool   `json:"healthy"`
 		RecordCount     uint32 `json:"recordCount,omitempty"`
+		HostCount       uint32 `json:"hostCount,omitempty"`
 		BindAddr        string `json:"bindAddr,omitempty"`
 		Warning         string `json:"warning,omitempty"`
 		LastErrorReason string `json:"lastErrorReason,omitempty"`
@@ -256,6 +257,7 @@ func getRawLocalDNS(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationC
 		result = &PrintableLocalDNS{
 			Healthy:     true,
 			RecordCount: ldns.RecordCount,
+			HostCount:   ldns.HostCount,
 			BindAddr:    ldns.BindAddr,
 			Warning:     ldns.Warning,
 		}
@@ -566,11 +568,11 @@ func (p *statusPrinter) printLocalDNSStatus() {
 	}
 	if ldns.Health.Healthy {
 		// RecordCount is the total resolvable DNS names, which includes the
-		// synthesized short forms (e.g. <svc>.<ns>, <svc>.<ns>.svc) — so it is a
-		// multiple of the host count shown by `local hosts`. Say "names", not
-		// "hosts", to avoid a confusing mismatch between the two commands.
-		p.printLine(p.out, 1, fmt.Sprintf("%d names resolvable via local DNS (%s)",
-			ldns.RecordCount, ldns.BindAddr), "*")
+		// synthesized short forms (e.g. <svc>.<ns>, <svc>.<ns>.svc); HostCount is
+		// the distinct hosts `local hosts` lists. Show both so the larger name
+		// count doesn't read as a discrepancy against `local hosts`.
+		p.printLine(p.out, 1, fmt.Sprintf("%d names (%d hosts) resolvable via local DNS (%s)",
+			ldns.RecordCount, ldns.HostCount, ldns.BindAddr), "*")
 	} else {
 		p.printLine(p.out, 1, fmt.Sprintf("local DNS resolver not healthy (%q)",
 			ldns.Health.LastErrorReason), "*")
