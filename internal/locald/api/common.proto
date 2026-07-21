@@ -30,6 +30,34 @@ message HostsStatus {
   google.protobuf.Timestamp last_update_time = 4;
 }
 
+// LocalDNS status (produced by root controller)
+message LocalDNSStatus {
+  ServiceHealth health = 1;
+  string mode = 2;
+  string bind_addr = 3;
+  repeated string suffixes = 4;
+  repeated string upstreams = 5;
+  uint32 record_count = 6;
+  google.protobuf.Timestamp last_refresh = 7;
+  bool resolv_conf_managed = 8;
+  string warning = 9;
+  // host_count is the number of distinct cluster hosts (FQDNs), i.e.
+  // record_count excluding synthesized short forms. Matches `local hosts`.
+  uint32 host_count = 10;
+}
+
+// HostEntry is a single resolvable cluster name and the synthetic address(es)
+// assigned to it. It is the unit returned by the GetHosts RPCs and is
+// independent of the name-resolution mechanism (/etc/hosts or local DNS): both
+// draw from the same address allocator in the root controller.
+message HostEntry {
+  string name = 1;
+  // Single resolvable address for the host. A host is assigned one virtual
+  // address (IPv4-preferred; IPv6 on an IPv6-only allocation), so there is no
+  // plurality to carry here.
+  string ip = 2;
+}
+
 // PortForward status (produced by local controller)
 message PortForwardStatus {
   ServiceHealth health = 1;

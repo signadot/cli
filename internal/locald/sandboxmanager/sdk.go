@@ -38,6 +38,31 @@ func GetStatus() (*sbmapi.StatusResponse, error) {
 	return sbStatus, nil
 }
 
+func GetHosts() (*sbmapi.GetHostsResponse, error) {
+	// get a sandbox manager API client
+	grpcConn, err := connectSandboxManager()
+	if err != nil {
+		return nil, err
+	}
+	defer grpcConn.Close()
+
+	// get the hosts
+	sbManagerClient := sbmapi.NewSandboxManagerAPIClient(grpcConn)
+	resp, err := sbManagerClient.GetHosts(context.Background(), &sbmapi.GetHostsRequest{})
+	if err != nil {
+		// This call is CLI-to-local-daemon, so Unimplemented means the running
+		// locald predates 'local hosts' (the user upgraded the CLI while
+		// connected), not a stale operator. Give restart guidance rather than
+		// processGRPCError's "upgrade the operator" message.
+		if st, ok := status.FromError(err); ok && st.Code() == codes.Unimplemented {
+			return nil, fmt.Errorf("the running local daemon predates 'signadot local hosts'; " +
+				"run 'signadot local disconnect && signadot local connect' to restart it")
+		}
+		return nil, processGRPCError("unable to get hosts from sandboxmanager", err)
+	}
+	return resp, nil
+}
+
 func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.ConnectInvocationConfig) []error {
 	var errs []error
 
@@ -72,8 +97,13 @@ func CheckStatusConnectErrors(status *sbmapi.StatusResponse, ciConfig *config.Co
 		if err != nil {
 			errs = append(errs, err)
 		}
-		// check hosts service
-		err = checkHostsStatus(status.Hosts)
+		// check name-resolution service: localdns when --local-dns,
+		// otherwise the /etc/hosts mechanism
+		if ciConfig.EnableLocalDNS {
+			err = checkLocalDNSStatus(status.LocalDns)
+		} else {
+			err = checkHostsStatus(status.Hosts)
+		}
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -142,6 +172,21 @@ func checkHostsStatus(hosts *commonapi.HostsStatus) error {
 			}
 			if hosts.Health.LastErrorReason != "" {
 				errorMsg += fmt.Sprintf(" (%q)", hosts.Health.LastErrorReason)
+			}
+		}
+	}
+	return errors.New(errorMsg)
+}
+
+func checkLocalDNSStatus(localDNS *commonapi.LocalDNSStatus) error {
+	errorMsg := "failed to configure local DNS resolver"
+	if localDNS != nil {
+		if localDNS.Health != nil {
+			if localDNS.Health.Healthy {
+				return nil
+			}
+			if localDNS.Health.LastErrorReason != "" {
+				errorMsg += fmt.Sprintf(" (%q)", localDNS.Health.LastErrorReason)
 			}
 		}
 	}

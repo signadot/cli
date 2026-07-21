@@ -22,6 +22,10 @@ type RootManagerAPIClient interface {
 	Status(ctx context.Context, in *StatusRequest, opts ...grpc.CallOption) (*StatusResponse, error)
 	// This method requests the root controller to shutdown
 	Shutdown(ctx context.Context, in *ShutdownRequest, opts ...grpc.CallOption) (*ShutdownResponse, error)
+	// This method returns the resolvable cluster hosts and their assigned
+	// addresses, regardless of whether name resolution is served via /etc/hosts
+	// or the local DNS resolver.
+	GetHosts(ctx context.Context, in *GetHostsRequest, opts ...grpc.CallOption) (*GetHostsResponse, error)
 }
 
 type rootManagerAPIClient struct {
@@ -50,6 +54,15 @@ func (c *rootManagerAPIClient) Shutdown(ctx context.Context, in *ShutdownRequest
 	return out, nil
 }
 
+func (c *rootManagerAPIClient) GetHosts(ctx context.Context, in *GetHostsRequest, opts ...grpc.CallOption) (*GetHostsResponse, error) {
+	out := new(GetHostsResponse)
+	err := c.cc.Invoke(ctx, "/rootmanager.RootManagerAPI/GetHosts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RootManagerAPIServer is the server API for RootManagerAPI service.
 // All implementations must embed UnimplementedRootManagerAPIServer
 // for forward compatibility
@@ -58,6 +71,10 @@ type RootManagerAPIServer interface {
 	Status(context.Context, *StatusRequest) (*StatusResponse, error)
 	// This method requests the root controller to shutdown
 	Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error)
+	// This method returns the resolvable cluster hosts and their assigned
+	// addresses, regardless of whether name resolution is served via /etc/hosts
+	// or the local DNS resolver.
+	GetHosts(context.Context, *GetHostsRequest) (*GetHostsResponse, error)
 	mustEmbedUnimplementedRootManagerAPIServer()
 }
 
@@ -70,6 +87,9 @@ func (UnimplementedRootManagerAPIServer) Status(context.Context, *StatusRequest)
 }
 func (UnimplementedRootManagerAPIServer) Shutdown(context.Context, *ShutdownRequest) (*ShutdownResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Shutdown not implemented")
+}
+func (UnimplementedRootManagerAPIServer) GetHosts(context.Context, *GetHostsRequest) (*GetHostsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetHosts not implemented")
 }
 func (UnimplementedRootManagerAPIServer) mustEmbedUnimplementedRootManagerAPIServer() {}
 
@@ -120,6 +140,24 @@ func _RootManagerAPI_Shutdown_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RootManagerAPI_GetHosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHostsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RootManagerAPIServer).GetHosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/rootmanager.RootManagerAPI/GetHosts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RootManagerAPIServer).GetHosts(ctx, req.(*GetHostsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RootManagerAPI_ServiceDesc is the grpc.ServiceDesc for RootManagerAPI service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -134,6 +172,10 @@ var RootManagerAPI_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Shutdown",
 			Handler:    _RootManagerAPI_Shutdown_Handler,
+		},
+		{
+			MethodName: "GetHosts",
+			Handler:    _RootManagerAPI_GetHosts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

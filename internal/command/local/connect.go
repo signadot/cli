@@ -83,6 +83,24 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
+	// Resolve the effective name-resolution mode. The connection's `resolver:`
+	// config field is the encouraged way to opt in; the --local-dns flag is a
+	// per-invocation override that wins only when explicitly set (so
+	// --local-dns=false can also force /etc/hosts over a LocalDNS config).
+	enableLocalDNS := connConfig.Resolver == connectcfg.LocalDNSResolver
+	localDNSFromFlag := cmd.Flags().Changed("local-dns")
+	if localDNSFromFlag {
+		enableLocalDNS = cfg.LocalDNS
+	}
+	if enableLocalDNS && !withRootManager {
+		source := "the --local-dns flag"
+		if !localDNSFromFlag {
+			source = fmt.Sprintf("resolver: LocalDNS in the config for cluster %q", connConfig.Cluster)
+		}
+		return fmt.Errorf("%s manages the system DNS resolver and requires root; "+
+			"it cannot be used with --unprivileged", source)
+	}
+
 	// Get devbox claim and session
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -162,6 +180,7 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		},
 		Env:              os.Environ(),
 		ConnectionConfig: connConfig,
+		EnableLocalDNS:   enableLocalDNS,
 		ProxyURL:         cfg.ProxyURL,
 		APIURL:           cfg.API.APIURL,
 		APIKey:           cfg.GetAPIKey(),
@@ -209,9 +228,13 @@ func runConnectImpl(out, errOut io.Writer, log *slog.Logger, localConfig *config
 	var cmd *exec.Cmd
 	if ciConfig.WithRootManager {
 		if os.Geteuid() != 0 {
+			dnsLine := "- updating /etc/hosts with cluster service names"
+			if ciConfig.EnableLocalDNS {
+				dnsLine = "- configuring the system DNS resolver for cluster service names"
+			}
 			fmt.Fprintf(out, "signadot local connect needs root privileges for:\n\t"+
-				"- updating /etc/hosts with cluster service names\n\t"+
-				"- configuring networking to direct local traffic to the cluster\n")
+				"%s\n\t"+
+				"- configuring networking to direct local traffic to the cluster\n", dnsLine)
 		}
 		// run the root-manager
 		args := []string{
