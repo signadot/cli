@@ -50,7 +50,9 @@ func (c *Logs) AddFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("job", "sandbox")
 	cmd.MarkFlagsMutuallyExclusive("stream", "sandbox")
 	cmd.MarkFlagsMutuallyExclusive("tail", "sandbox")
-	for _, sandboxOnly := range []string{"workload", "resource", "step", "container", "since", "since-time"} {
+	// --follow only drives the sandbox path (the job path streams via SSE
+	// regardless), so reject it with --job rather than silently ignoring it.
+	for _, sandboxOnly := range []string{"workload", "resource", "step", "container", "since", "since-time", "follow"} {
 		cmd.MarkFlagsMutuallyExclusive("job", sandboxOnly)
 	}
 }

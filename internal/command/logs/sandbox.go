@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -75,19 +76,20 @@ func showSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Logs)
 	}
 }
 
-// followSandboxLogs tails a sandbox source by polling the snapshot endpoint. It
-// advances sinceTime to the oldest per-container high-water mark and de-dupes
-// each container against its last-printed timestamp, so multiple containers
-// (which share a single sinceTime per request) don't lose or repeat lines. The
-// first poll surfaces selector errors (unknown workload/container/etc.);
-// afterwards transient errors (pod not running yet, restarts) are retried.
+// followSandboxLogs tails a sandbox source by polling the snapshot endpoint,
+// advancing sinceTime and de-duplicating via followState (see its docs for the
+// per-container high-water-mark + boundary-set scheme). On the first poll a
+// selector error (unknown workload/container/etc.) fails fast; transient errors
+// (pod not running yet, restarts, gateway/connection) are reported once and
+// retried. Stops cleanly on SIGINT/SIGTERM/SIGHUP.
 func followSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Logs, initialSince string) error {
-	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 
-	lastByContainer := map[string]time.Time{}
+	st := newFollowState()
 	since := initialSince
 	first := true
+	multi := false
 	var lastErrMsg string
 
 	for {
@@ -96,8 +98,8 @@ func followSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Log
 			if ctx.Err() != nil {
 				return nil // interrupted
 			}
-			if first {
-				return err // validate selectors up front
+			if first && !isTransientFollowErr(err) {
+				return err // fail fast on a selector mistake; it won't self-heal
 			}
 			if msg := err.Error(); msg != lastErrMsg {
 				fmt.Fprintf(errW, "waiting for logs: %s\n", msg)
@@ -105,21 +107,20 @@ func followSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Log
 			}
 		} else {
 			lastErrMsg = ""
-			multi := len(resp) > 1
+			// Latch the multi-container prefix once we've seen more than one
+			// container, so a container that starts logging later doesn't flip
+			// earlier lines between prefixed and unprefixed forms.
+			if len(resp) > 1 {
+				multi = true
+			}
 			for _, cl := range resp {
-				last := lastByContainer[cl.Container]
 				for _, item := range cl.Logs {
-					t, perr := time.Parse(time.RFC3339, item.Time)
-					if perr == nil && !first && !t.After(last) {
-						continue // already printed (boundary dedup)
-					}
-					printLogLine(out, cl.Container, item.Message, multi)
-					if perr == nil && t.After(lastByContainer[cl.Container]) {
-						lastByContainer[cl.Container] = t
+					if st.observe(cl.Container, item.Time, item.Message, first) {
+						printLogLine(out, cl.Container, item.Message, multi)
 					}
 				}
 			}
-			since = oldestSince(lastByContainer, since)
+			since = st.sinceTime(since)
 			first = false
 		}
 
@@ -129,6 +130,105 @@ func followSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Log
 		case <-time.After(followPollInterval):
 		}
 	}
+}
+
+// followState de-duplicates streamed log lines across polls. Because every
+// container in a request shares a single sinceTime, we can't advance a global
+// watermark without losing lines from a lagging container; instead each
+// container keeps its own high-water mark (hwm) plus the set of messages seen at
+// exactly that timestamp (boundary). A re-fetched line is printed iff it is
+// strictly newer than the container's hwm, or shares the hwm timestamp but its
+// exact message hasn't been printed yet — so distinct lines sharing the boundary
+// timestamp are NOT dropped. Untimestamped lines can't be de-duplicated, so they
+// are printed only on the first (snapshot) poll and skipped thereafter to avoid
+// reprinting the whole window forever.
+type followState struct {
+	byContainer map[string]*containerCursor
+}
+
+type containerCursor struct {
+	hwm      time.Time
+	hasHWM   bool
+	boundary map[string]struct{}
+}
+
+func newFollowState() *followState {
+	return &followState{byContainer: map[string]*containerCursor{}}
+}
+
+// observe records a line and reports whether it should be printed now. first is
+// true on the initial (snapshot) poll.
+func (s *followState) observe(container, tstr, message string, first bool) bool {
+	c := s.byContainer[container]
+	if c == nil {
+		c = &containerCursor{boundary: map[string]struct{}{}}
+		s.byContainer[container] = c
+	}
+
+	t, err := time.Parse(time.RFC3339, tstr)
+	if tstr == "" || err != nil {
+		// No usable timestamp: can't de-dup across polls, so only emit on the
+		// first poll. (This endpoint always timestamps; this is a safety net.)
+		return first
+	}
+
+	switch {
+	case !c.hasHWM || t.After(c.hwm):
+		c.hwm = t
+		c.hasHWM = true
+		c.boundary = map[string]struct{}{message: {}}
+		return true
+	case t.Equal(c.hwm):
+		if _, seen := c.boundary[message]; seen {
+			return false
+		}
+		c.boundary[message] = struct{}{}
+		return true
+	default: // older than hwm — already printed in an earlier poll
+		return false
+	}
+}
+
+// sinceTime returns the next poll's sinceTime: the oldest per-container hwm (so
+// no lagging container loses lines to the shared filter), or fallback when no
+// timestamped line has been seen.
+func (s *followState) sinceTime(fallback string) string {
+	var oldest time.Time
+	found := false
+	for _, c := range s.byContainer {
+		if !c.hasHWM {
+			continue
+		}
+		if !found || c.hwm.Before(oldest) {
+			oldest = c.hwm
+			found = true
+		}
+	}
+	if !found {
+		return fallback
+	}
+	return oldest.UTC().Format(time.RFC3339Nano)
+}
+
+// isTransientFollowErr reports whether a follow-poll error is worth retrying
+// (pod not running yet, restart, gateway/connection) rather than a selector
+// mistake that won't self-heal. Heuristic on the error text pending typed
+// errors (ENG-1115) — the readiness phrasings are matched explicitly so a
+// "not ready yet" message isn't mistaken for a "<thing> not found" selector error.
+func isTransientFollowErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	m := err.Error()
+	for _, s := range []string{
+		"may not be ready", "no running pods", "not running",
+		"502", "503", "504", "Gateway", "connection", "EOF", "timeout",
+	} {
+		if strings.Contains(m, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchSandboxLogs performs a single GetSandboxLogs call.
@@ -156,23 +256,6 @@ func printLogLine(out io.Writer, container, message string, multi bool) {
 	} else {
 		fmt.Fprintln(out, message)
 	}
-}
-
-// oldestSince returns the RFC3339 timestamp to use for the next poll: the oldest
-// per-container high-water mark (so no container's newer-than-its-own-last lines
-// are skipped by the shared sinceTime). Falls back to the current value when no
-// lines have been seen yet.
-func oldestSince(lastByContainer map[string]time.Time, current string) string {
-	var oldest time.Time
-	for _, t := range lastByContainer {
-		if oldest.IsZero() || t.Before(oldest) {
-			oldest = t
-		}
-	}
-	if oldest.IsZero() {
-		return current
-	}
-	return oldest.UTC().Format(time.RFC3339Nano)
 }
 
 // resolveSinceTime converts the CLI's --since (relative duration) or
