@@ -2,6 +2,7 @@ package logs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,11 +15,24 @@ import (
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/sandboxes"
 	"github.com/signadot/go-sdk/models"
+	"github.com/signadot/go-sdk/transport"
 )
 
 // followPollInterval is how often the sandbox path re-polls the (snapshot) logs
 // endpoint when --follow is set. Native streaming is a fast-follow (ENG-1115).
 const followPollInterval = 2 * time.Second
+
+// followRewindGrace bounds how far back the shared sinceTime may rewind for the
+// next poll (see followState.sinceTime). A few poll intervals: enough that a
+// still-active container that's merely lagging keeps its lines, without pinning
+// the whole request window to a container that logged once and went quiet.
+const followRewindGrace = 3 * followPollInterval
+
+// serverTailCap mirrors the control plane's per-container logReqTailLines cap
+// (sandboxes/internal/control/logs/pods/fetch.go). A poll that returns exactly
+// this many lines for a container was almost certainly truncated, so --follow
+// warns rather than silently dropping the older lines.
+const serverTailCap = 1000
 
 // showSandboxLogs fetches logs for a sandbox workload (fork) or resource via the
 // sandbox-scoped logs endpoint and prints them per-container. With --follow it
@@ -91,6 +105,7 @@ func followSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Log
 	first := true
 	multi := false
 	var lastErrMsg string
+	capped := map[string]bool{} // containers currently hitting the server tail cap
 
 	for {
 		resp, err := fetchSandboxLogs(ctx, cfg, since)
@@ -119,6 +134,17 @@ func followSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Log
 						printLogLine(out, cl.Container, item.Message, multi)
 					}
 				}
+				// The server caps each container at serverTailCap lines per
+				// fetch; hitting it means older lines in this interval were
+				// dropped. Warn once per burst (and again if it recurs after
+				// recovering) rather than silently losing lines under load.
+				if hit := len(cl.Logs) >= serverTailCap; hit != capped[cl.Container] {
+					if hit {
+						fmt.Fprintf(errW, "warning: %q is logging faster than --follow can poll; showing only the most recent %d lines per %s (older lines dropped)\n",
+							cl.Container, serverTailCap, followPollInterval)
+					}
+					capped[cl.Container] = hit
+				}
 			}
 			since = st.sinceTime(since)
 			first = false
@@ -138,10 +164,13 @@ func followSandboxLogs(ctx context.Context, out, errW io.Writer, cfg *config.Log
 // container keeps its own high-water mark (hwm) plus the set of messages seen at
 // exactly that timestamp (boundary). A re-fetched line is printed iff it is
 // strictly newer than the container's hwm, or shares the hwm timestamp but its
-// exact message hasn't been printed yet — so distinct lines sharing the boundary
-// timestamp are NOT dropped. Untimestamped lines can't be de-duplicated, so they
-// are printed only on the first (snapshot) poll and skipped thereafter to avoid
-// reprinting the whole window forever.
+// exact message hasn't been printed yet. This keeps the client from dropping a
+// distinct line that shares the boundary timestamp with one already printed —
+// but only among the lines the server re-sends: the container that *defines* the
+// shared sinceTime won't receive such a line at all, because the server filters
+// on a strict After(sinceTime). Untimestamped lines can't be de-duplicated, so
+// they are printed only on the first (snapshot) poll and skipped thereafter to
+// avoid reprinting the whole window forever.
 type followState struct {
 	byContainer map[string]*containerCursor
 }
@@ -189,42 +218,90 @@ func (s *followState) observe(container, tstr, message string, first bool) bool 
 	}
 }
 
-// sinceTime returns the next poll's sinceTime: the oldest per-container hwm (so
-// no lagging container loses lines to the shared filter), or fallback when no
-// timestamped line has been seen.
+// sinceTime returns the next poll's sinceTime. All containers share one
+// sinceTime, so it rewinds to the oldest per-container hwm to avoid dropping a
+// lagging container's lines — but no further back than followRewindGrace behind
+// the newest hwm. Without that clamp a container that logs once at startup and
+// goes quiet (a startup-only sidecar such as istio-proxy, or a completed
+// resource create-step pod) pins sinceTime at its stale mark forever, so every
+// poll re-requests the whole capped window from it through the cluster tunnel.
+// Containers in a pod share a clock, so a genuinely lagging *active* container
+// won't be more than a few poll intervals behind the newest line. Returns
+// fallback when no timestamped line has been seen.
 func (s *followState) sinceTime(fallback string) string {
-	var oldest time.Time
+	var oldest, newest time.Time
 	found := false
 	for _, c := range s.byContainer {
 		if !c.hasHWM {
 			continue
 		}
-		if !found || c.hwm.Before(oldest) {
+		if !found {
+			oldest, newest, found = c.hwm, c.hwm, true
+			continue
+		}
+		if c.hwm.Before(oldest) {
 			oldest = c.hwm
-			found = true
+		}
+		if c.hwm.After(newest) {
+			newest = c.hwm
 		}
 	}
 	if !found {
 		return fallback
 	}
+	if floor := newest.Add(-followRewindGrace); oldest.Before(floor) {
+		oldest = floor
+	}
 	return oldest.UTC().Format(time.RFC3339Nano)
 }
 
 // isTransientFollowErr reports whether a follow-poll error is worth retrying
-// (pod not running yet, restart, gateway/connection) rather than a selector
-// mistake that won't self-heal. Heuristic on the error text pending typed
-// errors (ENG-1115) — the readiness phrasings are matched explicitly so a
-// "not ready yet" message isn't mistaken for a "<thing> not found" selector error.
+// (pod not running yet, restart, gateway/tunnel hiccup) rather than a selector
+// mistake that won't self-heal.
+//
+// It decides on the go-sdk's *transport.APIError (the FixAPIErrors middleware
+// wraps every 4xx/5xx in one), never on err.Error(): the formatted string
+// prefixes the HTTP status text and splices in the selector the user typed plus
+// the list of valid names, so a fork or container legitimately named
+// "connection-pool" or "timeout-worker" would make a genuine typo match a
+// substring and retry forever. A 5xx is a gateway/tunnel/k8s hiccup (retry); a
+// 4xx is a client mistake and only the readiness cases — which the server also
+// returns as 4xx ("...may not be ready yet" / "no running pods found...") —
+// are transient, matched against the server's own message field alone. A
+// non-API error is a transport failure before the server answered, so retry.
 func isTransientFollowErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	m := err.Error()
-	for _, s := range []string{
-		"may not be ready", "no running pods", "not running",
-		"502", "503", "504", "Gateway", "connection", "EOF", "timeout",
-	} {
-		if strings.Contains(m, s) {
+	var apiErr *transport.APIError
+	if errors.As(err, &apiErr) {
+		switch {
+		case apiErr.Code >= 500:
+			return true
+		case apiErr.Code >= 400:
+			// ErrorResponse.Error is the clean server message — no status
+			// prefix, no request id, no echoed selector list.
+			return isReadinessMsg(apiErr.ErrorResponse.Error)
+		default:
+			return false
+		}
+	}
+	// Not an API response: the request failed at the transport layer
+	// (connection reset, EOF, timeout) before the server replied — retry.
+	return isTransportErr(err.Error())
+}
+
+// isReadinessMsg matches the server's "sandbox not ready yet" messages, the
+// only 4xx cases worth retrying under --follow.
+func isReadinessMsg(msg string) bool {
+	return strings.Contains(msg, "may not be ready") ||
+		strings.Contains(msg, "no running pods")
+}
+
+// isTransportErr matches connection-level failures (no HTTP response received).
+func isTransportErr(msg string) bool {
+	for _, s := range []string{"connection", "EOF", "timeout", "no such host", "reset by peer"} {
+		if strings.Contains(msg, s) {
 			return true
 		}
 	}

@@ -1,6 +1,13 @@
 package logs
 
-import "testing"
+import (
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/signadot/go-sdk/transport"
+)
 
 // step is one observe() call in a scripted follow sequence.
 type step struct {
@@ -76,5 +83,54 @@ func TestFollowStateSinceTime(t *testing.T) {
 	st2.observe("notime", "", "x", true)
 	if got := st2.sinceTime("FB"); got != "FB" {
 		t.Errorf("sinceTime with only untimestamped = %q, want FB", got)
+	}
+
+	// Rewind clamp: a container that logged once and went quiet sits far behind
+	// the newest mark; sinceTime must not rewind past newest-grace, else every
+	// poll re-requests that stale container's whole window forever.
+	st3 := newFollowState()
+	st3.observe("live", "2026-01-01T00:01:00Z", "a", true)
+	st3.observe("stopped", "2026-01-01T00:00:00Z", "b", true) // 60s behind, grace is smaller
+	newest := time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC)
+	want := newest.Add(-followRewindGrace).UTC().Format(time.RFC3339Nano)
+	if got := st3.sinceTime("FB"); got != want {
+		t.Errorf("sinceTime clamp = %q, want %q (newest-grace)", got, want)
+	}
+}
+
+// wrappedAPIErr mimics what the go-sdk FixAPIErrors middleware returns: a
+// *transport.APIError (clean server message + HTTP status code) wrapped behind
+// the HTTP status text, e.g. "400 Bad Request: <message>". The wrapping is what
+// makes err.Error() dangerous to match on and why the guard uses errors.As.
+func wrappedAPIErr(code int, message string) error {
+	apiErr := &transport.APIError{}
+	apiErr.Code = int64(code)
+	apiErr.ErrorResponse.Error = message
+	return fmt.Errorf("%d %s: %w", code, "Status", apiErr)
+}
+
+func TestIsTransientFollowErr(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"5xx gateway", wrappedAPIErr(502, "can't fetch logs from cluster"), true},
+		{"503 unavailable", wrappedAPIErr(503, "can't fetch pod from cluster"), true},
+		{"4xx readiness (not ready yet)", wrappedAPIErr(400, "no running pods found for the forked workload; the sandbox may not be ready yet"), true},
+		// Regression (Scott): a fork/container named "connection-pool" or
+		// "timeout-worker" puts "connection"/"timeout" in the message, but it's
+		// a plain selector error -> must fail fast, not retry forever.
+		{"4xx selector with connection-pool name", wrappedAPIErr(400, `container "connection-pool" not found; containers: app, istio-proxy`), false},
+		{"4xx selector with timeout-worker name", wrappedAPIErr(400, `workload "timeout-worker" not found in sandbox "s"; loggable workloads: app`), false},
+		{"transport failure (no response)", errors.New("dial tcp 10.0.0.1:443: connect: connection refused"), true},
+		{"transport EOF", errors.New("unexpected EOF"), true},
+		{"unrelated non-API error", errors.New("something else entirely"), false},
+	}
+	for _, c := range cases {
+		if got := isTransientFollowErr(c.err); got != c.want {
+			t.Errorf("%s: isTransientFollowErr(%v) = %v, want %v", c.name, c.err, got, c.want)
+		}
 	}
 }
