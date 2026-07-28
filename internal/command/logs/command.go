@@ -20,10 +20,10 @@ func New(api *config.API) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "logs",
-		Short: "Display job logs",
+		Short: "Display job or sandbox logs",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return showLogs(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), cfg)
+			return run(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), cfg)
 		},
 	}
 
@@ -31,9 +31,17 @@ func New(api *config.API) *cobra.Command {
 	return cmd
 }
 
-func showLogs(ctx context.Context, outW, errW io.Writer, cfg *config.Logs) error {
+// run dispatches to the sandbox or job log source.
+func run(ctx context.Context, outW, errW io.Writer, cfg *config.Logs) error {
+	if cfg.Sandbox != "" {
+		return showSandboxLogs(ctx, outW, cfg)
+	}
+	return showJobLogs(ctx, outW, errW, cfg)
+}
+
+func showJobLogs(ctx context.Context, outW, errW io.Writer, cfg *config.Logs) error {
 	if cfg.Job == "" {
-		return fmt.Errorf("must specify --job")
+		return fmt.Errorf("must specify --job or --sandbox")
 	}
 
 	if err := cfg.InitAPIConfig(); err != nil {
@@ -112,4 +120,3 @@ func ShowLogs(ctx context.Context, cfg *config.API, out io.Writer, jobName, stre
 
 	return lastCursor, err
 }
-
