@@ -25,6 +25,9 @@ type SandboxManagerAPIClient interface {
 	// This method returns all the available resource outputs for a sandbox given
 	// its routing key.
 	GetResourceOutputs(ctx context.Context, in *GetResourceOutputsRequest, opts ...grpc.CallOption) (*GetResourceOutputsResponse, error)
+	// This method returns the resolvable cluster hosts and their assigned
+	// addresses (relayed from the root controller).
+	GetHosts(ctx context.Context, in *GetHostsRequest, opts ...grpc.CallOption) (*GetHostsResponse, error)
 }
 
 type sandboxManagerAPIClient struct {
@@ -62,6 +65,15 @@ func (c *sandboxManagerAPIClient) GetResourceOutputs(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *sandboxManagerAPIClient) GetHosts(ctx context.Context, in *GetHostsRequest, opts ...grpc.CallOption) (*GetHostsResponse, error) {
+	out := new(GetHostsResponse)
+	err := c.cc.Invoke(ctx, "/sandboxmanager.SandboxManagerAPI/GetHosts", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SandboxManagerAPIServer is the server API for SandboxManagerAPI service.
 // All implementations must embed UnimplementedSandboxManagerAPIServer
 // for forward compatibility
@@ -73,6 +85,9 @@ type SandboxManagerAPIServer interface {
 	// This method returns all the available resource outputs for a sandbox given
 	// its routing key.
 	GetResourceOutputs(context.Context, *GetResourceOutputsRequest) (*GetResourceOutputsResponse, error)
+	// This method returns the resolvable cluster hosts and their assigned
+	// addresses (relayed from the root controller).
+	GetHosts(context.Context, *GetHostsRequest) (*GetHostsResponse, error)
 	mustEmbedUnimplementedSandboxManagerAPIServer()
 }
 
@@ -88,6 +103,9 @@ func (UnimplementedSandboxManagerAPIServer) Shutdown(context.Context, *ShutdownR
 }
 func (UnimplementedSandboxManagerAPIServer) GetResourceOutputs(context.Context, *GetResourceOutputsRequest) (*GetResourceOutputsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetResourceOutputs not implemented")
+}
+func (UnimplementedSandboxManagerAPIServer) GetHosts(context.Context, *GetHostsRequest) (*GetHostsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetHosts not implemented")
 }
 func (UnimplementedSandboxManagerAPIServer) mustEmbedUnimplementedSandboxManagerAPIServer() {}
 
@@ -156,6 +174,24 @@ func _SandboxManagerAPI_GetResourceOutputs_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SandboxManagerAPI_GetHosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetHostsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SandboxManagerAPIServer).GetHosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/sandboxmanager.SandboxManagerAPI/GetHosts",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SandboxManagerAPIServer).GetHosts(ctx, req.(*GetHostsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SandboxManagerAPI_ServiceDesc is the grpc.ServiceDesc for SandboxManagerAPI service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -174,6 +210,10 @@ var SandboxManagerAPI_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetResourceOutputs",
 			Handler:    _SandboxManagerAPI_GetResourceOutputs_Handler,
+		},
+		{
+			MethodName: "GetHosts",
+			Handler:    _SandboxManagerAPI_GetHosts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

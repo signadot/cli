@@ -87,7 +87,7 @@ func (s *sbmServer) Status(ctx context.Context, req *sbapi.StatusRequest) (*sbap
 		Sandboxes:         s.sbStatuses(),
 		DevboxSession:     s.devboxSessionStatus(),
 	}
-	resp.Hosts, resp.Localnet = s.rootStatus()
+	resp.Hosts, resp.Localnet, resp.LocalDns = s.rootStatus()
 	return resp, nil
 }
 
@@ -125,16 +125,35 @@ func (s *sbmServer) GetResourceOutputs(ctx context.Context, req *sbapi.GetResour
 	return res, nil
 }
 
-func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus) {
+func (s *sbmServer) GetHosts(ctx context.Context, req *sbapi.GetHostsRequest) (*sbapi.GetHostsResponse, error) {
+	if !s.ciConfig.WithRootManager {
+		// Without a root manager there is no name-resolution service and hence
+		// no managed hosts.
+		return &sbapi.GetHostsResponse{}, nil
+	}
+	rootClient := s.getRootClient()
+	if rootClient == nil {
+		return nil, fmt.Errorf("no root manager client available")
+	}
+	rctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	resp, err := rootClient.GetHosts(rctx, &rootapi.GetHostsRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("error getting hosts from root manager: %w", err)
+	}
+	return &sbapi.GetHostsResponse{Entries: resp.Entries}, nil
+}
+
+func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetStatus, *commonapi.LocalDNSStatus) {
 	if !s.ciConfig.WithRootManager {
 		// We are running without a root manager
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	rootClient := s.getRootClient()
 	if rootClient == nil {
 		s.log.Debug("no root client available for rootStatus()")
-		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}
+		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}, nil
 	}
 	req := &rootapi.StatusRequest{}
 	ctx, cancel := context.WithTimeout(context.Background(),
@@ -143,9 +162,9 @@ func (s *sbmServer) rootStatus() (*commonapi.HostsStatus, *commonapi.LocalNetSta
 	resp, err := rootClient.Status(ctx, req)
 	if err != nil {
 		s.log.Error("error getting status from root manager", "error", err)
-		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}
+		return &commonapi.HostsStatus{}, &commonapi.LocalNetStatus{}, nil
 	}
-	return resp.Hosts, resp.Localnet
+	return resp.Hosts, resp.Localnet, resp.LocalDns
 }
 
 func (s *sbmServer) getRootClient() rootapi.RootManagerAPIClient {

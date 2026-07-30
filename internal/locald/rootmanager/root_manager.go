@@ -15,9 +15,11 @@ import (
 	"github.com/signadot/cli/internal/config"
 	rootapi "github.com/signadot/cli/internal/locald/api/rootmanager"
 	"github.com/signadot/libconnect/apiv1"
+	"github.com/signadot/libconnect/common/apiclient"
 	connectcfg "github.com/signadot/libconnect/config"
 	"github.com/signadot/libconnect/fwdtun/etchosts"
 	"github.com/signadot/libconnect/fwdtun/ipmap"
+	"github.com/signadot/libconnect/fwdtun/localdns"
 	"github.com/signadot/libconnect/fwdtun/localnet"
 	"google.golang.org/grpc"
 )
@@ -67,6 +69,19 @@ func (m *rootManager) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error creating ipmap: %w", err)
 	}
+	// Publish the ipMap on the root API server so GetHosts can enumerate the
+	// host->address table regardless of which name-resolution service runs.
+	m.root.setIPMap(ipMap)
+
+	// Repair OS resolver config left behind by a crashed prior --local-dns
+	// session, regardless of this session's mode. A --local-dns session that
+	// dies uncleanly can leave the system resolver pointing at our dead server
+	// (all DNS broken on Linux); the natural next move is a plain
+	// `signadot local connect`, so recovery must not be gated on --local-dns.
+	// Best-effort: never block connect on it. No-op when there's nothing to fix.
+	if err := localdns.Recover(localdns.Config{LocalNetPath: m.ciConfig.LocalNetPath}, m.log); err != nil {
+		m.log.Warn("localdns crash-recovery failed", "error", err)
+	}
 
 	// Run the sandbox manager
 	go m.sbmMonitor.run()
@@ -77,9 +92,15 @@ func (m *rootManager) Run(ctx context.Context) error {
 		// starting/restarting the localnet and etchost services
 		m.tpMonitor = NewTunnelProxyMonitor(ctx, m, ipMap)
 	default:
-		// Start localnet and etchost services
+		// Start localnet and the name-resolution service (localdns or etchosts)
 		m.runLocalnetService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap)
-		m.runEtcHostsService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap)
+		if err := m.runNameService(ctx, m.ciConfig.ConnectionConfig.ProxyAddress, ipMap); err != nil {
+			// Route through the full cleanup: the sandbox manager was already
+			// spawned above as a daemonized child and stop() is the only thing
+			// that reaps it, so a bare return here would orphan it.
+			_ = m.cleanup()
+			return fmt.Errorf("error starting name resolution: %w", err)
+		}
 	}
 
 	// Wait until termination
@@ -90,14 +111,23 @@ func (m *rootManager) Run(ctx context.Context) error {
 	}
 
 	// Clean up
+	return m.cleanup()
+}
+
+// cleanup tears down everything Run started. It is safe to call on the startup
+// error path as well as the normal shutdown path: each stop helper is a no-op
+// when its service was never started.
+func (m *rootManager) cleanup() error {
 	m.log.Info("Shutting down")
 	var me *multierror.Error
 	if m.tpMonitor != nil {
 		m.tpMonitor.Stop()
 	}
 	me = multierror.Append(me, m.sbmMonitor.stop())
+	// Name resolution down before NAT: localdns restores the OS resolver path
+	// before the cluster becomes unreachable. (Harmless ordering for etchosts.)
+	me = multierror.Append(me, m.stopNameService())
 	me = multierror.Append(me, m.stopLocalnetService())
-	me = multierror.Append(me, m.stopEtcHostsService())
 	return me.ErrorOrNil()
 }
 
@@ -140,6 +170,62 @@ func (m *rootManager) runEtcHostsService(ctx context.Context, socks5Addr string,
 
 	// Register the etc hosts service in root api
 	m.root.setEtcHostsService(etcHostsSVC)
+}
+
+// runNameService starts cluster-name resolution: the localdns resolver when
+// --local-dns is set, otherwise the legacy /etc/hosts mechanism.
+func (m *rootManager) runNameService(ctx context.Context, socks5Addr string, ipMap *ipmap.IPMap) error {
+	if m.ciConfig.EnableLocalDNS {
+		return m.runLocalDNSService(ctx, socks5Addr, ipMap)
+	}
+	m.runEtcHostsService(ctx, socks5Addr, ipMap)
+	return nil
+}
+
+// stopNameService stops whichever name-resolution service is running. Both stop
+// helpers are no-ops when their service was never started.
+func (m *rootManager) stopNameService() error {
+	var me *multierror.Error
+	me = multierror.Append(me, m.stopLocalDNSService())
+	me = multierror.Append(me, m.stopEtcHostsService())
+	return me.ErrorOrNil()
+}
+
+func (m *rootManager) runLocalDNSService(ctx context.Context, socks5Addr string, ipMap *ipmap.IPMap) error {
+	// localdns takes an injected tunnel-api client (unlike etchosts, which
+	// builds its own); the CLI owns it and closes it on teardown.
+	apiClient, err := apiclient.NewClient(socks5Addr, apiclient.DefaultClientKeepaliveParams())
+	if err != nil {
+		return fmt.Errorf("creating tunnel-api client for localdns: %w", err)
+	}
+	svc, err := localdns.New(localdns.Config{
+		ManageResolver: true, // install OS resolver config (we are root)
+		Forward:        true, // forward non-cluster queries to captured upstreams
+		LocalNetPath:   m.ciConfig.LocalNetPath,
+		Log:            m.log,
+		// BindIP/BindPort left zero: localdns picks 127.0.0.54:53 on Linux,
+		// an ephemeral 127.0.0.1 port on macOS.
+	}, apiClient, ipMap)
+	if err != nil {
+		_ = apiClient.Close()
+		return fmt.Errorf("starting localdns: %w", err)
+	}
+	m.root.setLocalDNSService(svc, apiClient)
+	return nil
+}
+
+func (m *rootManager) stopLocalDNSService() error {
+	svc, apiClient := m.root.getLocalDNSService()
+	if svc == nil {
+		return nil
+	}
+	m.root.setLocalDNSService(nil, nil)
+	var me *multierror.Error
+	me = multierror.Append(me, svc.Close())
+	if apiClient != nil {
+		me = multierror.Append(me, apiClient.Close())
+	}
+	return me.ErrorOrNil()
 }
 
 func (m *rootManager) stopEtcHostsService() error {

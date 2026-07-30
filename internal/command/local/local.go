@@ -20,6 +20,7 @@ func New(api *config.API) *cobra.Command {
 		newStatus(cfg),
 		newDisconnect(cfg),
 		newProxy(cfg),
+		newHosts(cfg),
 		override.New(cfg),
 	)
 

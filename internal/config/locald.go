@@ -76,14 +76,18 @@ type ConnectInvocationConfig struct {
 	Env              []string                     `json:"env"`
 	VirtualIPNet     string                       `json:"virtualIPNet"`
 	ConnectionConfig *connectcfg.ConnectionConfig `json:"connectionConfig"`
-	ProxyURL         string                       `json:"proxyURL"`
-	APIURL           string                       `json:"apiURL"`
-	APIKey           string                       `json:"apiKey"`
-	ConfigFile       string                       `json:"configFile"`
-	Debug            bool                         `json:"debug"`
-	ConnectTimeout   string                       `json:"connectTimeout"`
-	DevboxID         string                       `json:"devboxID"`
-	DevboxSessionID  string                       `json:"devboxSessionID"`
+
+	// EnableLocalDNS runs the libconnect localdns resolver (managing the OS
+	// resolver config) in place of the /etc/hosts mechanism for cluster names.
+	EnableLocalDNS  bool   `json:"enableLocalDNS,omitempty"`
+	ProxyURL        string `json:"proxyURL"`
+	APIURL          string `json:"apiURL"`
+	APIKey          string `json:"apiKey"`
+	ConfigFile      string `json:"configFile"`
+	Debug           bool   `json:"debug"`
+	ConnectTimeout  string `json:"connectTimeout"`
+	DevboxID        string `json:"devboxID"`
+	DevboxSessionID string `json:"devboxSessionID"`
 
 	// LocalNetPath is prepended to PATH when the root-manager invokes
 	// tunnel-setup commands (iptables on linux; pfctl and route on

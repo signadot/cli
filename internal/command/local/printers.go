@@ -33,6 +33,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 		OperatorInfo      any `json:"operatorInfo,omitempty"`
 		Localnet          any `json:"localnet,omitempty"`
 		Hosts             any `json:"hosts,omitempty"`
+		LocalDNS          any `json:"localDNS,omitempty"`
 		Portforward       any `json:"portforward,omitempty"`
 		ControlPlaneProxy any `json:"controlPlaneProxy,omitempty"`
 		SandboxesWatcher  any `json:"sandboxesWatcher,omitempty"`
@@ -45,6 +46,7 @@ func printRawStatus(cfg *config.LocalStatus, out io.Writer, printer func(out io.
 		OperatorInfo:      getRawOperatorInfo(cfg, status.OperatorInfo),
 		Localnet:          getRawLocalnet(cfg, ciConfig, status.Localnet, statusMap),
 		Hosts:             getRawHosts(cfg, ciConfig, status.Hosts, statusMap),
+		LocalDNS:          getRawLocalDNS(cfg, ciConfig, status.LocalDns, statusMap),
 		Portforward:       getRawPortforward(cfg, ciConfig, status.Portforward, statusMap),
 		ControlPlaneProxy: getRawControlPlaneProxy(cfg, ciConfig, status.ControlPlaneProxy, statusMap),
 		SandboxesWatcher:  getRawWatcher(cfg, status.Watcher, statusMap),
@@ -186,6 +188,13 @@ func getRawHosts(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConf
 	if !ciConfig.WithRootManager {
 		return hosts
 	}
+	if ciConfig.EnableLocalDNS {
+		// In --local-dns mode /etc/hosts management is intentionally not
+		// running, so the root manager reports no hosts status. Omit the section
+		// (mirroring getRawLocalDNS when local DNS is disabled) rather than
+		// emitting a bogus {"healthy": false, "numHosts": 0}.
+		return nil
+	}
 
 	if cfg.Details {
 		// Details view
@@ -214,6 +223,48 @@ func getRawHosts(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConf
 		result = &PrintableHosts{
 			Healthy:         false,
 			LastErrorReason: hosts.Health.LastErrorReason,
+		}
+	}
+	return result
+}
+
+func getRawLocalDNS(cfg *config.LocalStatus, ciConfig *config.ConnectInvocationConfig,
+	ldns *commonapi.LocalDNSStatus, statusMap map[string]any) any {
+	if !ciConfig.WithRootManager || !ciConfig.EnableLocalDNS {
+		return nil
+	}
+
+	if cfg.Details {
+		// Details view
+		return statusMap["localDns"]
+	}
+
+	// Standard view
+	type PrintableLocalDNS struct {
+		Healthy         bool   `json:"healthy"`
+		RecordCount     uint32 `json:"recordCount,omitempty"`
+		HostCount       uint32 `json:"hostCount,omitempty"`
+		BindAddr        string `json:"bindAddr,omitempty"`
+		Warning         string `json:"warning,omitempty"`
+		LastErrorReason string `json:"lastErrorReason,omitempty"`
+	}
+
+	result := &PrintableLocalDNS{Healthy: false}
+	if ldns == nil || ldns.Health == nil {
+		return result
+	}
+	if ldns.Health.Healthy {
+		result = &PrintableLocalDNS{
+			Healthy:     true,
+			RecordCount: ldns.RecordCount,
+			HostCount:   ldns.HostCount,
+			BindAddr:    ldns.BindAddr,
+			Warning:     ldns.Warning,
+		}
+	} else {
+		result = &PrintableLocalDNS{
+			Healthy:         false,
+			LastErrorReason: ldns.Health.LastErrorReason,
 		}
 	}
 	return result
@@ -437,7 +488,11 @@ func (p *statusPrinter) printSuccess() {
 	}
 	if p.ciConfig.WithRootManager {
 		p.printLocalnetStatus()
-		p.printHostsStatus()
+		if p.ciConfig.EnableLocalDNS {
+			p.printLocalDNSStatus()
+		} else {
+			p.printHostsStatus()
+		}
 	}
 	p.printSandboxesWatcherStatus()
 	p.printSandboxStatus()
@@ -503,6 +558,51 @@ func (p *statusPrinter) printLocalnetStatus() {
 
 func (p *statusPrinter) printHostsStatus() {
 	p.printLine(p.out, 1, fmt.Sprintf("%d hosts accessible via /etc/hosts", p.status.Hosts.NumHosts), "*")
+}
+
+func (p *statusPrinter) printLocalDNSStatus() {
+	ldns := p.status.LocalDns
+	if ldns == nil || ldns.Health == nil {
+		p.printLine(p.out, 1, "local DNS resolver is not running", "*")
+		return
+	}
+	if ldns.Health.Healthy {
+		// RecordCount is the total resolvable DNS names, which includes the
+		// synthesized short forms (e.g. <svc>.<ns>, <svc>.<ns>.svc); HostCount is
+		// the distinct hosts `local hosts` lists. Show both so the larger name
+		// count doesn't read as a discrepancy against `local hosts` — but omit the
+		// host count when it's absent (0), which is what an older daemon that
+		// predates the host_count field reports (a new CLI vs old locald).
+		msg := fmt.Sprintf("%d names resolvable via local DNS (%s)", ldns.RecordCount, ldns.BindAddr)
+		if ldns.HostCount > 0 {
+			msg = fmt.Sprintf("%d names (%d hosts) resolvable via local DNS (%s)",
+				ldns.RecordCount, ldns.HostCount, ldns.BindAddr)
+		}
+		p.printLine(p.out, 1, msg, "*")
+	} else {
+		p.printLine(p.out, 1, fmt.Sprintf("local DNS resolver not healthy (%q)",
+			ldns.Health.LastErrorReason), "*")
+	}
+	if ldns.Warning != "" {
+		p.printLine(p.out, 2, "warning: "+ldns.Warning, p.red("!"))
+	}
+	if p.cfg.Details {
+		if ldns.Mode != "" {
+			p.printLine(p.out, 2, "mode: "+ldns.Mode, "*")
+		}
+		if len(ldns.Suffixes) > 0 {
+			p.printLine(p.out, 2, "Suffixes:", "*")
+			for _, s := range ldns.Suffixes {
+				p.printLine(p.out, 3, s, "-")
+			}
+		}
+		if len(ldns.Upstreams) > 0 {
+			p.printLine(p.out, 2, "Upstreams:", "*")
+			for _, u := range ldns.Upstreams {
+				p.printLine(p.out, 3, u, "-")
+			}
+		}
+	}
 }
 
 func (p *statusPrinter) printSandboxesWatcherStatus() {

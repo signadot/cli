@@ -160,15 +160,17 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) (success bool,
 		return true, false
 	}
 
-	mon.log.Info("restarting localnet and etchosts services")
+	mon.log.Info("restarting localnet and name-resolution services")
 
 	// Restart localnet
 	mon.root.stopLocalnetService()
 	mon.root.runLocalnetService(ctx, mon.tpLocalAddr, mon.ipMap)
 
-	// Restart etc hosts
-	mon.root.stopEtcHostsService()
-	mon.root.runEtcHostsService(ctx, mon.tpLocalAddr, mon.ipMap)
+	// Restart name resolution (localdns or etchosts)
+	mon.root.stopNameService()
+	if err := mon.root.runNameService(ctx, mon.tpLocalAddr, mon.ipMap); err != nil {
+		mon.log.Error("error starting name resolution; will retry", "error", err)
+	}
 
 	return false, true
 }
@@ -202,20 +204,50 @@ func (mon *tpMonitor) checkLinkStatus(status *sbmanagerapi.StatusResponse) (ok, 
 }
 
 func (mon *tpMonitor) checkRootServer(r *rootServer) (ok, restart bool) {
-	if r.localnetSVC == nil || !r.localnetSVC.Status().Healthy {
-		if mon.shouldRestartDueToUnhealthy() {
-			return true, true
-		} else {
-			return false, false
-		}
+	// Use the mutex-guarded accessors: these fields are written from the
+	// name-service (re)start paths on other goroutines. The inactive
+	// name-resolution service is nil (etcHostsSVC under --local-dns, localDNSSVC
+	// otherwise), and the nil check short-circuits its Status() call.
+	localnetSVC := r.getLocalnetService()
+	localDNSSVC, _ := r.getLocalDNSService()
+	etcHostsSVC := r.getEtcHostsService()
+	return evalRootServerHealth(rootServerHealth{
+		enableLocalDNS:  mon.root.ciConfig.EnableLocalDNS,
+		localnetHealthy: localnetSVC != nil && localnetSVC.Status().Healthy,
+		localDNSHealthy: localDNSSVC != nil && localDNSSVC.Status().Healthy,
+		etcHostsHealthy: etcHostsSVC != nil && etcHostsSVC.Status().Healthy,
+		allowRestart:    mon.shouldRestartDueToUnhealthy(),
+	})
+}
+
+// rootServerHealth is the input to evalRootServerHealth: the presence-and-health
+// of each root-managed service plus whether a restart is currently allowed.
+type rootServerHealth struct {
+	enableLocalDNS  bool
+	localnetHealthy bool
+	localDNSHealthy bool
+	etcHostsHealthy bool
+	allowRestart    bool
+}
+
+// evalRootServerHealth is the pure decision behind checkRootServer, extracted so
+// the mode matrix (which name-resolution service gates health) is unit-testable
+// without standing up real localnet/localdns/etchosts services. Health gates on
+// localnet and on whichever name service is active for the mode: with
+// --local-dns that is localdns, otherwise etchosts. Gating on the wrong one
+// would report perpetual unhealthiness and restart the services every cycle.
+// allowRestart mirrors shouldRestartDueToUnhealthy: during the startup grace
+// period an unhealthy service is tolerated rather than restarted.
+func evalRootServerHealth(h rootServerHealth) (ok, restart bool) {
+	nameSvcHealthy := h.etcHostsHealthy
+	if h.enableLocalDNS {
+		nameSvcHealthy = h.localDNSHealthy
 	}
-	// localnet ok, check etc hosts
-	if r.etcHostsSVC == nil || !r.etcHostsSVC.Status().Healthy {
-		if mon.shouldRestartDueToUnhealthy() {
+	if !h.localnetHealthy || !nameSvcHealthy {
+		if h.allowRestart {
 			return true, true
-		} else {
-			return false, false
 		}
+		return false, false
 	}
 	return true, false
 }
