@@ -456,8 +456,8 @@ github.com/segmentio/encoding v0.5.4 h1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfv
 github.com/segmentio/encoding v0.5.4/go.mod h1:HS1ZKa3kSN32ZHVZ7ZLPLXWvOVIiZtyJnO1gPH1sKt0=
 github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 h1:n661drycOFuPLCN3Uc8sB6B/s6Z4t2xvBgU1htSHuq8=
 github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3/go.mod h1:A0bzQcvG0E7Rwjx0REVgAGH58e96+X0MeOfepqsbeW4=
-github.com/signadot/go-sdk v0.3.8-0.20260729140747-c2e52c424d95 h1:wM5K//1RyBhd1K+9qHqTTzdZvCoGZeV2lS/0apJZqqY=
-github.com/signadot/go-sdk v0.3.8-0.20260729140747-c2e52c424d95/go.mod h1:P9bcwyPeom4W8XToYDxNpXJ4w0EeKaM5lF+GkoeY3Aw=
+github.com/signadot/go-sdk v0.3.8 h1:DdXX6x4cNIpwL/KQ54eJXDDsoW9GyJwra0GxOHLXy6Y=
+github.com/signadot/go-sdk v0.3.8/go.mod h1:P9bcwyPeom4W8XToYDxNpXJ4w0EeKaM5lF+GkoeY3Aw=
 github.com/signadot/libconnect v0.1.1-0.20260730200225-ae66f07f8f04 h1:CzSUlnyjhmBY+B7hTIedm/BoqweAFoJaaskJc+W+33M=
 github.com/signadot/libconnect v0.1.1-0.20260730200225-ae66f07f8f04/go.mod h1:awUWZx6SnE/vqfB1Yh+n6YVUkgc0bkILEx+L55sWze0=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
