@@ -91,7 +91,9 @@ echo "" >&2
 echo "Generated ${OUTPUT}" >&2
 echo "" >&2
 
-echo "Run the following commands to publish to the MCP registry:"
+echo "Run the following commands to publish to the MCP registry"
+echo "(org publishing requires a classic PAT with the read:org scope,"
+echo "owned by a signadot org Owner — see README):"
 echo ""
-echo "  mcp-publisher login github"
+echo "  MCP_GITHUB_TOKEN=<pat-with-read:org> mcp-publisher login github"
 echo "  mcp-publisher publish ${OUTPUT}"
