@@ -42,11 +42,20 @@ After the GitHub release artifacts are live, publish the MCP server entry
 manually. goreleaser does not yet support the `fileSha256` integrity field
 required by the MCP registry for `mcpb` packages.
 
-**Prerequisite:** install [`mcp-publisher`](https://github.com/modelcontextprotocol/registry).
+**Prerequisites:**
+
+- install [`mcp-publisher`](https://github.com/modelcontextprotocol/registry)
+- a classic GitHub PAT with only the `read:org` scope
+  ([create one here](https://github.com/settings/tokens/new?scopes=read:org&description=mcp-registry-publish)),
+  owned by an **Owner** of the signadot org. Since
+  [registry#1383](https://github.com/modelcontextprotocol/registry/pull/1383)
+  the registry grants the `io.github.signadot/*` namespace only to org Owners,
+  and the interactive `mcp-publisher login github` device flow cannot read org
+  roles — logging in with a PAT is what makes org publishing work.
 
 ```sh
-./scripts/gen-mcp-server-json.sh <version>   # e.g. v1.5.0 — writes server.json
-mcp-publisher login github
+./scripts/gen-mcp-server-json.sh <version>   # e.g. v1.8.0 — writes server.json
+MCP_GITHUB_TOKEN=<pat-with-read:org> mcp-publisher login github
 mcp-publisher publish server.json
 ```
 
