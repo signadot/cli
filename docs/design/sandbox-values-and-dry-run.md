@@ -170,7 +170,8 @@ builds a list. Not now.
 
 1. **`--dry-run=server`.** Needs `validateOnly` on the apiserver's sandbox
    create/update, or a validate endpoint. The CLI flag already exists and reports
-   that it is unavailable, so wiring it up later is a small change here.
+   that it is unavailable, so wiring it up later is a small change here. Scoped in
+   [ENG-1203](https://linear.app/signadot/issue/ENG-1203/server-side-dry-run-for-sandbox-apply-validateonly).
 2. **Values schema coverage.** It models what one dog-fooding pass needed. A second
    consumer will find gaps; the escape hatch (`template show`, edit, `-f`) is what
    makes that survivable in the meantime.
