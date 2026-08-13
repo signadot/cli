@@ -27,22 +27,34 @@ func newList(job *config.Job) *cobra.Command {
 	return cmd
 }
 
+// jobsPaginationOptIn opts into the server's paginated ListJobs response
+// ({items, nextCursor, hasMore, totalCount, totalPages} instead of a bare
+// array) — see signadot/signadot#7328. The CLI's own -o json/-o yaml output
+// stays a plain job array either way (below), so this is purely about not
+// depending on the legacy server-side path ahead of its 2026-11-16 sunset.
+const jobsPaginationOptIn = "jobs-pagination"
+
 func list(cfg *config.JobList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	resp, err := cfg.Client.Jobs.ListJobs(jobs.NewListJobsParams().WithOrgName(cfg.Org), nil)
+	optIn := jobsPaginationOptIn
+	resp, err := cfg.Client.Jobs.ListJobs(
+		jobs.NewListJobsParams().WithOrgName(cfg.Org).WithSignadotAPIOptIn(&optIn),
+		nil,
+	)
 	if err != nil {
 		return err
 	}
+	items := resp.Payload.Items
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printJobTable(cfg, out, resp.Payload)
+		return printJobTable(cfg, out, items)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, resp.Payload)
+		return print.RawJSON(out, items)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, resp.Payload)
+		return print.RawYAML(out, items)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
