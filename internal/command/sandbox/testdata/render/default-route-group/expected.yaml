@@ -1,0 +1,24 @@
+name: signadot-pr-456
+spec:
+  cluster: signadot-staging
+  labels:
+    signadot/github-pull-request: "456"
+    signadot/github-repo: signadot/signadot
+    signadot/usage: ci
+  defaultRouteGroup:
+    endpoints:
+    - name: frontend
+      target: http://web.workspaces.svc:80
+    - name: apiserver
+      target: http://apiserver.workspaces.svc:80
+  forks:
+  - customizations:
+      env:
+      - name: DISABLE_NOTIFICATIONS_PRODUCER
+        value: "true"
+      images:
+      - image: signadot/apiserver-staging:deadbeef
+    forkOf:
+      kind: Deployment
+      name: apiserver
+      namespace: workspaces

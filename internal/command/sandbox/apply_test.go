@@ -51,7 +51,7 @@ func writeTemp(t *testing.T, name, content string) string {
 	return path
 }
 
-func render(t *testing.T, file string, sets ...string) string {
+func renderSpec(t *testing.T, file string, sets ...string) string {
 	t.Helper()
 	var out, log bytes.Buffer
 	cfg := dryRunConfig(t, file, config.DryRunClient, sets...)
@@ -64,7 +64,7 @@ func render(t *testing.T, file string, sets ...string) string {
 // The point of --dry-run=client is that it renders and validates without
 // contacting anything, so it has to work for a caller who has never logged in.
 func TestDryRunClientNeedsNoCredentials(t *testing.T) {
-	got := render(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), "tag=abc123")
+	got := renderSpec(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), "tag=abc123")
 
 	for _, want := range []string{"name: test-sandbox", "acme/route:abc123", "build abc123"} {
 		if !strings.Contains(got, want) {
@@ -90,8 +90,8 @@ func TestDryRunClientNeedsNoCredentials(t *testing.T) {
 // The Action renders in one step and applies those exact bytes in another, which
 // only holds if a rendered spec renders to itself.
 func TestDryRunOutputIsAFixedPoint(t *testing.T) {
-	once := render(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), "tag=abc123")
-	twice := render(t, writeTemp(t, "rendered.yaml", once))
+	once := renderSpec(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), "tag=abc123")
+	twice := renderSpec(t, writeTemp(t, "rendered.yaml", once))
 
 	if once != twice {
 		t.Errorf("re-rendering changed the spec:\nfirst:\n%s\nsecond:\n%s", once, twice)

@@ -1,0 +1,43 @@
+name: hotrod-pr-7
+spec:
+  cluster: prod-eks
+  labels:
+    signadot/github-pull-request: "7"
+    signadot/github-repo: acme/hotrod
+    signadot/usage: ci
+  forks:
+  - customizations:
+      env:
+      - name: CACHE_URL
+        valueFrom:
+          resource:
+            name: cache
+            outputKey: url
+      - name: DB_HOST
+        valueFrom:
+          resource:
+            name: customerdb
+            outputKey: host
+      - name: DB_PORT
+        valueFrom:
+          resource:
+            name: customerdb
+            outputKey: port
+      - name: EMPTY
+      - name: LITERAL
+        value: ${resource:customerdb.host}
+      - name: PLAIN
+        value: debug
+      images:
+      - image: ghcr.io/acme/customer:abc1234
+    forkOf:
+      kind: Deployment
+      name: customer
+      namespace: hotrod
+  resources:
+  - name: customerdb
+    params:
+      dbname: customer
+    plugin: hotrod-mariadb
+  - name: cache
+    plugin: redis

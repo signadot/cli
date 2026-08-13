@@ -22,6 +22,7 @@ func New(api *config.API) *cobra.Command {
 		newDelete(cfg),
 		newGetEnv(cfg),
 		newGetFiles(cfg),
+		newTemplate(cfg),
 	)
 
 	return cmd

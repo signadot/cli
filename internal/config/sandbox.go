@@ -14,15 +14,20 @@ type SandboxApply struct {
 	*Sandbox
 
 	// Flags
-	Filename     string
-	Wait         bool
-	WaitTimeout  time.Duration
-	TemplateVals TemplateVals
-	DryRun       DryRunMode
+	Filename      string
+	Wait          bool
+	WaitTimeout   time.Duration
+	TemplateVals  TemplateVals
+	DryRun        DryRunMode
+	Patch         string
+	Name          string
+	TTL           string
+	CIContext     string
+	DefaultLabels bool
 }
 
 func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "YAML or JSON file containing the sandbox creation request")
+	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "YAML or JSON file containing the sandbox creation request, or a values document")
 	cmd.Flags().BoolVar(&c.Wait, "wait", true, "wait for the sandbox status to be Ready before returning")
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout when waiting for the sandbox to be Ready")
 	cmd.MarkFlagRequired("filename")
@@ -30,6 +35,11 @@ func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
 
 	c.DryRun = DryRunNone
 	cmd.Flags().Var(&c.DryRun, "dry-run", "print the rendered sandbox spec instead of applying it: \"client\" renders and validates locally")
+	cmd.Flags().StringVar(&c.Patch, "patch", "", "YAML or JSON file containing a merge patch to apply to the rendered spec")
+	cmd.Flags().StringVar(&c.Name, "name", "", "sandbox name, overriding any name in the file")
+	cmd.Flags().StringVar(&c.TTL, "ttl", "", "sandbox time to live, e.g. 4h, overriding any TTL in the file")
+	cmd.Flags().StringVar(&c.CIContext, "ci-context", "auto", "CI system to take the sandbox name and built-in labels from: auto, github or none")
+	cmd.Flags().BoolVar(&c.DefaultLabels, "default-labels", true, "add the built-in signadot/* labels when a CI context is detected")
 }
 
 type SandboxDelete struct {

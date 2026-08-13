@@ -1,0 +1,47 @@
+name: hotrod-pr-345
+spec:
+  cluster: prod-eks
+  labels:
+    signadot/github-pull-request: "345"
+    signadot/github-repo: signadot/hotrod
+    signadot/usage: ci
+  forks:
+  - customizations:
+      env:
+      - name: DEPLOY_ENV
+        value: sandbox
+      - name: LOG_LEVEL
+        value: debug
+      images:
+      - image: ghcr.io/acme/route:0123456
+    forkOf:
+      kind: Deployment
+      name: route
+      namespace: hotrod
+  - customizations:
+      env:
+      - name: DEPLOY_ENV
+        value: sandbox
+      - name: LOG_LEVEL
+        value: info
+      images:
+      - image: ghcr.io/acme/frontend:0123456
+    forkOf:
+      kind: Rollout
+      name: frontend
+      namespace: web
+  - customizations:
+      env:
+      - name: DEPLOY_ENV
+        value: sandbox
+      - name: LOG_LEVEL
+        value: info
+      images:
+      - container: app
+        image: ghcr.io/acme/customer:pinned
+      - container: sidecar
+        image: ghcr.io/acme/proxy:1.2.3
+    forkOf:
+      kind: Deployment
+      name: customer
+      namespace: hotrod

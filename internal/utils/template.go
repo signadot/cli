@@ -25,22 +25,63 @@ var (
 	errInvalidVar    = errors.New("invalid variable name")
 )
 
-func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelete bool) (any, error) {
+// TemplateOptions controls rendering.
+type TemplateOptions struct {
+	// BaseDir is the directory against which `@{embed: path}` directives are
+	// resolved. A caller rendering a template that was compiled in, rather than
+	// read from disk, has no path to derive this from and must set it. Empty
+	// means the working directory.
+	BaseDir string
+
+	// ForDelete strips the document down to its identity field before
+	// substitution, so a spec can identify a resource to delete without every
+	// variable it references having to be bound.
+	ForDelete bool
+}
+
+// RenderTemplate expands placeholders in a YAML or JSON document held in
+// memory. Embeds resolve against opts.BaseDir.
+func RenderTemplate(content []byte, tplVals config.TemplateVals, opts TemplateOptions) (any, error) {
 	substMap, err := substMap(tplVals)
 	if err != nil {
 		return nil, err
 	}
-	template, err := clio.LoadYAML[any](file)
+	var template any
+	if err := yaml.Unmarshal(content, &template); err != nil {
+		return nil, err
+	}
+	if opts.ForDelete {
+		template = extractName(template)
+	}
+	baseDir := opts.BaseDir
+	if baseDir == "" {
+		baseDir = "."
+	}
+	absBase, err := filepath.Abs(baseDir)
 	if err != nil {
 		return nil, err
 	}
-	if forDelete {
-		*template = extractName(*template)
-	}
-	if err := substTemplate(template, substMap, file); err != nil {
+	if err := substTemplate(&template, substMap, absBase); err != nil {
 		return nil, err
 	}
-	return *template, nil
+	return template, nil
+}
+
+// LoadUnstructuredTemplate renders a template read from a file, or from stdin
+// when file is "-". Embeds resolve relative to the file's directory.
+func LoadUnstructuredTemplate(file string, tplVals config.TemplateVals, forDelete bool) (any, error) {
+	content, err := clio.ReadFileOrStdin(file)
+	if err != nil {
+		return nil, err
+	}
+	absPath, err := filepath.Abs(file)
+	if err != nil {
+		return nil, err
+	}
+	return RenderTemplate(content, tplVals, TemplateOptions{
+		BaseDir:   filepath.Dir(absPath),
+		ForDelete: forDelete,
+	})
 }
 
 func UnstructuredToNameAndSpec(un any) (name string, spec any, err error) {
@@ -77,15 +118,9 @@ func extractName(rpt any) map[string]any {
 
 // does template substitution, including error checking
 // that variables in the template are expanded
-func substTemplate(rpt *any, substMap map[string]string, templatePath string) error {
-	absPath, err := filepath.Abs(templatePath)
-	if err != nil {
-		return err
-	}
-	wdir := filepath.Dir(absPath)
+func substTemplate(rpt *any, substMap map[string]string, wdir string) error {
 	vars := map[string]struct{}{}
-	err = substTemplateRec(rpt, substMap, vars, wdir)
-	if err != nil {
+	if err := substTemplateRec(rpt, substMap, vars, wdir); err != nil {
 		return err
 	}
 	notExpanded := []string{}
@@ -95,6 +130,9 @@ func substTemplate(rpt *any, substMap map[string]string, templatePath string) er
 		}
 	}
 	if len(notExpanded) > 0 {
+		// Sorted so the message is the same on every run: map iteration order
+		// would otherwise reorder the names between invocations.
+		sort.Strings(notExpanded)
 		return fmt.Errorf("%w: %s", errUnexpandedVar, strings.Join(notExpanded, ", "))
 	}
 	return nil

@@ -1,0 +1,15 @@
+name: platform-payments-autho-9a5257
+spec:
+  cluster: prod-eks
+  labels:
+    signadot/github-pull-request: "9876"
+    signadot/github-repo: acme/platform-payments-authorization-service
+    signadot/usage: ci
+  forks:
+  - customizations:
+      images:
+      - image: ghcr.io/acme/route:abc1234
+    forkOf:
+      kind: Deployment
+      name: route
+      namespace: hotrod

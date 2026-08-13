@@ -1,0 +1,11 @@
+# A values document goes through the same @{var} substitution a spec does, so
+# --set works on either kind of -f.
+cluster: "@{cluster}"
+defaults:
+  namespace: hotrod
+  imageTemplate: "ghcr.io/acme/{workload}:@{tag}"
+forks:
+  - workload: route
+  - workload: frontend
+    env:
+      ROUTE_ADDR: "route.hotrod.svc:8080"

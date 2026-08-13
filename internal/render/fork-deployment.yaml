@@ -1,0 +1,22 @@
+# fork-deployment@v1 — the built-in Signadot sandbox template.
+#
+# `signadot sandbox apply -f values.yaml` compiles a values document into the
+# variables below, then renders this template with the same @{var} engine that
+# renders a template of your own. There is nothing privileged about it: copy it,
+# edit it, and pass it to -f to take over the structure yourself.
+#
+# The variables come from the values document. `forks` is the interesting one —
+# it carries the whole compiled fork list, because a template cannot build a list
+# whose length depends on its input.
+#
+# A variable with no value renders as null and its key is dropped, so the
+# rendered spec contains only what the values document actually set.
+name: "@{name[yaml]}"
+spec:
+  cluster: "@{cluster[yaml]}"
+  description: "@{description[yaml]}"
+  labels: "@{labels[yaml]}"
+  ttl: "@{ttl[yaml]}"
+  resources: "@{resources[yaml]}"
+  forks: "@{forks[yaml]}"
+  defaultRouteGroup: "@{defaultRouteGroup[yaml]}"

@@ -1,0 +1,31 @@
+name: route-pr-12
+spec:
+  cluster: prod-eks
+  description: rendered by the sandbox action test suite
+  labels:
+    signadot/github-pull-request: "12"
+    signadot/github-repo: acme/route
+    signadot/usage: ci
+  ttl:
+    duration: 1h
+  forks:
+  - customizations:
+      images:
+      - image: ghcr.io/acme/route:abc1234
+      patch:
+        type: strategic
+        value: |
+          spec:
+            template:
+              spec:
+                containers:
+                - args:
+                  - -v
+                  name: route
+                  resources:
+                    limits:
+                      memory: 512Mi
+    forkOf:
+      kind: Deployment
+      name: route
+      namespace: hotrod

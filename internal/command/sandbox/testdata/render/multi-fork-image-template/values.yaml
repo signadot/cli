@@ -1,0 +1,21 @@
+# Several forks sharing one image template, plus env applied to all of them.
+cluster: prod-eks
+defaults:
+  namespace: hotrod
+  imageTemplate: ghcr.io/acme/{workload}:{short-sha}
+  env:
+    DEPLOY_ENV: sandbox
+    LOG_LEVEL: info
+forks:
+  - workload: route
+    env:
+      LOG_LEVEL: debug
+  - workload: frontend
+    namespace: web
+    kind: Rollout
+  - workload: customer
+    images:
+      - container: app
+        image: ghcr.io/acme/customer:pinned
+      - container: sidecar
+        image: ghcr.io/acme/proxy:1.2.3

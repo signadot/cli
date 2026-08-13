@@ -1,0 +1,12 @@
+# Opting out of the built-in signadot/* labels, with an explicit name (there is
+# no CI context to derive one from).
+name: My/Explicit-Sandbox
+cluster: prod-eks
+ttl: 30m
+labels:
+  team: payments
+defaults:
+  namespace: hotrod
+forks:
+  - workload: route
+    image: ghcr.io/acme/route:abc1234

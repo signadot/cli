@@ -1,0 +1,8 @@
+# A repository name long enough that the derived sandbox name has to be
+# truncated and hash-suffixed to fit the API limit.
+cluster: prod-eks
+defaults:
+  namespace: hotrod
+forks:
+  - workload: route
+    image: ghcr.io/acme/route:abc1234

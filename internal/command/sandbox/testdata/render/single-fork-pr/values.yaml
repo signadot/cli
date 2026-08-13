@@ -1,0 +1,15 @@
+# The common case: one fork, an image built by this workflow, one endpoint.
+cluster: prod-eks
+ttl: 2d
+labels:
+  team: payments
+defaults:
+  namespace: hotrod
+forks:
+  - workload: route
+    image: ghcr.io/acme/route:abc1234
+    env:
+      LOG_LEVEL: debug
+    endpoints:
+      - name: http
+        port: 8080

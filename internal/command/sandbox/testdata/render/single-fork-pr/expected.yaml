@@ -1,0 +1,24 @@
+name: route-pr-12
+spec:
+  cluster: prod-eks
+  labels:
+    signadot/github-pull-request: "12"
+    signadot/github-repo: acme/route
+    signadot/usage: ci
+    team: payments
+  ttl:
+    duration: 2d
+  forks:
+  - customizations:
+      env:
+      - name: LOG_LEVEL
+        value: debug
+      images:
+      - image: ghcr.io/acme/route:abc1234
+    endpoints:
+    - name: http
+      port: 8080
+    forkOf:
+      kind: Deployment
+      name: route
+      namespace: hotrod
