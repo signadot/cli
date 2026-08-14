@@ -38,9 +38,8 @@ func list(cfg *config.JobList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	optIn := jobsPaginationOptIn
 	resp, err := cfg.Client.Jobs.ListJobs(
-		jobs.NewListJobsParams().WithOrgName(cfg.Org).WithSignadotAPIOptIn(&optIn),
+		jobs.NewListJobsParams().WithOrgName(cfg.Org).WithSignadotAPIOptIn([]string{jobsPaginationOptIn}),
 		nil,
 	)
 	if err != nil {
