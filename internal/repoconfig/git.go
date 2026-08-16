@@ -17,9 +17,16 @@ type GitRepo struct {
 }
 
 func FindGitRepo(startPath string) (*GitRepo, error) {
-	// Open the repository with dot git detection
+	// Open the repository with dot git detection.
+	//
+	// EnableDotGitCommonDir is what makes this work inside a linked worktree,
+	// where .git is a file pointing at the real git directory and refs live in
+	// the common directory shared with the main checkout. Without it, opening
+	// succeeds but HEAD does not resolve, so a repository that is a worktree
+	// reads as "not a git repository".
 	repo, err := git.PlainOpenWithOptions(startPath, &git.PlainOpenOptions{
-		DetectDotGit: true,
+		DetectDotGit:          true,
+		EnableDotGitCommonDir: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("not a git repository (or any parent up to mount point %s): %w",
