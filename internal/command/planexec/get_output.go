@@ -74,7 +74,7 @@ func getOutput(cfg *config.PlanExecGetOutput, out io.Writer, execID, name string
 			// If name contains '/', treat as step_id/output_name.
 			if stepID, outputName, ok := strings.Cut(name, "/"); ok {
 				params := planexecs.NewGetStepOutputParams().
-					WithTimeout(4*time.Minute).
+					WithTimeout(4 * time.Minute).
 					WithOrgName(cfg.Org).
 					WithExecutionID(execID).
 					WithStepID(stepID).
@@ -87,7 +87,7 @@ func getOutput(cfg *config.PlanExecGetOutput, out io.Writer, execID, name string
 			}
 
 			params := planexecs.NewGetPlanExecutionOutputParams().
-				WithTimeout(4*time.Minute).
+				WithTimeout(4 * time.Minute).
 				WithOrgName(cfg.Org).
 				WithExecutionID(execID).
 				WithOutputName(name)
@@ -166,7 +166,7 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 				if o.Scope == "step" {
 					qualName = o.Step + "/" + o.Name
 					params := planexecs.NewGetStepOutputParams().
-						WithTimeout(4*time.Minute).
+						WithTimeout(4 * time.Minute).
 						WithOrgName(cfg.Org).
 						WithExecutionID(execID).
 						WithStepID(o.Step).
@@ -181,7 +181,7 @@ func getAllOutputs(cfg *config.PlanExecGetOutput, log io.Writer, execID string) 
 					}
 				} else {
 					params := planexecs.NewGetPlanExecutionOutputParams().
-						WithTimeout(4*time.Minute).
+						WithTimeout(4 * time.Minute).
 						WithOrgName(cfg.Org).
 						WithExecutionID(execID).
 						WithOutputName(o.Name)

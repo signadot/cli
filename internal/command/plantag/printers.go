@@ -95,8 +95,8 @@ func printTagDetails(out io.Writer, tag *models.PlanTag) error {
 }
 
 type historyRow struct {
-	PlanID    string `sdtab:"PLAN ID"`
-	TaggedAt  string `sdtab:"TAGGED"`
+	PlanID     string `sdtab:"PLAN ID"`
+	TaggedAt   string `sdtab:"TAGGED"`
 	UntaggedAt string `sdtab:"UNTAGGED"`
 }
 
@@ -116,4 +116,3 @@ func printHistoryTable(out io.Writer, history []*models.TagMapping) error {
 	}
 	return t.Flush()
 }
-

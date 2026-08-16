@@ -150,7 +150,7 @@ func downloadStepLog(cfg *config.PlanExecLogs, out io.Writer, execID, stepID str
 	return cfg.APIClientWithCustomTransport(transportCfg,
 		func(c *client.SignadotAPI) error {
 			params := planlogs.NewDownloadStepLogParams().
-				WithTimeout(4*time.Minute).
+				WithTimeout(4 * time.Minute).
 				WithOrgName(cfg.Org).
 				WithExecutionID(execID).
 				WithStepID(stepID).
@@ -277,7 +277,7 @@ func bulkExportLogs(cfg *config.PlanExecLogs, log io.Writer, execID string) erro
 				}
 
 				params := planlogs.NewDownloadStepLogParams().
-					WithTimeout(4*time.Minute).
+					WithTimeout(4 * time.Minute).
 					WithOrgName(cfg.Org).
 					WithExecutionID(execID).
 					WithStepID(sl.StepID).

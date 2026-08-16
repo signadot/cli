@@ -303,7 +303,6 @@ func hasStepBody(s *models.PlanStepStatus) bool {
 	return len(s.Inputs) > 0 || len(s.Outputs) > 0 || s.Error != ""
 }
 
-
 func findPlanParam(planSpec *models.PlanSpec, name string) *models.PlanField {
 	if planSpec == nil {
 		return nil
