@@ -20,8 +20,8 @@ import (
 	sdkclient "github.com/signadot/go-sdk/client"
 	planlogs "github.com/signadot/go-sdk/client/plan_execution_logs"
 	planexecs "github.com/signadot/go-sdk/client/plan_executions"
-	sdkplans "github.com/signadot/go-sdk/client/plans"
 	plantags "github.com/signadot/go-sdk/client/plan_tags"
+	sdkplans "github.com/signadot/go-sdk/client/plans"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
@@ -36,7 +36,12 @@ func newRun(plan *config.Plan) *cobra.Command {
 
 Resolve the plan by ID (positional argument) or by tag name (--tag).
 Use --attach to stream structured events (logs, outputs, result) to stdout.
-Exit codes: 0 = completed, 1 = failed, 2 = cancelled.`,
+Exit codes: 0 = completed, 1 = failed, 2 = cancelled.
+
+With neither a plan ID nor --tag, runs every plan selected by the plans list in
+the repository's .signadot/config.yaml, or by --tags. Narrow the selection with
+--with-tag and --without-tag. Exit codes are the aggregate: 1 if any plan
+failed, else 2 if any was cancelled.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runPlan(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
@@ -58,6 +63,11 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
+	}
+
+	// Naming no plan means running the set the repository selects.
+	if runsByTag(cfg, args) {
+		return runPlansByTag(ctx, cfg, out, log, args)
 	}
 
 	// Resolve and fetch plan.
@@ -178,9 +188,6 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 func resolvePlan(ctx context.Context, cfg *config.PlanRun, args []string) (*models.RunnablePlan, error) {
 	if cfg.Tag != "" && len(args) > 0 {
 		return nil, fmt.Errorf("specify either a plan ID argument or --tag, not both")
-	}
-	if cfg.Tag == "" && len(args) == 0 {
-		return nil, fmt.Errorf("specify a plan ID argument or --tag")
 	}
 
 	if cfg.Tag != "" {

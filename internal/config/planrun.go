@@ -10,20 +10,30 @@ type PlanRun struct {
 	*Plan
 
 	// Flags
-	Tag        string
-	Cluster    string
-	Sandbox    string
-	RouteGroup string
-	Params     TemplateVals
-	Secrets    TemplateVals
-	Wait       bool
-	Attach    bool
-	Timeout   time.Duration
-	OutputDir string
+	Tag string
+	// PlanTags are tag-name globs selecting the plans to run, taking the place
+	// of the repository's configured list. WithTags narrows that selection and
+	// WithoutTags removes from it.
+	PlanTags    []string
+	WithTags    []string
+	WithoutTags []string
+	Cluster     string
+	Sandbox     string
+	RouteGroup  string
+	Params      TemplateVals
+	Secrets     TemplateVals
+	Wait        bool
+	Attach      bool
+	Timeout     time.Duration
+	OutputDir   string
 }
 
 func (c *PlanRun) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Tag, "tag", "", "run the plan referenced by this tag (alternative to plan ID argument)")
+	cmd.Flags().StringArrayVar(&c.PlanTags, "tags", nil, "run every plan whose tag matches this glob (repeatable; replaces the repository's configured plans)")
+	cmd.Flags().StringArrayVar(&c.WithTags, "with-tag", nil, "only run plans carrying a tag matching this glob (repeatable, and all must match)")
+	cmd.Flags().StringArrayVar(&c.WithoutTags, "without-tag", nil, "skip plans carrying a tag matching this glob (repeatable)")
+	cmd.MarkFlagsMutuallyExclusive("tag", "tags")
 	cmd.Flags().StringVar(&c.Cluster, "cluster", "", "target cluster for the execution")
 	cmd.Flags().StringVar(&c.Sandbox, "sandbox", "", "run in the context of a sandbox")
 	cmd.Flags().StringVar(&c.RouteGroup, "route-group", "", "run in the context of a route group")

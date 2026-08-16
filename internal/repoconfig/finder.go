@@ -73,6 +73,9 @@ func NewTestFinder(inputPath string, withLabels, withoutLabels map[string]string
 		if err != nil {
 			return nil, fmt.Errorf("failed to load .signadot/config.yaml: %w", err)
 		}
+		if len(repoConf.SmartTests) == 0 {
+			return nil, fmt.Errorf("smart_tests is required in .signadot/config.yaml")
+		}
 
 		tf = &TestFinder{
 			cfg:           repoConf,
