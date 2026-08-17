@@ -13,10 +13,12 @@ import (
 )
 
 const (
-	UsageLabelKey     = "signadot/usage"
-	LabelGitHubRepo   = "signadot/github-repo"
-	LabelGitHubPR     = "signadot/github-pull-request"
-	LabelGitHubBranch = "signadot/github-branch"
+	// SignadotLabelPrefix is reserved by the API: it accepts only the two keys
+	// below under it and rejects the spec outright for any other.
+	SignadotLabelPrefix = "signadot/"
+
+	LabelGitHubRepo = "signadot/github-repo"
+	LabelGitHubPR   = "signadot/github-pull-request"
 
 	// MaxNameLen is the longest sandbox name the Signadot API accepts.
 	MaxNameLen = 30
@@ -90,8 +92,12 @@ func Detect(mode string, env Env) (CIContext, error) {
 // ProviderLabels are the built-in labels that let the Signadot App correlate a
 // sandbox back to the pull request that produced it, and delete it when that
 // pull request closes.
+//
+// The two keys are a pair: the API rejects a spec carrying one without the
+// other, so a build with no pull request — a push to a branch, say — gets
+// neither.
 func ProviderLabels(c CIContext) map[string]string {
-	if c.Provider != "github" {
+	if c.Provider != "github" || c.Repo == "" || c.PR == "" {
 		return nil
 	}
 	return map[string]string{
@@ -172,20 +178,24 @@ func ApplyContext(sb *models.Sandbox, c CIContext, explicitName, explicitTTL str
 		return nil
 	}
 
+	provider := ProviderLabels(c)
+	if len(provider) == 0 {
+		return nil
+	}
+	// Stamped as a set or not at all, since the API wants both keys or neither:
+	// filling in just the half the caller left out would produce a pair that
+	// says something they did not.
+	for k := range provider {
+		if _, ok := sb.Spec.Labels[k]; ok {
+			return nil
+		}
+	}
 	labels := sb.Spec.Labels
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	if _, ok := labels[UsageLabelKey]; !ok {
-		labels[UsageLabelKey] = "ci"
-	}
-	for k, v := range ProviderLabels(c) {
-		if v == "" {
-			continue
-		}
-		if _, ok := labels[k]; !ok {
-			labels[k] = v
-		}
+	for k, v := range provider {
+		labels[k] = v
 	}
 	sb.Spec.Labels = labels
 	return nil

@@ -4,7 +4,6 @@ spec:
   labels:
     signadot/github-pull-request: "345"
     signadot/github-repo: signadot/hotrod
-    signadot/usage: ci
   forks:
   - customizations:
       env:

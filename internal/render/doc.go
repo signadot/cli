@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/signadot/go-sdk/models"
 	goyaml "sigs.k8s.io/yaml/goyaml.v2"
@@ -192,6 +193,36 @@ func ValidateSandbox(sb *models.Sandbox) error {
 		if f.ForkOf.Namespace == nil || *f.ForkOf.Namespace == "" {
 			return fmt.Errorf("forks[%d]: forkOf.namespace is required", i)
 		}
+	}
+	return validateLabels(sb.Spec.Labels)
+}
+
+// validateLabels enforces the API's rules for the reserved signadot/ prefix
+// here, where the message can name the offending key and nothing has been
+// submitted yet.
+func validateLabels(labels map[string]string) error {
+	// Sorted so a spec with several bad keys always reports the same one.
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if !strings.HasPrefix(k, SignadotLabelPrefix) {
+			continue
+		}
+		if k != LabelGitHubRepo && k != LabelGitHubPR {
+			return fmt.Errorf("label %q: the %s prefix is reserved, and only %s and %s are allowed under it",
+				k, SignadotLabelPrefix, LabelGitHubRepo, LabelGitHubPR)
+		}
+	}
+
+	_, hasRepo := labels[LabelGitHubRepo]
+	_, hasPR := labels[LabelGitHubPR]
+	if hasRepo != hasPR {
+		return fmt.Errorf("labels %s and %s must be set together or not at all",
+			LabelGitHubRepo, LabelGitHubPR)
 	}
 	return nil
 }

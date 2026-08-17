@@ -221,7 +221,6 @@ func TestApplyContextDefersToExplicitValues(t *testing.T) {
 			t.Errorf("did not expect a ttl, got %+v", sb.Spec.TTL)
 		}
 		want := map[string]string{
-			UsageLabelKey:   "ci",
 			LabelGitHubRepo: "acme/route",
 			LabelGitHubPR:   "12",
 		}
@@ -236,7 +235,7 @@ func TestApplyContextDefersToExplicitValues(t *testing.T) {
 		sb := sandboxWithCluster("c")
 		sb.Name = "mine"
 		sb.Spec.TTL = &models.SandboxTTL{Duration: "30m"}
-		sb.Spec.Labels = map[string]string{UsageLabelKey: "manual"}
+		sb.Spec.Labels = map[string]string{"team": "payments"}
 		if err := ApplyContext(sb, ctx, "", "", true); err != nil {
 			t.Fatal(err)
 		}
@@ -246,12 +245,45 @@ func TestApplyContextDefersToExplicitValues(t *testing.T) {
 		if sb.Spec.TTL.Duration != "30m" {
 			t.Errorf("got ttl %q", sb.Spec.TTL.Duration)
 		}
-		if sb.Spec.Labels[UsageLabelKey] != "manual" {
-			t.Errorf("got usage label %q", sb.Spec.Labels[UsageLabelKey])
+		if sb.Spec.Labels["team"] != "payments" {
+			t.Errorf("got team label %q", sb.Spec.Labels["team"])
 		}
 		// The correlation labels are still added alongside.
 		if sb.Spec.Labels[LabelGitHubPR] != "12" {
 			t.Errorf("expected the PR label to be added")
+		}
+	})
+
+	// The API takes the two correlation labels as a pair, so a caller who set
+	// one of them keeps the pair they wrote rather than getting ours mixed in.
+	t.Run("a correlation label already set stops both", func(t *testing.T) {
+		sb := sandboxWithCluster("c")
+		sb.Spec.Labels = map[string]string{LabelGitHubRepo: "acme/other"}
+		if err := ApplyContext(sb, ctx, "", "", true); err != nil {
+			t.Fatal(err)
+		}
+		if sb.Spec.Labels[LabelGitHubRepo] != "acme/other" {
+			t.Errorf("got repo label %q", sb.Spec.Labels[LabelGitHubRepo])
+		}
+		if _, ok := sb.Spec.Labels[LabelGitHubPR]; ok {
+			t.Error("did not expect the PR label to be added to a repo label the caller set")
+		}
+	})
+
+	// A build with no pull request gets neither label, since the API rejects a
+	// spec carrying one without the other.
+	t.Run("no pull request means no correlation labels", func(t *testing.T) {
+		pushCtx := DetectGitHub(MapEnv(map[string]string{
+			"GITHUB_REPOSITORY": "acme/route",
+			"GITHUB_REF":        "refs/heads/main",
+			"GITHUB_SHA":        "abc1234def",
+		}))
+		sb := sandboxWithCluster("c")
+		if err := ApplyContext(sb, pushCtx, "", "", true); err != nil {
+			t.Fatal(err)
+		}
+		if len(sb.Spec.Labels) != 0 {
+			t.Errorf("expected no labels, got %v", sb.Spec.Labels)
 		}
 	})
 
@@ -295,25 +327,6 @@ func TestApplyContextDefersToExplicitValues(t *testing.T) {
 			t.Errorf("got labels %+v", sb.Spec.Labels)
 		}
 	})
-}
-
-// A sandbox created outside a pull request must not carry an empty PR label,
-// which would otherwise confuse the App integration.
-func TestProviderLabelsSkipEmptyPR(t *testing.T) {
-	ctx := DetectGitHub(MapEnv(map[string]string{
-		"GITHUB_REPOSITORY": "acme/route",
-		"GITHUB_SHA":        "abc1234def",
-	}))
-	sb := sandboxWithCluster("c")
-	if err := ApplyContext(sb, ctx, "", "", true); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := sb.Spec.Labels[LabelGitHubPR]; ok {
-		t.Errorf("expected no PR label, got %+v", sb.Spec.Labels)
-	}
-	if sb.Spec.Labels[LabelGitHubRepo] != "acme/route" {
-		t.Errorf("got labels %+v", sb.Spec.Labels)
-	}
 }
 
 func TestEnvValueUnmarshal(t *testing.T) {

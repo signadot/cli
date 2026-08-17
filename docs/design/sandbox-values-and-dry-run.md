@@ -92,6 +92,12 @@ whether or not you are logged in. The output is a spec, so it can be reviewed,
 diffed, and passed straight back to `-f`: rendering is a fixed point, which is what
 lets a caller render in one step and apply exactly those bytes in another.
 
+Local validation covers what can be checked without the cluster: a name that is
+missing or too long, a fork with no workload or namespace, a field a patch
+misspelled, and the API's rules for the reserved `signadot/` label prefix. The last
+of those came out of dog-fooding, where a built-in label the API forbids surfaced
+as a `400` on apply rather than as a message naming the key.
+
 `--dry-run=server` is accepted and rejected with a message. It needs an apiserver
 change — a `validateOnly` parameter on the create/update endpoints, or a validate
 endpoint — since nothing supports it today. Scoped as a follow-up rather than

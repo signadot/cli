@@ -329,3 +329,50 @@ func TestSandboxToDocPrunesNulls(t *testing.T) {
 		t.Errorf("got %+v", spec)
 	}
 }
+
+// The API reserves the signadot/ prefix and takes the two GitHub keys as a pair.
+// Catching that here means a dry run reports it, rather than the sandbox being
+// rejected after it has been submitted.
+func TestValidateSandboxLabels(t *testing.T) {
+	cases := []struct {
+		name    string
+		labels  map[string]string
+		wantErr string
+	}{
+		{
+			name:   "ordinary labels are fine",
+			labels: map[string]string{"team": "payments", "signadot": "not-a-prefix"},
+		},
+		{
+			name:   "the correlation pair is allowed",
+			labels: map[string]string{LabelGitHubRepo: "acme/route", LabelGitHubPR: "12"},
+		},
+		{
+			name:    "any other reserved key is not",
+			labels:  map[string]string{"signadot/usage": "ci"},
+			wantErr: `label "signadot/usage"`,
+		},
+		{
+			name:    "the pair cannot be half set",
+			labels:  map[string]string{LabelGitHubRepo: "acme/route"},
+			wantErr: "must be set together",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sb := sandboxWithCluster("c")
+			sb.Name = "sb"
+			sb.Spec.Labels = tc.labels
+			err := ValidateSandbox(sb)
+			switch {
+			case tc.wantErr == "" && err != nil:
+				t.Fatalf("unexpected error: %v", err)
+			case tc.wantErr == "":
+			case err == nil:
+				t.Fatalf("expected an error mentioning %q", tc.wantErr)
+			case !strings.Contains(err.Error(), tc.wantErr):
+				t.Fatalf("error %q does not mention %q", err, tc.wantErr)
+			}
+		})
+	}
+}

@@ -4,7 +4,6 @@ spec:
   labels:
     signadot/github-pull-request: "12"
     signadot/github-repo: acme/route
-    signadot/usage: ci
     team: payments
   ttl:
     duration: 2d

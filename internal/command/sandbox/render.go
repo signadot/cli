@@ -86,6 +86,11 @@ func renderSandbox(cfg *config.SandboxApply) (map[string]any, *models.Sandbox, e
 	if err != nil {
 		return nil, nil, err
 	}
+	// Validate what will actually be submitted, whichever path produced it and
+	// whatever the patch did to it.
+	if err := render.ValidateSandbox(req); err != nil {
+		return nil, nil, err
+	}
 	return doc, req, nil
 }
 
