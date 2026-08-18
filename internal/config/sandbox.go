@@ -18,6 +18,7 @@ type SandboxApply struct {
 	Wait         bool
 	WaitTimeout  time.Duration
 	TemplateVals TemplateVals
+	DryRun       DryRunMode
 }
 
 func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
@@ -26,6 +27,9 @@ func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().DurationVar(&c.WaitTimeout, "wait-timeout", 3*time.Minute, "timeout when waiting for the sandbox to be Ready")
 	cmd.MarkFlagRequired("filename")
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val")
+
+	c.DryRun = DryRunNone
+	cmd.Flags().Var(&c.DryRun, "dry-run", "print the rendered sandbox spec instead of applying it: \"client\" renders and validates locally")
 }
 
 type SandboxDelete struct {
