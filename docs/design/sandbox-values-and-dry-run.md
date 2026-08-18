@@ -120,6 +120,19 @@ GitHub App uses to delete the sandbox when the PR closes. `--ci-context=none` tu
 detection off, which is how a two-step render-then-apply avoids deriving anything
 twice.
 
+Those two labels are a pair the API insists on having whole, and they are the only
+keys it allows under the reserved `signadot/` prefix, so they are stamped as a set or
+not at all: a build with no pull request gets neither. Both rules are enforced while
+rendering, which is where dog-fooding found them — a third built-in label was enough
+for the API to refuse the whole spec.
+
+`--ci-context` is the seam other CI systems would arrive through, and it is worth
+noting what that costs, since porting was a motivation for putting this work here.
+Adding a provider means adding the variables it reads, not new rendering. The labels
+describe the repository rather than the pipeline, so a CircleCI job on a GitHub repo
+can carry the same two and keep the GitHub App integration. What does not port is a
+VCS with no Signadot integration, where teardown falls back to TTL or explicit delete.
+
 Names are normalised (lowercased, invalid characters replaced, hashed when too long)
 on their way in from a flag, the CI context, or a values document — all of which are
 inputs we compile. A name written in a spec document is left exactly as authored, so
@@ -183,3 +196,9 @@ builds a list. Not now.
    makes that survivable in the meantime.
 3. **Documentation.** The values schema and the built-in template need a page on
    docs.signadot.com before this is announced.
+4. **Other CI providers.** `--ci-context circleci` and friends, once we decide which
+   integration is next. CircleCI's PR number is the only genuinely fiddly part:
+   `CIRCLE_PR_NUMBER` is set on forked PRs only, so it has to come from the trailing
+   segment of the `CIRCLE_PULL_REQUEST` URL, which is absent on commits pushed before
+   the PR existed. Naming already falls back to a short SHA, so that degrades rather
+   than fails.
