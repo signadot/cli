@@ -27,19 +27,21 @@ func newList(job *config.Job) *cobra.Command {
 	return cmd
 }
 
-// jobsPaginationOptIn opts into the server's paginated ListJobs response
-// ({items, nextCursor, hasMore, totalCount, totalPages} instead of a bare
-// array) — see signadot/signadot#7328. The CLI's own -o json/-o yaml output
-// stays a plain job array either way (below), so this is purely about not
-// depending on the legacy server-side path ahead of its 2026-11-16 sunset.
-const jobsPaginationOptIn = "jobs-pagination"
+// jobsPaginationAPIVersion pins to the API version at/after which ListJobs
+// returns the paginated response ({items, nextCursor, hasMore, totalCount,
+// totalPages} instead of a bare array) — see signadot/signadot#7328. The
+// CLI's own -o json/-o yaml output stays a plain job array either way
+// (below), so this is purely about not depending on the legacy server-side
+// path ahead of its 2026-11-16 sunset.
+const jobsPaginationAPIVersion = "2026-08-18"
 
 func list(cfg *config.JobList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
+	apiVersion := jobsPaginationAPIVersion
 	resp, err := cfg.Client.Jobs.ListJobs(
-		jobs.NewListJobsParams().WithOrgName(cfg.Org).WithSignadotAPIOptIn([]string{jobsPaginationOptIn}),
+		jobs.NewListJobsParams().WithOrgName(cfg.Org).WithSignadotAPIVersion(&apiVersion),
 		nil,
 	)
 	if err != nil {
