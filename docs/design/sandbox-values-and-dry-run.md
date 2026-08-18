@@ -2,6 +2,12 @@
 
 - Status: proposed, implemented on this branch
 - Tracking: [ENG-1187](https://linear.app/signadot/issue/ENG-1187/signadot-sandbox-github-action-poc)
+- Split in two: `--dry-run` is [#362](https://github.com/signadot/cli/pull/362), which
+  stands on its own and is not contingent on any of this. The values document and the
+  built-in template are [#361](https://github.com/signadot/cli/pull/361), stacked on it,
+  and are a decision rather than a proposal to merge. This document covers both halves
+  because they were designed together; the sections on the dry run describe what #362
+  already does.
 - Consumer: the [Signadot Sandbox GitHub Action](https://github.com/signadot/hackspace/tree/joe/ENG-1187/sandbox-github-action-poc/sandbox-action),
   whose design overview explains why this exists
 - Supersedes an earlier plan to extract the CLI's templating and validation into a
@@ -184,6 +190,19 @@ extraction is deleted; its test coverage was salvaged into `internal/utils`.
 template build the fork list itself, and remove the need for a values schema. That is
 a language design project with a compatibility surface, to avoid a Go function that
 builds a list. Not now.
+
+**Keep the CLI minimal and compile in each integration.** The CLI gets `--dry-run` and
+nothing else; each CI integration embeds its own template and computes the fork list,
+the name and the labels itself. This is the live alternative to everything after
+`--dry-run`, and the reason the two are separate PRs.
+
+What it buys: no values schema and no built-in template committed to a CLI release
+before we know whether the Action is the right shape, and nothing to keep compatible if
+it is not. What it costs: roughly the 550 lines in `compile.go` and `context.go`
+reimplemented per integration, in whatever language that integration is written in. A
+CircleCI orb is YAML and shell, so it cannot reuse the Action's TypeScript — the second
+provider either writes this a third time or moves it here after all, by which point two
+integrations have shipped doing it differently.
 
 ## Follow-ups
 
