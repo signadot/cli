@@ -59,6 +59,15 @@ MCP_GITHUB_TOKEN=<pat-with-read:org> mcp-publisher login github
 mcp-publisher publish server.json
 ```
 
+The script writes the `v`-prefixed tag (e.g. `v1.8.0`) as the version in
+`server.json`. Don't hand-edit it to the bare form — the registry treats
+`1.4.0` and `v1.4.0` as distinct versions, and mixing the two has created
+duplicate entries in the past.
+
+This covers the official MCP registry only. For getting the MCP server
+listed in other directories (Claude Desktop extensions, Docker MCP Catalog,
+and others), see [docs/mcp-distribution.md](docs/mcp-distribution.md).
+
 ## See Also
 
 The CLI is built on top of the [Go SDK](https://github.com/signadot/go-sdk).
