@@ -30,6 +30,12 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 		Short: "Create or update a sandbox with variable expansion",
 		Long: `Create or update a sandbox with variable expansion.
 
+-f takes either a sandbox spec, optionally with @{var} placeholders filled in by
+--set, or a values document: a flat description of which workloads to fork and
+with what, which is rendered through the built-in template. A document with a
+top-level "spec" is treated as a spec, anything else as values. Run
+"signadot sandbox template show" to see the built-in template.
+
 --dry-run=client renders the spec and validates it locally, printing the result
 instead of applying it, and needs no API credentials. The output is a spec, so it
 can be reviewed, diffed, and passed straight back to -f.`,
@@ -58,11 +64,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	// Render before authenticating, so that --dry-run=client works with no
 	// credentials at all and a spec that cannot be rendered fails the same way
 	// whether or not the caller is logged in.
-	doc, err := utils.LoadUnstructuredTemplate(cfg.Filename, cfg.TemplateVals, false /* forDelete */)
-	if err != nil {
-		return err
-	}
-	req, err := unstructuredToSandbox(doc)
+	doc, req, err := renderSandbox(cfg)
 	if err != nil {
 		return err
 	}
@@ -134,19 +136,6 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		return nil
 	}
 	return writeOutput(cfg, out, resp)
-}
-
-// writeRenderedSpec prints the rendered spec for --dry-run. YAML is the default
-// because the output's job is to be read, diffed, and fed back to -f.
-func writeRenderedSpec(cfg *config.SandboxApply, out io.Writer, doc any) error {
-	switch cfg.OutputFormat {
-	case config.OutputFormatDefault, config.OutputFormatYAML:
-		return print.RawYAML(out, doc)
-	case config.OutputFormatJSON:
-		return print.RawJSON(out, doc)
-	default:
-		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
-	}
 }
 
 func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) error {

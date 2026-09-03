@@ -1,0 +1,4 @@
+spec:
+  description: rendered by the sandbox action test suite
+  ttl:
+    duration: 1h

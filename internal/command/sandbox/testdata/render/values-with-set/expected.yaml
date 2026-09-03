@@ -1,0 +1,21 @@
+name: feature-multi-fork
+spec:
+  cluster: prod-eks
+  forks:
+  - customizations:
+      images:
+      - image: ghcr.io/acme/route:abc1234
+    forkOf:
+      kind: Deployment
+      name: route
+      namespace: hotrod
+  - customizations:
+      env:
+      - name: ROUTE_ADDR
+        value: route.hotrod.svc:8080
+      images:
+      - image: ghcr.io/acme/frontend:abc1234
+    forkOf:
+      kind: Deployment
+      name: frontend
+      namespace: hotrod

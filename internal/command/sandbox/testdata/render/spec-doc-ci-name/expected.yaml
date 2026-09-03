@@ -1,0 +1,16 @@
+name: route-pr-12
+spec:
+  cluster: prod-eks
+  labels:
+    signadot/github-pull-request: "12"
+    signadot/github-repo: acme/route
+  ttl:
+    duration: 4h
+  forks:
+  - customizations:
+      images:
+      - image: ghcr.io/acme/route:abc1234
+    forkOf:
+      kind: Deployment
+      name: route
+      namespace: hotrod

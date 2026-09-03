@@ -1,0 +1,15 @@
+name: my-explicit-sandbox
+spec:
+  cluster: prod-eks
+  labels:
+    team: payments
+  ttl:
+    duration: 30m
+  forks:
+  - customizations:
+      images:
+      - image: ghcr.io/acme/route:abc1234
+    forkOf:
+      kind: Deployment
+      name: route
+      namespace: hotrod

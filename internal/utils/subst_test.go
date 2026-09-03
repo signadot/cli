@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/nsf/jsondiff"
@@ -274,6 +275,91 @@ var testCases = []TestCase{
 		Args:           []string{},
 		ExpectedResult: `{"first":{"calling-birds":["huey","dewey"]},"second":{"xmas-fifth-day":{"partridges":{"count":1}}}}`,
 	},
+
+	// Typed variable embedding. This is what lets a single --set carry a whole
+	// list of forks, which the built-in sandbox template depends on; previously
+	// it was covered only through the [binary] path.
+	{
+		TestName: "yaml encoding var; JSON list of forks",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"name":"sb","spec":{"forks":"@{forks[yaml]}"}}`,
+			},
+		},
+		Args: []string{
+			`forks=[{"forkOf":{"kind":"Deployment","namespace":"hotrod","name":"route"},` +
+				`"customizations":{"images":[{"image":"acme/route:abc"}]}},` +
+				`{"forkOf":{"kind":"Deployment","namespace":"hotrod","name":"frontend"}}]`,
+		},
+		ExpectedResult: `{"name":"sb","spec":{"forks":[` +
+			`{"forkOf":{"kind":"Deployment","namespace":"hotrod","name":"route"},` +
+			`"customizations":{"images":[{"image":"acme/route:abc"}]}},` +
+			`{"forkOf":{"kind":"Deployment","namespace":"hotrod","name":"frontend"}}]}}`,
+	},
+	{
+		TestName: "yaml encoding var; YAML block value",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"labels":"@{labels[yaml]}"}`,
+			},
+		},
+		Args:           []string{"labels=a: one\nb: two\n"},
+		ExpectedResult: `{"labels":{"a":"one","b":"two"}}`,
+	},
+	{
+		// The built-in template carries a placeholder for every optional field
+		// and relies on this to leave unset ones prunable.
+		TestName: "yaml encoding var; empty value yields null so the key can be pruned",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"ttl":"@{ttl[yaml]}"}`,
+			},
+		},
+		Args:           []string{"ttl="},
+		ExpectedResult: `{"ttl":null}`,
+	},
+	{
+		TestName: "yaml encoding var; scalar stays typed rather than becoming a string",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"replicas":"@{n[yaml]}"}`,
+			},
+		},
+		Args:           []string{"n=3"},
+		ExpectedResult: `{"replicas":3}`,
+	},
+	{
+		TestName: "yaml encoding var; invalid as part of a larger string",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"forks":"x@{forks[yaml]}"}`,
+			},
+		},
+		Args:          []string{"forks=[]"},
+		ExpectedError: func(e error) bool { return errors.Is(e, errInvalidEnc) },
+	},
+	{
+		TestName: "unrecognized encoding",
+		Files: []TestFile{
+			{
+				Name:    specTemplateFile,
+				RelPath: ".",
+				Content: `{"x":"@{x[toml]}"}`,
+			},
+		},
+		Args:          []string{"x=1"},
+		ExpectedError: func(e error) bool { return e != nil },
+	},
 }
 
 func testLoadUnstructuredTemplate(tc *TestCase, t *testing.T) {
@@ -363,5 +449,104 @@ func TestTemplating(t *testing.T) {
 	for i := range testCases {
 		tc := &testCases[i]
 		testLoadUnstructuredTemplate(tc, t)
+	}
+}
+
+func TestRenderTemplateFromMemory(t *testing.T) {
+	out, err := RenderTemplate([]byte(`{"name":"@{name}","spec":{"forks":"@{forks[yaml]}"}}`),
+		config.TemplateVals{
+			{Var: "name", Val: "pr-42"},
+			{Var: "forks", Val: `[{"forkOf":{"name":"route"}}]`},
+		}, TemplateOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	d, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"name":"pr-42","spec":{"forks":[{"forkOf":{"name":"route"}}]}}`
+	opts := jsondiff.DefaultJSONOptions()
+	if m, _ := jsondiff.Compare(d, []byte(want), &opts); m != jsondiff.FullMatch {
+		t.Errorf("got %s want %s", d, want)
+	}
+}
+
+// Embeds must resolve against BaseDir when rendering from memory, since there
+// is no template path to derive a directory from.
+func TestRenderTemplateEmbedUsesBaseDir(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "forks.yaml"), []byte(`[{"forkOf":{"name":"route"}}]`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	out, err := RenderTemplate([]byte(`{"forks":"@{embed[yaml]: forks.yaml}"}`),
+		config.TemplateVals{}, TemplateOptions{BaseDir: dir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	d, _ := json.Marshal(out)
+	want := `{"forks":[{"forkOf":{"name":"route"}}]}`
+	opts := jsondiff.DefaultJSONOptions()
+	if m, _ := jsondiff.Compare(d, []byte(want), &opts); m != jsondiff.FullMatch {
+		t.Errorf("got %s want %s", d, want)
+	}
+}
+
+func TestConflictingVarDefs(t *testing.T) {
+	_, err := RenderTemplate([]byte(`{"name":"@{x}"}`), config.TemplateVals{
+		{Var: "x", Val: "one"},
+		{Var: "x", Val: "two"},
+	}, TemplateOptions{})
+	if err == nil {
+		t.Fatal("expected an error for conflicting definitions")
+	}
+	if !strings.Contains(err.Error(), "conflicting variable defs") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// Repeating the same binding with the same value is not a conflict.
+func TestRepeatedIdenticalVarDef(t *testing.T) {
+	out, err := RenderTemplate([]byte(`{"name":"@{x}"}`), config.TemplateVals{
+		{Var: "x", Val: "one"},
+		{Var: "x", Val: "one"},
+	}, TemplateOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	d, _ := json.Marshal(out)
+	if string(d) != `{"name":"one"}` {
+		t.Errorf("got %s", d)
+	}
+}
+
+func TestUnexpandedVarsAreSorted(t *testing.T) {
+	_, err := RenderTemplate([]byte(`{"a":"@{zulu}","b":"@{alpha}"}`),
+		config.TemplateVals{}, TemplateOptions{})
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if want := "unexpanded variable: alpha, zulu"; err.Error() != want {
+		t.Errorf("got %q want %q", err.Error(), want)
+	}
+}
+
+func TestUnstructuredToNameAndSpec(t *testing.T) {
+	name, spec, err := UnstructuredToNameAndSpec(map[string]any{
+		"name": "sb",
+		"spec": map[string]any{"cluster": "demo"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if name != "sb" {
+		t.Errorf("got name %q", name)
+	}
+	if spec == nil {
+		t.Error("expected a spec")
+	}
+
+	if _, _, err := UnstructuredToNameAndSpec(map[string]any{"spec": map[string]any{}}); err == nil {
+		t.Error("expected an error when name is missing")
 	}
 }

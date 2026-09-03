@@ -1,0 +1,23 @@
+# Resource plugins wired into fork env, covering both reference forms and the
+# escape that keeps a literal ${resource:...} out of the reference machinery.
+cluster: prod-eks
+defaults:
+  namespace: hotrod
+resources:
+  - name: customerdb
+    plugin: hotrod-mariadb
+    params:
+      dbname: customer
+  - name: cache
+    plugin: redis
+forks:
+  - workload: customer
+    image: ghcr.io/acme/customer:abc1234
+    env:
+      DB_HOST:
+        fromResource: customerdb.host
+      DB_PORT: ${resource:customerdb.port}
+      CACHE_URL: ${resource:cache.url}
+      LITERAL: $${resource:customerdb.host}
+      PLAIN: debug
+      EMPTY: ''

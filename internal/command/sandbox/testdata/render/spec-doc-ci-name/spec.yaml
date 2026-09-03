@@ -1,0 +1,12 @@
+# An existing repository template, retro-fitted to CI: it carries no name, so
+# the name and the correlation labels come from the CI context.
+spec:
+  cluster: prod-eks
+  forks:
+    - forkOf:
+        kind: Deployment
+        name: route
+        namespace: hotrod
+      customizations:
+        images:
+          - image: "ghcr.io/acme/route:@{tag}"

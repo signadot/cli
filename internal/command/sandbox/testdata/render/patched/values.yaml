@@ -1,0 +1,19 @@
+# A per-fork strategic patch (applied by the cluster) alongside a merge patch on
+# the rendered document itself (applied here, last).
+cluster: prod-eks
+defaults:
+  namespace: hotrod
+forks:
+  - workload: route
+    image: ghcr.io/acme/route:abc1234
+    patch:
+      spec:
+        template:
+          spec:
+            containers:
+              - name: route
+                args:
+                  - -v
+                resources:
+                  limits:
+                    memory: 512Mi

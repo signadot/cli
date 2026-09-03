@@ -1,0 +1,17 @@
+# A preview URL for a service the sandbox does not fork, which is the case that
+# per-fork endpoints cannot express. Modelled on signadot/signadot's own staging
+# templates, where the apiserver is forked but the web frontend is what a
+# reviewer opens.
+cluster: signadot-staging
+defaults:
+  namespace: workspaces
+forks:
+  - workload: apiserver
+    image: signadot/apiserver-staging:deadbeef
+    env:
+      DISABLE_NOTIFICATIONS_PRODUCER: 'true'
+defaultRouteGroup:
+  - name: frontend
+    target: http://web.workspaces.svc:80
+  - name: apiserver
+    target: http://apiserver.workspaces.svc:80

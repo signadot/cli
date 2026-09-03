@@ -1,0 +1,15 @@
+# A name written in a spec document is passed through exactly as authored, even
+# where it would not survive slugification, so that adopting this path cannot
+# retarget a different sandbox than it did before.
+name: Keep_This_As_Is
+spec:
+  cluster: prod-eks
+  forks:
+    - forkOf:
+        kind: Deployment
+        name: route
+        namespace: hotrod
+      customizations:
+        env:
+          - name: LOG_LEVEL
+            value: debug

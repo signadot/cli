@@ -1,0 +1,7 @@
+# With no name anywhere and no CI context to derive one from, the error says all
+# three ways to supply one rather than failing at the API.
+cluster: prod-eks
+forks:
+  - workload: route
+    namespace: hotrod
+    image: ghcr.io/acme/route:abc1234
