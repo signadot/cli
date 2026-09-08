@@ -1,12 +1,13 @@
 package jobs
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/go-sdk/client/jobs"
+	"github.com/signadot/cli/internal/sdkclient"
 	"github.com/spf13/cobra"
 )
 
@@ -27,34 +28,22 @@ func newList(job *config.Job) *cobra.Command {
 	return cmd
 }
 
-// jobsPaginationOptIn opts into the server's paginated ListJobs response
-// ({items, nextCursor, hasMore, totalCount, totalPages} instead of a bare
-// array) — see signadot/signadot#7328. The CLI's own -o json/-o yaml output
-// stays a plain job array either way (below), so this is purely about not
-// depending on the legacy server-side path ahead of its 2026-11-16 sunset.
-const jobsPaginationOptIn = "pagination"
-
 func list(cfg *config.JobList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	optIn := jobsPaginationOptIn
-	resp, err := cfg.Client.Jobs.ListJobs(
-		jobs.NewListJobsParams().WithOrgName(cfg.Org).WithSignadotAPIOptIn(&optIn),
-		nil,
-	)
+	jobs, err := sdkclient.ListAllJobs(context.Background(), cfg.Client, cfg.Org)
 	if err != nil {
 		return err
 	}
-	items := resp.Payload.Items
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printJobTable(cfg, out, items)
+		return printJobTable(cfg, out, jobs)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, items)
+		return print.RawJSON(out, jobs)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, items)
+		return print.RawYAML(out, jobs)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
