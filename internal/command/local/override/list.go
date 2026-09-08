@@ -1,13 +1,14 @@
 package override
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/builder"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/cli/internal/sdkclient"
 	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
@@ -65,14 +66,7 @@ func runList(out io.Writer, cfg *config.LocalOverrideList) error {
 }
 
 func getSandboxes(cfg *config.LocalOverrideList) ([]*models.Sandbox, error) {
-	resp, err := cfg.Client.Sandboxes.
-		ListSandboxes(sandboxes.NewListSandboxesParams().
-			WithOrgName(cfg.Org), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return resp.Payload, nil
+	return sdkclient.ListAllSandboxes(context.Background(), cfg.Client, cfg.Org)
 }
 
 func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForward, error) {
