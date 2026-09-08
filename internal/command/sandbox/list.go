@@ -1,12 +1,13 @@
 package sandbox
 
 import (
+	"context"
 	"fmt"
 	"io"
 
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
-	"github.com/signadot/go-sdk/client/sandboxes"
+	"github.com/signadot/cli/internal/sdkclient"
 	"github.com/spf13/cobra"
 )
 
@@ -29,18 +30,18 @@ func list(cfg *config.SandboxList, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
-	resp, err := cfg.Client.Sandboxes.ListSandboxes(sandboxes.NewListSandboxesParams().WithOrgName(cfg.Org), nil)
+	sandboxes, err := sdkclient.ListAllSandboxes(context.Background(), cfg.Client, cfg.Org)
 	if err != nil {
 		return err
 	}
 
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
-		return printSandboxTable(out, resp.Payload)
+		return printSandboxTable(out, sandboxes)
 	case config.OutputFormatJSON:
-		return print.RawJSON(out, resp.Payload)
+		return print.RawJSON(out, sandboxes)
 	case config.OutputFormatYAML:
-		return print.RawYAML(out, resp.Payload)
+		return print.RawYAML(out, sandboxes)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
