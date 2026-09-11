@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -139,6 +140,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 // writeRenderedSpec prints the rendered spec for --dry-run. YAML is the default
 // because the output's job is to be read, diffed, and fed back to -f.
 func writeRenderedSpec(cfg *config.SandboxApply, out io.Writer, doc any) error {
+	doc = wholeNumbers(doc)
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault, config.OutputFormatYAML:
 		return print.RawYAML(out, doc)
@@ -146,6 +148,32 @@ func writeRenderedSpec(cfg *config.SandboxApply, out io.Writer, doc any) error {
 		return print.RawJSON(out, doc)
 	default:
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
+	}
+}
+
+// wholeNumbers turns integral floats back into integers. The document was read
+// through a YAML-to-JSON step that types every number as float64, and printing
+// those as YAML writes `port: 8080.0` — not what the file said, and not what a
+// reader or a diff wants to see. Genuine fractions are left alone.
+func wholeNumbers(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			x[k] = wholeNumbers(e)
+		}
+		return x
+	case []any:
+		for i, e := range x {
+			x[i] = wholeNumbers(e)
+		}
+		return x
+	case float64:
+		if x == math.Trunc(x) && math.Abs(x) < 1<<53 {
+			return int64(x)
+		}
+		return x
+	default:
+		return v
 	}
 }
 
