@@ -35,6 +35,40 @@ func (o *OutputFormat) Type() string {
 	return "string"
 }
 
+// DryRunMode follows kubectl's --dry-run, so that the distinction between
+// rendering locally and asking the server to validate is the one people already
+// know.
+type DryRunMode string
+
+const (
+	// DryRunNone applies normally.
+	DryRunNone DryRunMode = "none"
+	// DryRunClient renders and validates locally, without contacting the API.
+	DryRunClient DryRunMode = "client"
+	// DryRunServer additionally asks the API to validate. Not yet available.
+	DryRunServer DryRunMode = "server"
+)
+
+func (m *DryRunMode) String() string {
+	return string(*m)
+}
+
+// Set implements the pflag.Value interface.
+func (m *DryRunMode) Set(v string) error {
+	switch DryRunMode(v) {
+	case DryRunNone, DryRunClient, DryRunServer:
+		*m = DryRunMode(v)
+		return nil
+	default:
+		return fmt.Errorf("unknown dry-run mode %q: expected one of none, client, server", v)
+	}
+}
+
+// Type implements the pflag.Value interface.
+func (m *DryRunMode) Type() string {
+	return "none|client|server"
+}
+
 var (
 	VarRx = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_.-]*$`)
 )

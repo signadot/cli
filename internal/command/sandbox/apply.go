@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -28,7 +29,12 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply -f FILENAME [ --set var1=val1 --set var2=val2 ... ]",
 		Short: "Create or update a sandbox with variable expansion",
-		Args:  cobra.NoArgs,
+		Long: `Create or update a sandbox with variable expansion.
+
+--dry-run=client renders the spec and validates it locally, printing the result
+instead of applying it, and needs no API credentials. The output is a spec, so it
+can be reviewed, diffed, and passed straight back to -f.`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
@@ -42,20 +48,34 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
 	defer cancel()
 
-	if err := cfg.InitAPIConfig(); err != nil {
-		return err
-	}
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
+	if cfg.DryRun == config.DryRunServer {
+		return errors.New("--dry-run=server is not available yet; " +
+			"use --dry-run=client to render and validate locally")
+	}
 
-	// Load the sandbox spec
-	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals, false /*forDelete */)
+	// Render before authenticating, so that --dry-run=client works with no
+	// credentials at all and a spec that cannot be rendered fails the same way
+	// whether or not the caller is logged in.
+	doc, err := utils.LoadUnstructuredTemplate(cfg.Filename, cfg.TemplateVals, false /* forDelete */)
+	if err != nil {
+		return err
+	}
+	req, err := unstructuredToSandbox(doc)
 	if err != nil {
 		return err
 	}
 	if req.Spec.Cluster == nil {
 		return fmt.Errorf("sandbox spec must specify cluster")
+	}
+	if cfg.DryRun == config.DryRunClient {
+		return writeRenderedSpec(cfg, out, doc)
+	}
+
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
 	}
 
 	var status *sbmapi.StatusResponse
@@ -115,6 +135,46 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		return nil
 	}
 	return writeOutput(cfg, out, resp)
+}
+
+// writeRenderedSpec prints the rendered spec for --dry-run. YAML is the default
+// because the output's job is to be read, diffed, and fed back to -f.
+func writeRenderedSpec(cfg *config.SandboxApply, out io.Writer, doc any) error {
+	doc = wholeNumbers(doc)
+	switch cfg.OutputFormat {
+	case config.OutputFormatDefault, config.OutputFormatYAML:
+		return print.RawYAML(out, doc)
+	case config.OutputFormatJSON:
+		return print.RawJSON(out, doc)
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
+	}
+}
+
+// wholeNumbers turns integral floats back into integers. The document was read
+// through a YAML-to-JSON step that types every number as float64, and printing
+// those as YAML writes `port: 8080.0` — not what the file said, and not what a
+// reader or a diff wants to see. Genuine fractions are left alone.
+func wholeNumbers(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			x[k] = wholeNumbers(e)
+		}
+		return x
+	case []any:
+		for i, e := range x {
+			x[i] = wholeNumbers(e)
+		}
+		return x
+	case float64:
+		if x == math.Trunc(x) && math.Abs(x) < 1<<53 {
+			return int64(x)
+		}
+		return x
+	default:
+		return v
+	}
 }
 
 func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) error {
