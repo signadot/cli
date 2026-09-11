@@ -122,6 +122,33 @@ func TestDryRunClientValidates(t *testing.T) {
 	}
 }
 
+// The loader types every number as a float, and a float prints as `8080.0`.
+// The rendered spec has to say what the file said.
+func TestDryRunKeepsWholeNumbersWhole(t *testing.T) {
+	doc := `name: sb
+spec:
+  cluster: c
+  forks:
+    - forkOf:
+        kind: Deployment
+        name: route
+        namespace: hotrod
+      endpoints:
+        - name: http
+          port: 8080
+`
+	got := render(t, writeTemp(t, "sandbox.yaml", doc))
+	if !strings.Contains(got, "port: 8080\n") {
+		t.Errorf("rendered spec does not carry the port as written:\n%s", got)
+	}
+	// A quoted port is the other spelling the loader accepts; it is turned into
+	// a number before rendering, so it prints the same way.
+	quoted := render(t, writeTemp(t, "sandbox.yaml", strings.Replace(doc, "port: 8080", `port: "8080"`, 1)))
+	if quoted != got {
+		t.Errorf("a quoted port rendered differently:\n%s\nvs\n%s", quoted, got)
+	}
+}
+
 // The mode exists in the flag's grammar so that adding it later needs no new
 // spelling, but it has nothing behind it yet.
 func TestDryRunServerIsRejected(t *testing.T) {
