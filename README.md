@@ -22,7 +22,7 @@ By default, the script will install the latest version at `/usr/local/bin/signad
 
 ## Build
 
-To build the CLI from source, such as to test changes, you'll need Go 1.18+.
+To build the CLI from source, such as to test changes, you'll need Go 1.27.1+.
 
 The `main` package is in  `cmd/signadot`:
 
