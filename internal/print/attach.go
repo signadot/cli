@@ -78,7 +78,7 @@ func formatText(e AttachEvent) string {
 		if e.Stream != "" {
 			fmt.Fprintf(&b, " stream=%s", e.Stream)
 		}
-		fmt.Fprintf(&b, " msg=%s", quoteIfNeeded(strings.TrimRight(e.Msg, "\n")))
+		fmt.Fprintf(&b, " msg=%s", quoteIfNeeded(strings.TrimRight(e.Msg, "\r\n")))
 	case "output":
 		fmt.Fprintf(&b, " name=%s", e.Name)
 		if e.Step != "" {
@@ -124,7 +124,7 @@ func formatText(e AttachEvent) string {
 }
 
 func quoteIfNeeded(s string) string {
-	if s == "" || strings.ContainsAny(s, " \t\n\"=") {
+	if s == "" || strings.ContainsAny(s, " \t\n\r\"=") {
 		return fmt.Sprintf("%q", s)
 	}
 	return s
