@@ -211,3 +211,47 @@ spec:
 		}
 	}
 }
+
+// A rendered spec whose values contain @{ cannot be rendered a second time,
+// because nothing binds the placeholder. --no-template reads it as it is, so the
+// output of --dry-run can always be applied.
+func TestNoTemplateReadsARenderedSpecAsItIs(t *testing.T) {
+	tpl := "name: sb\nspec:\n  cluster: c\n  description: \"@{d}\"\n"
+	once := render(t, writeTemp(t, "sandbox.yaml", tpl), "d=built from @{sha} and @{embed: x}")
+	if !strings.Contains(once, "@{sha}") {
+		t.Fatalf("the substituted value was not kept:\n%s", once)
+	}
+
+	rendered := writeTemp(t, "rendered.yaml", once)
+	var out, log bytes.Buffer
+	if err := apply(dryRunConfig(t, rendered, config.DryRunClient), &out, &log, nil); err == nil {
+		t.Fatal("rendering a spec with @{ in it again was expected to fail without --no-template")
+	}
+
+	cfg := dryRunConfig(t, rendered, config.DryRunClient)
+	cfg.NoTemplate = true
+	out.Reset()
+	if err := apply(cfg, &out, &log, nil); err != nil {
+		t.Fatalf("--no-template: %v", err)
+	}
+	if out.String() != once {
+		t.Errorf("--no-template changed the spec:\nfirst:\n%s\nsecond:\n%s", once, out.String())
+	}
+}
+
+func TestNoTemplateRefusesSet(t *testing.T) {
+	cfg := dryRunConfig(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), config.DryRunClient, "tag=x")
+	cfg.NoTemplate = true
+	var out, log bytes.Buffer
+	if err := apply(cfg, &out, &log, nil); err == nil || !strings.Contains(err.Error(), "--no-template") {
+		t.Errorf("got %v, want an error about --set with --no-template", err)
+	}
+}
+
+func TestNoTemplateIsHidden(t *testing.T) {
+	cmd := newApply(&config.Sandbox{API: &config.API{}})
+	f := cmd.Flags().Lookup("no-template")
+	if f == nil || !f.Hidden {
+		t.Errorf("--no-template must be registered and hidden, got %+v", f)
+	}
+}
