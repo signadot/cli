@@ -255,3 +255,26 @@ func TestNoTemplateIsHidden(t *testing.T) {
 		t.Errorf("--no-template must be registered and hidden, got %+v", f)
 	}
 }
+
+// A quoted port is turned into a number where the model has an integer port,
+// but a label or a resource param that happens to be called "port" is the
+// user's own string and has to stay one.
+func TestPortKeysInFreeFormMapsStayStrings(t *testing.T) {
+	doc := `name: sb
+spec:
+  cluster: c
+  labels:
+    port: "8080"
+  resources:
+    - name: db
+      plugin: p
+      params:
+        port: "5432"
+`
+	got := render(t, writeTemp(t, "sandbox.yaml", doc))
+	for _, want := range []string{`port: "8080"`, `port: "5432"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("rendered spec is missing %s:\n%s", want, got)
+		}
+	}
+}
