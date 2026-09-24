@@ -174,3 +174,13 @@ func TestDryRunIsHidden(t *testing.T) {
 		t.Errorf("usage mentions dry-run:\n%s", cmd.UsageString())
 	}
 }
+
+// The rendered spec is the decoded request, so lists the file never set must
+// not surface as the nulls the generated models marshal them to.
+func TestDryRunPrintsOnlyWhatIsSet(t *testing.T) {
+	got := render(t, writeTemp(t, "sandbox.yaml", "name: sb\nspec:\n  cluster: c\n"))
+	want := "name: sb\nspec:\n  cluster: c\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
