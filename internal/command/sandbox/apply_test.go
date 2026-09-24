@@ -184,3 +184,30 @@ func TestDryRunPrintsOnlyWhatIsSet(t *testing.T) {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+// -f reads YAML 1.1, so strings that YAML 1.1 would read as a bool or a number
+// have to come out quoted, or the rendered spec cannot be passed back to -f.
+func TestDryRunQuotesYAML11Lookalikes(t *testing.T) {
+	doc := `name: sb
+spec:
+  cluster: c
+  description: 'No'
+  labels:
+    a: 'yes'
+    b: 'on'
+    c: '1e3'
+    d: '1_000'
+    e: 'y'
+    f: 'OFF'
+`
+	once := render(t, writeTemp(t, "sandbox.yaml", doc))
+	twice := render(t, writeTemp(t, "rendered.yaml", once))
+	if once != twice {
+		t.Errorf("re-rendering changed the spec:\nfirst:\n%s\nsecond:\n%s", once, twice)
+	}
+	for _, want := range []string{`description: "No"`, `a: "yes"`, `b: "on"`, `c: "1e3"`, `d: "1_000"`, `e: "y"`, `f: "OFF"`} {
+		if !strings.Contains(once, want) {
+			t.Errorf("rendered spec is missing %s:\n%s", want, once)
+		}
+	}
+}

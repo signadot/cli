@@ -22,6 +22,7 @@ import (
 	"github.com/signadot/go-sdk/models"
 
 	"github.com/spf13/cobra"
+	k8syaml "sigs.k8s.io/yaml"
 )
 
 func newApply(sandbox *config.Sandbox) *cobra.Command {
@@ -138,7 +139,16 @@ func writeRenderedSpec(cfg *config.SandboxApply, out io.Writer, req *models.Sand
 	}
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault, config.OutputFormatYAML:
-		return print.RawYAML(out, doc)
+		// Printed with the YAML library -f reads with, not print.RawYAML. -f
+		// reads YAML 1.1, where an unquoted yes, on, No or 1e3 is a bool or a
+		// number, and a YAML 1.2 printer leaves those strings unquoted, so the
+		// output would fail to decode when passed back to -f.
+		d, err := k8syaml.Marshal(doc)
+		if err != nil {
+			return err
+		}
+		_, err = out.Write(d)
+		return err
 	case config.OutputFormatJSON:
 		return print.RawJSON(out, doc)
 	default:
