@@ -30,6 +30,9 @@ func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
 
 	c.DryRun = DryRunNone
 	cmd.Flags().Var(&c.DryRun, "dry-run", "print the rendered sandbox spec instead of applying it: \"client\" renders and validates locally")
+	// Hidden while the interface settles: the sandbox GitHub Action depends on
+	// --dry-run=client, and --dry-run=server is still to come (ENG-1203).
+	cmd.Flags().MarkHidden("dry-run")
 }
 
 type SandboxDelete struct {

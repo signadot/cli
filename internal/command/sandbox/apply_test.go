@@ -159,3 +159,18 @@ func TestDryRunServerIsRejected(t *testing.T) {
 		t.Errorf("got %v, want an error saying server dry run is not available yet", err)
 	}
 }
+
+// The flag works but is not advertised yet, so it must stay out of --help.
+func TestDryRunIsHidden(t *testing.T) {
+	cmd := newApply(&config.Sandbox{API: &config.API{}})
+	f := cmd.Flags().Lookup("dry-run")
+	if f == nil {
+		t.Fatal("--dry-run is not registered")
+	}
+	if !f.Hidden {
+		t.Error("--dry-run is shown in --help")
+	}
+	if strings.Contains(cmd.UsageString(), "dry-run") {
+		t.Errorf("usage mentions dry-run:\n%s", cmd.UsageString())
+	}
+}

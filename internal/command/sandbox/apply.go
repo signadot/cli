@@ -29,12 +29,7 @@ func newApply(sandbox *config.Sandbox) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply -f FILENAME [ --set var1=val1 --set var2=val2 ... ]",
 		Short: "Create or update a sandbox with variable expansion",
-		Long: `Create or update a sandbox with variable expansion.
-
---dry-run=client renders the spec and validates it locally, printing the result
-instead of applying it, and needs no API credentials. The output is a spec, so it
-can be reviewed, diffed, and passed straight back to -f.`,
-		Args: cobra.NoArgs,
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return apply(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
