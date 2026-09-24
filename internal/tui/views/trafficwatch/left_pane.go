@@ -177,6 +177,11 @@ func (l *LeftPane) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
+
+	if val, ok := msg.(tea.KeyMsg); ok && val.String() == "left" {
+		return l, nil
+	}
+
 	l.paginator, cmd = l.paginator.Update(msg)
 	return l, cmd
 }
