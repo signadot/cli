@@ -1,0 +1,280 @@
+package sandbox
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/signadot/cli/internal/config"
+)
+
+const dryRunTemplate = `name: test-sandbox
+spec:
+  cluster: my-cluster
+  description: build @{tag}
+  forks:
+    - forkOf:
+        kind: Deployment
+        name: route
+        namespace: hotrod
+      customizations:
+        images:
+          - image: acme/route:@{tag}
+`
+
+// dryRunConfig builds an apply config with no credentials of any kind, so that a
+// test reaching authentication fails rather than silently using the developer's
+// own login.
+func dryRunConfig(t *testing.T, file string, mode config.DryRunMode, sets ...string) *config.SandboxApply {
+	t.Helper()
+	cfg := &config.SandboxApply{
+		Sandbox:  &config.Sandbox{API: &config.API{}},
+		Filename: file,
+		DryRun:   mode,
+	}
+	for _, s := range sets {
+		if err := cfg.TemplateVals.Set(s); err != nil {
+			t.Fatalf("--set %s: %v", s, err)
+		}
+	}
+	return cfg
+}
+
+func writeTemp(t *testing.T, name, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func render(t *testing.T, file string, sets ...string) string {
+	t.Helper()
+	var out, log bytes.Buffer
+	cfg := dryRunConfig(t, file, config.DryRunClient, sets...)
+	if err := apply(cfg, &out, &log, nil); err != nil {
+		t.Fatalf("--dry-run=client: %v", err)
+	}
+	return out.String()
+}
+
+// The point of --dry-run=client is that it renders and validates without
+// contacting anything, so it has to work for a caller who has never logged in.
+func TestDryRunClientNeedsNoCredentials(t *testing.T) {
+	got := render(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), "tag=abc123")
+
+	for _, want := range []string{"name: test-sandbox", "acme/route:abc123", "build abc123"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("rendered spec is missing %q:\n%s", want, got)
+		}
+	}
+
+	// InitAPIConfig is what builds the client, so an unset client is the evidence
+	// that rendering returned before authentication was even attempted.
+	cfg := dryRunConfig(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), config.DryRunClient)
+	if err := cfg.TemplateVals.Set("tag=abc123"); err != nil {
+		t.Fatal(err)
+	}
+	var out, log bytes.Buffer
+	if err := apply(cfg, &out, &log, nil); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Client != nil {
+		t.Error("--dry-run=client initialised an API client")
+	}
+}
+
+// The Action renders in one step and applies those exact bytes in another, which
+// only holds if a rendered spec renders to itself.
+func TestDryRunOutputIsAFixedPoint(t *testing.T) {
+	once := render(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), "tag=abc123")
+	twice := render(t, writeTemp(t, "rendered.yaml", once))
+
+	if once != twice {
+		t.Errorf("re-rendering changed the spec:\nfirst:\n%s\nsecond:\n%s", once, twice)
+	}
+	if strings.Contains(once, "@{") {
+		t.Errorf("rendered spec still carries a placeholder:\n%s", once)
+	}
+}
+
+// Local validation is worth having only if it reports what the API would.
+func TestDryRunClientValidates(t *testing.T) {
+	for name, tc := range map[string]struct{ doc, want string }{
+		"no cluster":    {"name: sb\nspec:\n  description: nothing\n", "cluster"},
+		"unknown field": {"name: sb\nspec:\n  cluster: c\n  forkz: []\n", "unknown field"},
+		"unset var":     {"name: sb-@{missing}\nspec:\n  cluster: c\n", "missing"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := dryRunConfig(t, writeTemp(t, "sandbox.yaml", tc.doc), config.DryRunClient)
+			var out, log bytes.Buffer
+			err := apply(cfg, &out, &log, nil)
+			if err == nil {
+				t.Fatalf("expected an error, got output:\n%s", out.String())
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not mention %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// The loader types every number as a float, and a float prints as `8080.0`.
+// The rendered spec has to say what the file said.
+func TestDryRunKeepsWholeNumbersWhole(t *testing.T) {
+	doc := `name: sb
+spec:
+  cluster: c
+  forks:
+    - forkOf:
+        kind: Deployment
+        name: route
+        namespace: hotrod
+      endpoints:
+        - name: http
+          port: 8080
+`
+	got := render(t, writeTemp(t, "sandbox.yaml", doc))
+	if !strings.Contains(got, "port: 8080\n") {
+		t.Errorf("rendered spec does not carry the port as written:\n%s", got)
+	}
+	// A quoted port is the other spelling the loader accepts; it is turned into
+	// a number before rendering, so it prints the same way.
+	quoted := render(t, writeTemp(t, "sandbox.yaml", strings.Replace(doc, "port: 8080", `port: "8080"`, 1)))
+	if quoted != got {
+		t.Errorf("a quoted port rendered differently:\n%s\nvs\n%s", quoted, got)
+	}
+}
+
+// The mode exists in the flag's grammar so that adding it later needs no new
+// spelling, but it has nothing behind it yet.
+func TestDryRunServerIsRejected(t *testing.T) {
+	cfg := dryRunConfig(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), config.DryRunServer)
+	var out, log bytes.Buffer
+	err := apply(cfg, &out, &log, nil)
+	if err == nil || !strings.Contains(err.Error(), "not available yet") {
+		t.Errorf("got %v, want an error saying server dry run is not available yet", err)
+	}
+}
+
+// The flag works but is not advertised yet, so it must stay out of --help.
+func TestDryRunIsHidden(t *testing.T) {
+	cmd := newApply(&config.Sandbox{API: &config.API{}})
+	f := cmd.Flags().Lookup("dry-run")
+	if f == nil {
+		t.Fatal("--dry-run is not registered")
+	}
+	if !f.Hidden {
+		t.Error("--dry-run is shown in --help")
+	}
+	if strings.Contains(cmd.UsageString(), "dry-run") {
+		t.Errorf("usage mentions dry-run:\n%s", cmd.UsageString())
+	}
+}
+
+// The rendered spec is the decoded request, so lists the file never set must
+// not surface as the nulls the generated models marshal them to.
+func TestDryRunPrintsOnlyWhatIsSet(t *testing.T) {
+	got := render(t, writeTemp(t, "sandbox.yaml", "name: sb\nspec:\n  cluster: c\n"))
+	want := "name: sb\nspec:\n  cluster: c\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// -f reads YAML 1.1, so strings that YAML 1.1 would read as a bool or a number
+// have to come out quoted, or the rendered spec cannot be passed back to -f.
+func TestDryRunQuotesYAML11Lookalikes(t *testing.T) {
+	doc := `name: sb
+spec:
+  cluster: c
+  description: 'No'
+  labels:
+    a: 'yes'
+    b: 'on'
+    c: '1e3'
+    d: '1_000'
+    e: 'y'
+    f: 'OFF'
+`
+	once := render(t, writeTemp(t, "sandbox.yaml", doc))
+	twice := render(t, writeTemp(t, "rendered.yaml", once))
+	if once != twice {
+		t.Errorf("re-rendering changed the spec:\nfirst:\n%s\nsecond:\n%s", once, twice)
+	}
+	for _, want := range []string{`description: "No"`, `a: "yes"`, `b: "on"`, `c: "1e3"`, `d: "1_000"`, `e: "y"`, `f: "OFF"`} {
+		if !strings.Contains(once, want) {
+			t.Errorf("rendered spec is missing %s:\n%s", want, once)
+		}
+	}
+}
+
+// A rendered spec whose values contain @{ cannot be rendered a second time,
+// because nothing binds the placeholder. --no-template reads it as it is, so the
+// output of --dry-run can always be applied.
+func TestNoTemplateReadsARenderedSpecAsItIs(t *testing.T) {
+	tpl := "name: sb\nspec:\n  cluster: c\n  description: \"@{d}\"\n"
+	once := render(t, writeTemp(t, "sandbox.yaml", tpl), "d=built from @{sha} and @{embed: x}")
+	if !strings.Contains(once, "@{sha}") {
+		t.Fatalf("the substituted value was not kept:\n%s", once)
+	}
+
+	rendered := writeTemp(t, "rendered.yaml", once)
+	var out, log bytes.Buffer
+	if err := apply(dryRunConfig(t, rendered, config.DryRunClient), &out, &log, nil); err == nil {
+		t.Fatal("rendering a spec with @{ in it again was expected to fail without --no-template")
+	}
+
+	cfg := dryRunConfig(t, rendered, config.DryRunClient)
+	cfg.NoTemplate = true
+	out.Reset()
+	if err := apply(cfg, &out, &log, nil); err != nil {
+		t.Fatalf("--no-template: %v", err)
+	}
+	if out.String() != once {
+		t.Errorf("--no-template changed the spec:\nfirst:\n%s\nsecond:\n%s", once, out.String())
+	}
+}
+
+func TestNoTemplateRefusesSet(t *testing.T) {
+	cfg := dryRunConfig(t, writeTemp(t, "sandbox.yaml", dryRunTemplate), config.DryRunClient, "tag=x")
+	cfg.NoTemplate = true
+	var out, log bytes.Buffer
+	if err := apply(cfg, &out, &log, nil); err == nil || !strings.Contains(err.Error(), "--no-template") {
+		t.Errorf("got %v, want an error about --set with --no-template", err)
+	}
+}
+
+func TestNoTemplateIsHidden(t *testing.T) {
+	cmd := newApply(&config.Sandbox{API: &config.API{}})
+	f := cmd.Flags().Lookup("no-template")
+	if f == nil || !f.Hidden {
+		t.Errorf("--no-template must be registered and hidden, got %+v", f)
+	}
+}
+
+// A quoted port is turned into a number where the model has an integer port,
+// but a label or a resource param that happens to be called "port" is the
+// user's own string and has to stay one.
+func TestPortKeysInFreeFormMapsStayStrings(t *testing.T) {
+	doc := `name: sb
+spec:
+  cluster: c
+  labels:
+    port: "8080"
+  resources:
+    - name: db
+      plugin: p
+      params:
+        port: "5432"
+`
+	got := render(t, writeTemp(t, "sandbox.yaml", doc))
+	for _, want := range []string{`port: "8080"`, `port: "5432"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("rendered spec is missing %s:\n%s", want, got)
+		}
+	}
+}

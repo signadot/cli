@@ -1,7 +1,9 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/signadot/cli/internal/builder"
+	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/devbox"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
@@ -20,6 +23,7 @@ import (
 	"github.com/signadot/go-sdk/models"
 
 	"github.com/spf13/cobra"
+	k8syaml "sigs.k8s.io/yaml"
 )
 
 func newApply(sandbox *config.Sandbox) *cobra.Command {
@@ -42,20 +46,30 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
 	defer cancel()
 
-	if err := cfg.InitAPIConfig(); err != nil {
-		return err
-	}
 	if cfg.Filename == "" {
 		return errors.New("must specify sandbox request file with '-f' flag")
 	}
+	if cfg.DryRun == config.DryRunServer {
+		return errors.New("--dry-run=server is not available yet; " +
+			"use --dry-run=client to render and validate locally")
+	}
 
-	// Load the sandbox spec
-	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals, false /*forDelete */)
+	// Render before authenticating, so that --dry-run=client works with no
+	// credentials at all and a spec that cannot be rendered fails the same way
+	// whether or not the caller is logged in.
+	req, err := loadRequest(cfg)
 	if err != nil {
 		return err
 	}
 	if req.Spec.Cluster == nil {
 		return fmt.Errorf("sandbox spec must specify cluster")
+	}
+	if cfg.DryRun == config.DryRunClient {
+		return writeRenderedSpec(cfg, out, req)
+	}
+
+	if err := cfg.InitAPIConfig(); err != nil {
+		return err
 	}
 
 	var status *sbmapi.StatusResponse
@@ -115,6 +129,107 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		return nil
 	}
 	return writeOutput(cfg, out, resp)
+}
+
+// loadRequest reads the sandbox to apply. Without --no-template the file is a
+// template and its @{...} placeholders are expanded. With it, the file is a spec
+// that has already been rendered, typically by --dry-run, and is decoded as it
+// is: the template language has no escape for a literal @{, so rendering a
+// rendered spec again would expand whatever @{ its values happen to contain.
+func loadRequest(cfg *config.SandboxApply) (*models.Sandbox, error) {
+	if !cfg.NoTemplate {
+		return loadSandbox(cfg.Filename, cfg.TemplateVals, false /* forDelete */)
+	}
+	if len(cfg.TemplateVals) > 0 {
+		return nil, errors.New("--set has nothing to bind with --no-template")
+	}
+	doc, err := clio.LoadYAML[any](cfg.Filename)
+	if err != nil {
+		return nil, err
+	}
+	return unstructuredToSandbox(*doc)
+}
+
+// writeRenderedSpec prints the rendered spec for --dry-run. YAML is the default
+// because the output's job is to be read, diffed, and fed back to -f.
+func writeRenderedSpec(cfg *config.SandboxApply, out io.Writer, req *models.Sandbox) error {
+	doc, err := renderedDoc(req)
+	if err != nil {
+		return err
+	}
+	switch cfg.OutputFormat {
+	case config.OutputFormatDefault, config.OutputFormatYAML:
+		// Printed with the YAML library -f reads with, not print.RawYAML. -f
+		// reads YAML 1.1, where an unquoted yes, on, No or 1e3 is a bool or a
+		// number, and a YAML 1.2 printer leaves those strings unquoted, so the
+		// output would fail to decode when passed back to -f.
+		d, err := k8syaml.Marshal(doc)
+		if err != nil {
+			return err
+		}
+		_, err = out.Write(d)
+		return err
+	case config.OutputFormatJSON:
+		return print.RawJSON(out, doc)
+	default:
+		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
+	}
+}
+
+// renderedDoc is the sandbox as the API model holds it, which is exactly what
+// an apply would send: printing the decoded request rather than the document
+// that was read means the output does not depend on how the file happened to
+// spell things (a quoted port, a float the YAML reader made of an integer), and
+// that anything the decoder would drop or refuse cannot appear in it.
+//
+// The model is taken back through JSON to plain values so it can be printed as
+// YAML. Numbers are decoded as json.Number and restored to integers where they
+// are integers, and the nulls the generated models emit for unset lists are
+// dropped, since they say nothing and a reader would take them for settings.
+func renderedDoc(req *models.Sandbox) (any, error) {
+	d, err := json.Marshal(struct {
+		Name string              `json:"name"`
+		Spec *models.SandboxSpec `json:"spec"`
+	}{req.Name, req.Spec})
+	if err != nil {
+		return nil, err
+	}
+	dec := json.NewDecoder(bytes.NewReader(d))
+	dec.UseNumber()
+	var doc any
+	if err := dec.Decode(&doc); err != nil {
+		return nil, err
+	}
+	return plainValues(doc), nil
+}
+
+func plainValues(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, e := range x {
+			if e == nil {
+				delete(x, k)
+				continue
+			}
+			x[k] = plainValues(e)
+		}
+		return x
+	case []any:
+		for i, e := range x {
+			x[i] = plainValues(e)
+		}
+		return x
+	case json.Number:
+		if n, err := x.Int64(); err == nil {
+			return n
+		}
+		if f, err := x.Float64(); err == nil {
+			return f
+		}
+		return x.String()
+	default:
+		return v
+	}
 }
 
 func writeOutput(cfg *config.SandboxApply, out io.Writer, resp *models.Sandbox) error {
