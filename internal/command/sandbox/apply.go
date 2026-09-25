@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/signadot/cli/internal/builder"
+	"github.com/signadot/cli/internal/clio"
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/devbox"
 	sbmapi "github.com/signadot/cli/internal/locald/api/sandboxmanager"
@@ -56,7 +57,7 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	// Render before authenticating, so that --dry-run=client works with no
 	// credentials at all and a spec that cannot be rendered fails the same way
 	// whether or not the caller is logged in.
-	req, err := loadSandbox(cfg.Filename, cfg.TemplateVals, false /* forDelete */)
+	req, err := loadRequest(cfg)
 	if err != nil {
 		return err
 	}
@@ -128,6 +129,25 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 		return nil
 	}
 	return writeOutput(cfg, out, resp)
+}
+
+// loadRequest reads the sandbox to apply. Without --no-template the file is a
+// template and its @{...} placeholders are expanded. With it, the file is a spec
+// that has already been rendered, typically by --dry-run, and is decoded as it
+// is: the template language has no escape for a literal @{, so rendering a
+// rendered spec again would expand whatever @{ its values happen to contain.
+func loadRequest(cfg *config.SandboxApply) (*models.Sandbox, error) {
+	if !cfg.NoTemplate {
+		return loadSandbox(cfg.Filename, cfg.TemplateVals, false /* forDelete */)
+	}
+	if len(cfg.TemplateVals) > 0 {
+		return nil, errors.New("--set has nothing to bind with --no-template")
+	}
+	doc, err := clio.LoadYAML[any](cfg.Filename)
+	if err != nil {
+		return nil, err
+	}
+	return unstructuredToSandbox(*doc)
 }
 
 // writeRenderedSpec prints the rendered spec for --dry-run. YAML is the default

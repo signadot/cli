@@ -40,11 +40,19 @@ func unstructuredToSandbox(un any) (*models.Sandbox, error) {
 	return sb, nil
 }
 
+// freeFormMaps are the sandbox fields whose keys are the user's own names
+// rather than the model's: a label or a resource param called "port" is a
+// string like any other, and must not be turned into a number.
+var freeFormMaps = map[string]bool{"labels": true, "params": true}
+
 // translates all port values to ints if they are strings.
 func port2Int(un *any) error {
 	switch x := (*un).(type) {
 	case map[string]any:
 		for k, v := range x {
+			if freeFormMaps[k] {
+				continue
+			}
 			if k != "port" {
 				if err := port2Int(&v); err != nil {
 					return err

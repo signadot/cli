@@ -19,6 +19,7 @@ type SandboxApply struct {
 	WaitTimeout  time.Duration
 	TemplateVals TemplateVals
 	DryRun       DryRunMode
+	NoTemplate   bool
 }
 
 func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
@@ -33,6 +34,11 @@ func (c *SandboxApply) AddFlags(cmd *cobra.Command) {
 	// Hidden while the interface settles: the sandbox GitHub Action depends on
 	// --dry-run=client, and --dry-run=server is still to come (ENG-1203).
 	cmd.Flags().MarkHidden("dry-run")
+	cmd.Flags().BoolVar(&c.NoTemplate, "no-template", false, "read -f as a finished spec: no @{...} substitution")
+	// Hidden for the same reason: it exists so that a spec --dry-run has
+	// already rendered can be applied as it is. Rendering it again would expand
+	// any @{ that a substituted value happened to contain.
+	cmd.Flags().MarkHidden("no-template")
 }
 
 type SandboxDelete struct {
