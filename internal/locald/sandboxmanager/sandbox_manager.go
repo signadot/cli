@@ -123,7 +123,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 			ProxyURL:         m.ciConfig.ProxyURL,
 			TargetURL:        "tcp://tunnel-proxy.signadot.svc:1080",
 			Cluster:          m.connConfig.Cluster,
-			BindAddr:         ":0",
+			BindAddr:         "127.0.0.1:0",
 			GetInjectHeaders: getHeaders,
 		})
 		if err != nil {
@@ -212,7 +212,7 @@ func (m *sandboxManager) Run(ctx context.Context) error {
 }
 
 func (m *sandboxManager) runAPIServer() error {
-	addr := fmt.Sprintf(":%d", m.ciConfig.APIPort)
+	addr := fmt.Sprintf("127.0.0.1:%d", m.ciConfig.APIPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("error listening on %s: %w", addr, err)
