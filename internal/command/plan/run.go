@@ -18,7 +18,6 @@ import (
 	sdkprint "github.com/signadot/cli/internal/print"
 	"github.com/signadot/cli/internal/spinner"
 	sdkclient "github.com/signadot/go-sdk/client"
-	planlogs "github.com/signadot/go-sdk/client/plan_execution_logs"
 	planexecs "github.com/signadot/go-sdk/client/plan_executions"
 	sdkplans "github.com/signadot/go-sdk/client/plans"
 	plantags "github.com/signadot/go-sdk/client/plan_tags"
@@ -420,47 +419,29 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 	})
 
 	// Stream aggregated logs in background, emitting structured events.
+	// FollowLiveLogs reconnects (resuming from the last cursor) until the
+	// stream ends or the execution has finished.
 	logCtx, logCancel := context.WithCancel(ctx)
 	defer logCancel()
 
 	logDone := make(chan error, 1)
 	go func() {
-		transportCfg := cfg.GetBaseTransport()
-		transportCfg.Consumers = map[string]runtime.Consumer{
-			"text/event-stream": runtime.ByteStreamConsumer(),
-		}
-		err := cfg.APIClientWithCustomTransport(transportCfg,
-			func(c *sdkclient.SignadotAPI) error {
-				reader, writer := io.Pipe()
-				errch := make(chan error, 2)
-
-				go func() {
-					_, err := sdkprint.ParseSSEAttach(reader, aw)
-					if errors.Is(err, io.ErrClosedPipe) {
-						err = nil
-					}
-					reader.Close()
-					errch <- err
-				}()
-
-				go func() {
-					params := planlogs.NewStreamPlanExecutionLogsParams().
-						WithContext(logCtx).
-						WithTimeout(0).
-						WithOrgName(cfg.Org).
-						WithExecutionID(execID)
-					_, err := c.PlanExecutionLogs.StreamPlanExecutionLogs(params, nil, writer)
-					if errors.Is(err, io.ErrClosedPipe) || errors.Is(err, context.Canceled) {
-						err = nil
-					}
-					writer.Close()
-					errch <- err
-				}()
-
-				return errors.Join(<-errch, <-errch)
+		logDone <- planexec.FollowLiveLogs(logCtx, cfg.API, execID, planexec.LiveLogOptions{},
+			func(r io.Reader) (string, error) {
+				return sdkprint.ParseSSEAttach(r, aw)
 			})
-		logDone <- err
 	}()
+
+	// stopLogs waits (up to grace) for the log stream to deliver trailing
+	// lines and end on its own before cancelling it.
+	stopLogs := func(grace time.Duration) {
+		select {
+		case <-logDone:
+		case <-time.After(grace):
+			logCancel()
+			<-logDone
+		}
+	}
 
 	// Poll for terminal phase.
 	ticker := time.NewTicker(2 * time.Second)
@@ -479,8 +460,7 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 				return nil, err
 			}
 		} else if isTerminal(resp.Payload.Status.Phase) {
-			logCancel()
-			<-logDone
+			stopLogs(attachLogGrace)
 
 			ex := resp.Payload
 			// Emit output events for resolved plan-level outputs.
@@ -512,6 +492,10 @@ func attachExecution(ctx context.Context, cfg *config.PlanRun, out, log io.Write
 		}
 	}
 }
+
+// attachLogGrace is how long --attach waits, once the execution has
+// finished, for the remaining logs to arrive.
+const attachLogGrace = 10 * time.Second
 
 func writeRunOutput(cfg *config.PlanRun, out io.Writer, exec *models.PlanExecution, planSpec *models.PlanSpec) error {
 	switch cfg.OutputFormat {
