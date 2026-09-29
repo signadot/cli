@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"time"
 
@@ -241,10 +242,12 @@ func triggerTests(cfg *config.SmartTestRun, runID string,
 		// define the test name
 		extSpec.TestName = tf.Name
 		// define the labels
-		labels := tf.Labels
-		for k, v := range cfg.AddLabels {
-			labels[k] = v
+		// (copy: tf.Labels may be nil or shared with other test files)
+		labels := maps.Clone(tf.Labels)
+		if labels == nil && len(cfg.AddLabels) > 0 {
+			labels = map[string]string{}
 		}
+		maps.Copy(labels, cfg.AddLabels)
 		// define the script
 		var (
 			scriptContent []byte

@@ -40,11 +40,21 @@ func unstructuredToSandbox(un any) (*models.Sandbox, error) {
 	return sb, nil
 }
 
+// fields holding map[string]string values, whose "port" keys (if any) are
+// user data and must remain strings.
+var port2IntSkipFields = map[string]bool{
+	"labels": true,
+	"params": true,
+}
+
 // translates all port values to ints if they are strings.
 func port2Int(un *any) error {
 	switch x := (*un).(type) {
 	case map[string]any:
 		for k, v := range x {
+			if port2IntSkipFields[k] {
+				continue
+			}
 			if k != "port" {
 				if err := port2Int(&v); err != nil {
 					return err
