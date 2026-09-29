@@ -16,7 +16,8 @@ import (
 func createLogServer(sandboxName, localAddress string) (*http.Server, net.Listener, int) {
 	mux := http.NewServeMux()
 
-	ln, err := net.Listen("tcp", ":0")
+	// loopback only: the sandbox forward delivers logs to localhost
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		log.Fatalf("error listening on available port: %v", err)
 	}
