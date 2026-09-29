@@ -30,14 +30,16 @@ type Remote struct {
 	localSession  *mcp.ServerSession
 	meta          *Meta // Cached metadata from the remote server
 	onChange      MetaOnChangeFunc
+	firstFetch    chan struct{} // closed after the first metadata fetch attempt
 }
 
 // NewRemoteManager creates a new Remote instance for managing connections
 // to the remote MCP server. The client is created lazily when capabilities are known.
 func NewRemoteManager(log *slog.Logger, mcpCfg *config.MCP) *Remote {
 	return &Remote{
-		log:    log.With("component", "remote-manager"),
-		mcpCfg: mcpCfg,
+		log:        log.With("component", "remote-manager"),
+		mcpCfg:     mcpCfg,
+		firstFetch: make(chan struct{}),
 	}
 }
 
@@ -175,6 +177,12 @@ func (r *Remote) Close() {
 	}
 }
 
+// FirstFetchDone returns a channel closed once Run has made its first
+// attempt to fetch the metadata, whether or not it succeeded.
+func (r *Remote) FirstFetchDone() <-chan struct{} {
+	return r.firstFetch
+}
+
 // Run periodically fetches and updates metadata from the remote server.
 // It runs until the context is cancelled.
 func (r *Remote) Run(ctx context.Context, checkInterval time.Duration) error {
@@ -187,6 +195,7 @@ func (r *Remote) Run(ctx context.Context, checkInterval time.Duration) error {
 	if err := r.updateMeta(ctx); err != nil {
 		r.log.Error("failed to fetch remote metadata", "error", err)
 	}
+	close(r.firstFetch)
 
 	// Periodically fetch metadata
 	for {

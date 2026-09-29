@@ -1,12 +1,14 @@
 package remote
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/signadot/cli/internal/auth"
@@ -68,5 +70,29 @@ func TestSessionFollowsLogin(t *testing.T) {
 	defer mu.Unlock()
 	if last := apiKeys[len(apiKeys)-1]; last != "key-b" {
 		t.Fatalf("last request used api key %q, want key-b", last)
+	}
+}
+
+// The first metadata fetch attempt is signaled even when it fails, so the MCP
+// server can start (with local tools) while offline.
+func TestFirstFetchDoneOnFailure(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	r := NewRemoteManager(slog.New(slog.NewTextHandler(io.Discard, nil)),
+		&config.MCP{API: &config.API{MCPURL: srv.URL}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go r.Run(ctx, time.Hour)
+
+	select {
+	case <-r.FirstFetchDone():
+	case <-time.After(5 * time.Second):
+		t.Fatal("first fetch attempt not signaled")
+	}
+	if r.Meta() != nil {
+		t.Fatal("unexpected metadata")
 	}
 }
