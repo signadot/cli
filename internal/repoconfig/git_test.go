@@ -1,17 +1,33 @@
 package repoconfig
 
-import "testing"
+import (
+	"testing"
 
-func TestGitRepoNormalization(t *testing.T) {
-	u1, err := normalizeGitRepo("git@github.com:signadot/cli.git")
-	if err != nil {
-		t.Fatalf("TestGitRepoNormalization failed: %v", err)
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/storage/memory"
+)
+
+func TestPickRemoteURL(t *testing.T) {
+	remote := func(name string, urls ...string) *git.Remote {
+		return git.NewRemote(memory.NewStorage(), &config.RemoteConfig{Name: name, URLs: urls})
 	}
-	u2, err := normalizeGitRepo("https://github.com/signadot/cli")
-	if err != nil {
-		t.Fatalf("TestGitRepoNormalization failed: %v", err)
+	cases := []struct {
+		name    string
+		remotes []*git.Remote
+		want    string
+	}{
+		{"none", nil, ""},
+		{"origin preferred", []*git.Remote{remote("upstream", "u"), remote("origin", "o")}, "o"},
+		{"first by name", []*git.Remote{remote("zed", "z"), remote("fork", "f")}, "f"},
+		{"skip no url", []*git.Remote{remote("origin"), remote("fork", "f")}, "f"},
+		{"only no url", []*git.Remote{remote("origin")}, ""},
 	}
-	if u1 != u2 {
-		t.Fatalf("TestGitRepoNormalization failed: got different repos %q, %q", u1, u2)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := pickRemoteURL(c.remotes); got != c.want {
+				t.Fatalf("got %q, want %q", got, c.want)
+			}
+		})
 	}
 }
