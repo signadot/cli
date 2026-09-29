@@ -54,9 +54,24 @@ func newSandboxManagerWatcher(log *slog.Logger, devboxSessionID string, revtunCl
 	return srv
 }
 
+// run starts watching sandboxes. tunAPIClient is nil when the link to the
+// cluster could not be established, in which case there's nothing to watch.
 func (sbw *sbmWatcher) run(ctx context.Context, tunAPIClient tunapiclient.Client) {
+	if tunAPIClient == nil {
+		return
+	}
+	sbw.sbMu.Lock()
 	sbw.tunAPIClient = tunAPIClient
+	sbw.sbMu.Unlock()
 	go sbw.watchSandboxes(ctx, tunAPIClient)
+}
+
+// getTunAPIClient returns the tunnel API client, or nil if not (yet)
+// connected to the cluster.
+func (sbw *sbmWatcher) getTunAPIClient() tunapiclient.Client {
+	sbw.sbMu.Lock()
+	defer sbw.sbMu.Unlock()
+	return sbw.tunAPIClient
 }
 
 func (sbw *sbmWatcher) watchSandboxes(ctx context.Context, tunAPIClient tunapiclient.Client) {
