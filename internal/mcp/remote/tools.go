@@ -63,7 +63,13 @@ func (r *Remote) ToolHandler(toolName string) func(ctx context.Context, req *mcp
 			}
 		}
 		if result.IsError {
-			return nil, nil, errors.New(result.Content[0].(*mcp.TextContent).Text)
+			msg := "remote tool call failed"
+			if len(result.Content) > 0 {
+				if tc, ok := result.Content[0].(*mcp.TextContent); ok {
+					msg = tc.Text
+				}
+			}
+			return nil, nil, errors.New(msg)
 		}
 
 		// Extract structured content from the remote tool result

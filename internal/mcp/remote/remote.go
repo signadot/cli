@@ -26,6 +26,7 @@ type Remote struct {
 	mcpCfg        *config.MCP
 	remoteClient  *mcp.Client
 	remoteSession *mcp.ClientSession
+	sessionCreds  string // credentials remoteSession was created with
 	localSession  *mcp.ServerSession
 	meta          *Meta // Cached metadata from the remote server
 	onChange      MetaOnChangeFunc
@@ -107,25 +108,33 @@ func (r *Remote) Session() (*mcp.ClientSession, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// If we have a session, return it. KeepAlive handles health checks automatically
-	// and will close the session if pings fail. If the session was closed by KeepAlive,
-	// operations will fail with ErrConnectionClosed and the tool handler will recreate it.
-	if r.remoteSession != nil {
-		return r.remoteSession, nil
-	}
-
 	// Ensure client is initialized
 	if r.remoteClient == nil {
 		return nil, fmt.Errorf("client hasn't been initialized, cannot create remote session")
 	}
 
-	// Resolve authentication information
+	// Resolve authentication information (every time: the user may have
+	// logged in again, possibly to another org, or the token been refreshed)
 	authInfo, err := auth.ResolveAuth()
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve auth: %w", err)
 	}
 	if !auth.IsAuthenticated(authInfo) {
 		return nil, fmt.Errorf("not authenticated")
+	}
+	creds := authInfo.OrgName + "\x00" + authInfo.APIKey + "\x00" + authInfo.BearerToken
+
+	// If we have a session for the current credentials, return it. KeepAlive
+	// handles health checks automatically and will close the session if pings
+	// fail. If the session was closed by KeepAlive, operations will fail with
+	// ErrConnectionClosed and the tool handler will recreate it.
+	if r.remoteSession != nil {
+		if r.sessionCreds == creds {
+			return r.remoteSession, nil
+		}
+		r.log.Debug("credentials changed, recreating remote session")
+		r.remoteSession.Close()
+		r.remoteSession = nil
 	}
 
 	// Create HTTP transport with authentication headers
@@ -150,6 +159,7 @@ func (r *Remote) Session() (*mcp.ClientSession, error) {
 	// Store the session for future use
 	r.log.Debug("remote session created", "sessionID", sess.ID())
 	r.remoteSession = sess
+	r.sessionCreds = creds
 	return sess, nil
 }
 
