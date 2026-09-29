@@ -54,6 +54,9 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if err != nil {
 		return err
 	}
+	if req.Spec == nil {
+		return fmt.Errorf("sandbox file must specify spec")
+	}
 	if req.Spec.Cluster == nil {
 		return fmt.Errorf("sandbox spec must specify cluster")
 	}
@@ -103,8 +106,13 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if cfg.Wait {
 		// Wait for the sandbox to be ready.
 		// store latest resp for output below
-		resp, err = utils.WaitForSandboxReady(ctx, cfg.API, log, resp.Name, cfg.WaitTimeout)
+		readyResp, err := utils.WaitForSandboxReady(ctx, cfg.API, log, resp.Name, cfg.WaitTimeout)
+		if readyResp != nil {
+			resp = readyResp
+		}
 		if err != nil {
+			// resp is the latest sandbox we got (from the apply if none
+			// from waiting)
 			writeOutput(cfg, out, resp)
 			fmt.Fprintf(log, "\nThe sandbox was applied, but it may not be ready yet. To check status, run:\n\n")
 			fmt.Fprintf(log, "  signadot sandbox get %v\n\n", req.Name)
