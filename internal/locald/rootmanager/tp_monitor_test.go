@@ -1,6 +1,13 @@
 package rootmanager
 
-import "testing"
+import (
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+)
 
 // TestEvalRootServerHealth is the mode matrix behind checkRootServer: health
 // must gate on the name-resolution service that is actually active for the mode
@@ -113,5 +120,39 @@ func TestEvalRootServerHealth(t *testing.T) {
 					tt.in, ok, restart, tt.wantOK, tt.wantRestart)
 			}
 		})
+	}
+}
+
+// TestGetAgentMetricsClosesConn checks that the agent-metrics check does not
+// leave its connection (and so the tunnel connection under it) open after
+// returning, even though it closes the response body without reading it.
+func TestGetAgentMetricsClosesConn(t *testing.T) {
+	var open atomic.Int32
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("# HELP some_metric\nsome_metric 1\n"))
+	}))
+	srv.Config.ConnState = func(_ net.Conn, st http.ConnState) {
+		switch st {
+		case http.StateNew:
+			open.Add(1)
+		case http.StateClosed, http.StateHijacked:
+			open.Add(-1)
+		}
+	}
+	srv.Start()
+	defer srv.Close()
+
+	const n = 10
+	for i := 0; i < n; i++ {
+		if err := getAgentMetrics(srv.URL + "/metrics"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for open.Load() != 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := open.Load(); got != 0 {
+		t.Fatalf("%d of %d check connections still open", got, n)
 	}
 }
