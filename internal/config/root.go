@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"path"
 
@@ -14,10 +15,14 @@ type Root struct {
 	// Config file values
 	DashboardURL *url.URL
 
+	// ExtraHeaders are the --header flags, parsed.
+	ExtraHeaders http.Header
+
 	// Flags
 	Debug        bool
 	ConfigFile   string
 	OutputFormat OutputFormat
+	Headers      []string
 }
 
 // InitViper initializes viper with the provided config file path.
@@ -55,6 +60,10 @@ func (c *Root) AddFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&c.Debug, "debug", false, "enable debug output")
 	cmd.PersistentFlags().StringVar(&c.ConfigFile, "config", "", "config file (default is $HOME/.signadot/config.yaml)")
 	cmd.PersistentFlags().VarP(&c.OutputFormat, "output", "o", "output format (json|yaml)")
+	cmd.PersistentFlags().StringArrayVar(&c.Headers, "header", nil, "add a header to every API request, \"Name: value\" (repeatable)")
+	// Hidden while the use of it is still being worked out: for now it is how
+	// integrations such as the sandbox GitHub Action identify themselves.
+	cmd.PersistentFlags().MarkHidden("header")
 }
 
 func (c *Root) Init() {
@@ -69,6 +78,12 @@ func (c *Root) init() error {
 	if !c.Debug {
 		c.Debug = viper.GetBool("debug")
 	}
+
+	headers, err := parseHeaders(c.Headers)
+	if err != nil {
+		return err
+	}
+	c.ExtraHeaders = headers
 
 	if dashURL := viper.GetString("dashboard_url"); dashURL != "" {
 		u, err := url.Parse(dashURL)

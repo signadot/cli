@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -254,6 +255,16 @@ func (a *API) GetBaseTransport() *transport.APIConfig {
 		ArtifactsAPIURL: a.ArtifactsAPIURL,
 		UserAgent:       a.UserAgent,
 		Debug:           a.Debug,
+	}
+
+	// --header: only then does the SDK get an http.Client of our own, so
+	// that without it every request is exactly as before.
+	if len(a.ExtraHeaders) > 0 {
+		cfg.HTTPClient = &http.Client{Transport: &headerTransport{
+			inner:     http.DefaultTransport,
+			userAgent: a.UserAgent,
+			headers:   a.ExtraHeaders,
+		}}
 	}
 
 	// Prefer API key if present
