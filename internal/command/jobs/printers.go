@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -131,6 +132,13 @@ func printJobDetails(cfg *config.JobGet, out io.Writer, job *models.Job) error {
 }
 
 func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer, jobName string) error {
+	if cfg.Timeout > 0 {
+		// bound log streaming too, not only the polling below
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cfg.Timeout)
+		defer cancel()
+	}
+
 	delayTime := 2 * time.Second
 
 	retry := poll.
@@ -138,19 +146,39 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 		WithDelay(delayTime).
 		WithTimeout(cfg.Timeout)
 
-	lastOutCursor := ""
-	lastErrCursor := ""
-	looped := false
+	ls := &jobLogStreamer{cfg: cfg.API, outW: outW, errW: errW, jobName: jobName}
+	queuedLine := false // whether the last line printed is the "Queued" one
+	sawRunning := false
 	canceled := false
 
-	err := retry.Until(ctx, func(ctx context.Context) bool {
-		defer func() {
-			looped = true
-		}()
+	// finish handles a terminal phase, returning true if phase is terminal.
+	finish := func(ctx context.Context, j *models.Job) bool {
+		phase := j.Status.Attempts[0].Phase
+		switch phase {
+		case "succeeded", "failed", "canceled":
+		default:
+			return false
+		}
+		// print any logs not yet shown: the job may have gone from queued
+		// to terminal between polls, and streams may have stopped early.
+		if phase != "canceled" || sawRunning {
+			ls.stream(ctx)
+		}
+		switch phase {
+		case "failed":
+			handleFailedJobPhase(errW, j)
+		case "canceled":
+			fmt.Fprintf(outW, "The job execution was canceled\n")
+			canceled = true
+		}
+		return true
+	}
 
+	err := retry.Until(ctx, func(ctx context.Context) bool {
 		j, err := getJob(cfg.Job, jobName)
 		if err != nil {
 			fmt.Fprintf(errW, "Error getting job: %s", err.Error())
+			queuedLine = false
 
 			// We want to keep retrying if the timeout has not been exceeded
 			return false
@@ -163,88 +191,82 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 			retry.WithDelay(delayTime)
 		}
 
-		attempt := j.Status.Attempts[0]
-		switch attempt.Phase {
-		case "succeeded":
-			return true
-
-		case "failed":
-			handleFailedJobPhase(errW, j)
-			return true
-
-		case "queued":
-			if looped {
-				clearLastLine(outW)
-			}
-
-			fmt.Fprintf(outW, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
-			return false
-
-		case "running":
-			if looped {
-				clearLastLine(outW)
-			}
-
-			errch := make(chan error)
-			ctx, cancel := context.WithCancel(ctx)
-			defer cancel()
-
-			go func() {
-				// stream stdout
-				cursor, err := logs.ShowLogs(ctx, cfg.API, outW, jobName, utils.LogTypeStdout, lastOutCursor, 0)
-				if err == nil {
-					lastOutCursor = cursor
-				} else if errors.Is(err, context.Canceled) {
-					err = nil // ignore context cancelations
-				}
-				cancel() // this will cause the stderr stream to terminate
-				errch <- err
-			}()
-
-			go func() {
-				// stream stderr
-				cursor, err := logs.ShowLogs(ctx, cfg.API, errW, jobName, utils.LogTypeStderr, lastErrCursor, 0)
-				if err == nil {
-					lastErrCursor = cursor
-				} else if errors.Is(err, context.Canceled) {
-					err = nil // ignore context cancelations
-				}
-				cancel() // this will make the stdout stream to terminate
-				errch <- err
-			}()
-
-			err = errors.Join(<-errch, <-errch) // wait until both streams terminate
-			if err != nil {
-				fmt.Fprintf(errW, "Error getting logs: %s\n", err.Error())
-			}
-
-			if j, err = getJob(cfg.Job, jobName); err == nil {
-				switch j.Status.Attempts[0].Phase {
-				case "failed":
-					handleFailedJobPhase(errW, j)
-					return true
-				case "succeeded":
-					return true
-				case "canceled":
-					fmt.Fprintf(outW, "The job execution was canceled\n")
-					canceled = true
-					return true
-				}
-			}
-			return false
-
-		case "canceled":
-			fmt.Fprintf(outW, "The job execution was canceled\n")
-			canceled = true
+		if finish(ctx, j) {
 			return true
 		}
 
+		switch j.Status.Attempts[0].Phase {
+		case "queued":
+			if queuedLine {
+				clearLastLine(outW)
+			}
+			fmt.Fprintf(outW, "Queued on Job Runner Group %s\n", j.Spec.RunnerGroup)
+			queuedLine = true
+
+		case "running":
+			if queuedLine {
+				clearLastLine(outW)
+				queuedLine = false
+			}
+			sawRunning = true
+			ls.stream(ctx)
+
+			if j, err = getJob(cfg.Job, jobName); err == nil {
+				return finish(ctx, j)
+			}
+		}
 		return false
 	})
 	if err == nil && canceled {
 		err = fmt.Errorf("job %q canceled", jobName)
 	}
 
+	return err
+}
+
+// jobLogStreamer streams a job's stdout and stderr, resuming each from where
+// it last stopped.
+type jobLogStreamer struct {
+	cfg        *config.API
+	outW, errW io.Writer
+	jobName    string
+	outCursor  string
+	errCursor  string
+}
+
+// stream streams stdout and stderr concurrently until both end (the server
+// ends each independently once the job has finished) or ctx is done. Errors
+// are reported to errW.
+func (ls *jobLogStreamer) stream(ctx context.Context) {
+	var wg sync.WaitGroup
+	var outErr, errErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		outErr = ls.streamOne(ctx, ls.outW, utils.LogTypeStdout, &ls.outCursor)
+	}()
+	go func() {
+		defer wg.Done()
+		errErr = ls.streamOne(ctx, ls.errW, utils.LogTypeStderr, &ls.errCursor)
+	}()
+	wg.Wait()
+	if err := errors.Join(outErr, errErr); err != nil {
+		fmt.Fprintf(ls.errW, "Error getting logs: %s\n", err.Error())
+	}
+}
+
+func (ls *jobLogStreamer) streamOne(ctx context.Context, w io.Writer, logType string, cursor *string) error {
+	// ShowLogs (re)initializes the API config it is given, so give each
+	// concurrent stream its own copy.
+	apiCfg := *ls.cfg
+	c, err := logs.ShowLogs(ctx, &apiCfg, w, ls.jobName, logType, *cursor, 0)
+	if c != "" {
+		// keep progress even on error, so a retry doesn't repeat lines
+		*cursor = c
+	}
+	if ctx.Err() != nil {
+		return nil // canceled or timed out; reported by the caller
+	}
 	return err
 }
 
