@@ -192,13 +192,19 @@ func refreshBearerToken(authInfo *auth.ResolvedAuth, log *slog.Logger) (*auth.Re
 		"expiresAt", expiresAt,
 		"hasNewRefreshToken", resp.Payload.RefreshToken != "")
 
+	// Keep the current refresh token if the server doesn't return one
+	refreshToken := resp.Payload.RefreshToken
+	if refreshToken == "" {
+		refreshToken = authInfo.RefreshToken
+	}
+
 	// Update auth info with new tokens
 	newAuthInfo := &auth.ResolvedAuth{
 		Source: authInfo.Source,
 		Auth: auth.Auth{
 			APIKey:       authInfo.APIKey,
 			BearerToken:  resp.Payload.AccessToken,
-			RefreshToken: resp.Payload.RefreshToken,
+			RefreshToken: refreshToken,
 			OrgName:      authInfo.OrgName,
 			ExpiresAt:    &expiresAt,
 		},
