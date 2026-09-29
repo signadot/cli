@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -61,12 +62,21 @@ func runDisconnectWith(cfg *config.LocalDisconnect, signadotDir string) error {
 	ticker := time.NewTicker(time.Second / 10)
 	defer ticker.Stop()
 	wasRunning := false
+	// There is deliberately no deadline: giving up part way could leave the
+	// machine's networking (hosts, routes, pf, resolver) in a bad state. But
+	// report what we're waiting on, as the wait may not end on its own (e.g. a
+	// stale pidfile whose PID was reused after a hard power-off).
+	start := time.Now()
+	var lastReport time.Time
 	for {
 		wasRunning = runState.init(signadotDir) || wasRunning
 		err := runState.tryKill()
-		_ = err
 		if runState.isDone() {
 			break
+		}
+		if time.Since(start) >= disconnectReportAfter && time.Since(lastReport) >= disconnectReportEvery {
+			lastReport = time.Now()
+			reportDisconnectWait(os.Stderr, signadotDir, runState, time.Since(start), err)
 		}
 		<-ticker.C
 	}
@@ -106,6 +116,38 @@ func cleanLocalSandboxes(cfg *config.LocalDisconnect) error {
 		fmt.Printf("Deleted sandbox %q.\n", sb.Name)
 	}
 	return nil
+}
+
+const (
+	disconnectReportAfter = 5 * time.Second
+	disconnectReportEvery = 30 * time.Second
+)
+
+func reportDisconnectWait(w io.Writer, signadotDir string, rs *runState, waited time.Duration, lastErr error) {
+	fmt.Fprintf(w, "Still waiting for signadot local daemons to shut down (%s)", waited.Round(time.Second))
+	if lastErr != nil {
+		fmt.Fprintf(w, ": %v", lastErr)
+	}
+	fmt.Fprintln(w)
+	for _, pf := range []struct {
+		present bool
+		name    string
+	}{
+		{rs.RootPIDFilePresent, config.RootManagerPIDFile},
+		{rs.NotRootPIDFilePresent, config.SandboxManagerPIDFile},
+	} {
+		if !pf.present {
+			continue
+		}
+		p := filepath.Join(signadotDir, pf.name)
+		pid, err := processes.ReadPIDFile(p)
+		if err != nil {
+			fmt.Fprintf(w, "  %s: %v\n", p, err)
+			continue
+		}
+		fmt.Fprintf(w, "  %s: pid %d\n", p, pid)
+	}
+	fmt.Fprintln(w, "If no signadot process has that pid, the pidfile is stale (e.g. after a hard power-off).")
 }
 
 // we have a sandbox manager and a root manager to stop, and may be
