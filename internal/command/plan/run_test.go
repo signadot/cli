@@ -2,6 +2,7 @@ package plan
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -58,5 +59,29 @@ func TestExportOutputs(t *testing.T) {
 			names = append(names, e.Name())
 		}
 		t.Errorf("unexpected files: %v", names)
+	}
+}
+
+func TestBuildParamsStringSchema(t *testing.T) {
+	var spec models.PlanSpec
+	if err := json.Unmarshal([]byte(`{"params":[
+		{"name":"python_version","schema":{"type":"string"}},
+		{"name":"replicas","schema":{"type":"integer"}},
+		{"name":"untyped"}
+	]}`), &spec); err != nil {
+		t.Fatal(err)
+	}
+	params := buildParams(config.TemplateVals{
+		{Var: "python_version", Val: "3.10"},
+		{Var: "replicas", Val: "3"},
+		{Var: "untyped", Val: "3.10"},
+	}, stringParams(&spec))
+	d, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"python_version":"3.10","replicas":3,"untyped":3.10}`
+	if string(d) != want {
+		t.Fatalf("got %s, want %s", d, want)
 	}
 }

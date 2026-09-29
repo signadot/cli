@@ -68,7 +68,7 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 	planSpec := plan.Spec
 
 	// Build params.
-	params := buildParams(cfg.Params)
+	params := buildParams(cfg.Params, stringParams(planSpec))
 	if params == nil && (cfg.Sandbox != "" || cfg.RouteGroup != "") {
 		params = make(map[string]any)
 	}
@@ -214,7 +214,10 @@ func resolvePlan(ctx context.Context, cfg *config.PlanRun, args []string) (*mode
 	return resp.Payload, nil
 }
 
-func buildParams(tplVals config.TemplateVals) map[string]any {
+// buildParams builds the execution params from --param values. Values of
+// params declared as strings (see stringParams) are sent as given; other
+// values that look like JSON are passed through as JSON.
+func buildParams(tplVals config.TemplateVals, stringParams map[string]bool) map[string]any {
 	if len(tplVals) == 0 {
 		return nil
 	}
@@ -222,7 +225,7 @@ func buildParams(tplVals config.TemplateVals) map[string]any {
 	for _, tv := range tplVals {
 		// If value looks like JSON, pass through as-is.
 		v := tv.Val
-		if looksLikeJSON(v) {
+		if !stringParams[tv.Var] && looksLikeJSON(v) {
 			var raw json.RawMessage
 			if json.Unmarshal([]byte(v), &raw) == nil {
 				params[tv.Var] = raw
@@ -232,6 +235,24 @@ func buildParams(tplVals config.TemplateVals) map[string]any {
 		params[tv.Var] = v
 	}
 	return params
+}
+
+// stringParams returns the names of the plan params whose JSON Schema type
+// is "string": e.g. python_version=3.10 must not be sent as the number 3.1.
+func stringParams(spec *models.PlanSpec) map[string]bool {
+	res := map[string]bool{}
+	if spec == nil {
+		return res
+	}
+	for _, p := range spec.Params {
+		if p == nil {
+			continue
+		}
+		if schema, ok := p.Schema.(map[string]any); ok && schema["type"] == "string" {
+			res[p.Name] = true
+		}
+	}
+	return res
 }
 
 func buildSecrets(tplVals config.TemplateVals) map[string]string {
