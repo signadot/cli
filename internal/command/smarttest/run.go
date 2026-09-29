@@ -89,11 +89,34 @@ func run(ctx context.Context, cfg *config.SmartTestRun, wOut, wErr io.Writer,
 			// render the test executions summary
 			out.renderTestXsSummary(txs)
 		}
-		return nil
+	} else if err := structuredOutput(cfg, wOut, runID, txs); err != nil {
+		// render the structured output
+		return err
 	}
 
-	// render the structured output
-	return structuredOutput(cfg, wOut, runID, txs)
+	if cfg.NoWait {
+		return nil
+	}
+	return unsuccessfulTestsError(txs)
+}
+
+// unsuccessfulTestsError returns an error if any of the given (completed)
+// test executions failed or were canceled.
+func unsuccessfulTestsError(txs []*models.TestExecution) error {
+	var failed, canceled int
+	for _, tx := range txs {
+		switch tx.Status.Phase {
+		case models.TestexecutionsPhaseFailed:
+			failed++
+		case models.TestexecutionsPhaseCanceled:
+			canceled++
+		}
+	}
+	if failed == 0 && canceled == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d of %d test executions did not succeed (%d failed, %d canceled)",
+		failed+canceled, len(txs), failed, canceled)
 }
 
 func validateRun(cfg *config.SmartTestRun) error {

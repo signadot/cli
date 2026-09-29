@@ -141,6 +141,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 	lastOutCursor := ""
 	lastErrCursor := ""
 	looped := false
+	canceled := false
 
 	err := retry.Until(ctx, func(ctx context.Context) bool {
 		defer func() {
@@ -224,17 +225,25 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 					return true
 				case "succeeded":
 					return true
+				case "canceled":
+					fmt.Fprintf(outW, "The job execution was canceled\n")
+					canceled = true
+					return true
 				}
 			}
 			return false
 
 		case "canceled":
 			fmt.Fprintf(outW, "The job execution was canceled\n")
+			canceled = true
 			return true
 		}
 
 		return false
 	})
+	if err == nil && canceled {
+		err = fmt.Errorf("job %q canceled", jobName)
+	}
 
 	return err
 }
