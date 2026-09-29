@@ -137,10 +137,13 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		return err
 	}
 
-	// Export outputs if --output-dir specified.
+	// Export outputs if --output-dir specified. A failed export fails the
+	// command (after the result is reported).
+	var exportErr error
 	if cfg.OutputDir != "" {
-		if err := exportOutputs(cfg, log, exec); err != nil {
-			fmt.Fprintf(log, "Warning: output export failed: %v\n", err)
+		if exportErr = exportOutputs(ctx, cfg, log, exec); exportErr != nil {
+			exportErr = fmt.Errorf("output export failed: %w", exportErr)
+			fmt.Fprintf(log, "Error: %v\n", exportErr)
 		}
 	}
 
@@ -152,7 +155,7 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		case models.PlansExecutionPhaseCancelled:
 			os.Exit(2)
 		}
-		return nil
+		return exportErr
 	}
 
 	// Print result and exit with appropriate code.
@@ -169,7 +172,10 @@ func runPlan(cfg *config.PlanRun, out, log io.Writer, args []string) error {
 		}
 		os.Exit(2)
 	default:
-		return writeRunOutput(cfg, out, exec, planSpec)
+		if err := writeRunOutput(cfg, out, exec, planSpec); err != nil {
+			return err
+		}
+		return exportErr
 	}
 	return nil
 }
@@ -508,7 +514,7 @@ func writeRunOutput(cfg *config.PlanRun, out io.Writer, exec *models.PlanExecuti
 	}
 }
 
-func exportOutputs(cfg *config.PlanRun, log io.Writer, exec *models.PlanExecution) error {
+func exportOutputs(ctx context.Context, cfg *config.PlanRun, log io.Writer, exec *models.PlanExecution) error {
 	if exec.Status == nil || len(exec.Status.Outputs) == 0 {
 		return nil
 	}
@@ -527,16 +533,18 @@ func exportOutputs(cfg *config.PlanRun, log io.Writer, exec *models.PlanExecutio
 		func(c *sdkclient.SignadotAPI) error {
 			for _, o := range exec.Status.Outputs {
 				outPath := filepath.Join(cfg.OutputDir, o.Name)
-				f, err := os.Create(outPath)
-				if err != nil {
-					return fmt.Errorf("creating %s: %w", outPath, err)
-				}
+				// No request timeout: it would bound the whole (streamed)
+				// download, truncating large outputs.
 				params := planexecs.NewGetPlanExecutionOutputParams().
+					WithContext(ctx).
+					WithTimeout(0).
 					WithOrgName(cfg.Org).
 					WithExecutionID(exec.ID).
 					WithOutputName(o.Name)
-				_, _, err = c.PlanExecutions.GetPlanExecutionOutput(params, nil, f)
-				f.Close()
+				err := writeFileAtomic(outPath, func(w io.Writer) error {
+					_, _, err := c.PlanExecutions.GetPlanExecutionOutput(params, nil, w)
+					return err
+				})
 				if err != nil {
 					return fmt.Errorf("downloading %q: %w", o.Name, err)
 				}
@@ -544,4 +552,27 @@ func exportOutputs(cfg *config.PlanRun, log io.Writer, exec *models.PlanExecutio
 			}
 			return nil
 		})
+}
+
+// writeFileAtomic writes filename with the content produced by write, via a
+// temporary file in the same directory, so that a failed download leaves no
+// partial file behind.
+func writeFileAtomic(filename string, write func(w io.Writer) error) error {
+	tmp, err := os.CreateTemp(filepath.Dir(filename), "."+filepath.Base(filename)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // no-op after a successful rename
+	if err := write(tmp); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), filename)
 }
