@@ -1,6 +1,7 @@
 package rootmanager
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -144,7 +145,7 @@ func TestGetAgentMetricsClosesConn(t *testing.T) {
 
 	const n = 10
 	for i := 0; i < n; i++ {
-		if err := getAgentMetrics(srv.URL + "/metrics"); err != nil {
+		if err := getAgentMetrics(context.Background(), srv.URL+"/metrics"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -154,5 +155,29 @@ func TestGetAgentMetricsClosesConn(t *testing.T) {
 	}
 	if got := open.Load(); got != 0 {
 		t.Fatalf("%d of %d check connections still open", got, n)
+	}
+}
+
+// Cancelling the monitor's context stops a check without waiting for the
+// client timeout.
+func TestGetAgentMetricsHonorsContext(t *testing.T) {
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-block:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(block)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if err := getAgentMetrics(ctx, srv.URL+"/metrics"); err == nil {
+		t.Fatal("expected error")
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("check took %s after cancellation", d)
 	}
 }

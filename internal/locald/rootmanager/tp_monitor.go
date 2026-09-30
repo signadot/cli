@@ -138,7 +138,7 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) (success bool,
 		// because it has built-in retries and may re-use a connection while
 		// we are unable to establish a new connection.  So, we also check
 		// the agent-metrics endpoint.
-		if err := getAgentMetrics("http://agent-metrics.signadot.svc:9090/metrics"); err != nil {
+		if err := getAgentMetrics(ctx, "http://agent-metrics.signadot.svc:9090/metrics"); err != nil {
 			if mon.shouldRestartDueToUnhealthy() {
 				mon.log.Error("unable to reach agent-metrics, restarting services", "error", err)
 				restart = true
@@ -257,7 +257,12 @@ func (mon *tpMonitor) shouldRestartDueToUnhealthy() bool {
 
 // getAgentMetrics checks that the agent-metrics endpoint can be reached over a
 // new connection.
-func getAgentMetrics(target string) error {
+//
+// The response status is deliberately ignored: the path through the tunnel
+// is TCP-level (SOCKS5), so any HTTP response, even a 5xx, comes from
+// agent-metrics itself and shows the tunnel works. Treating it as a failure
+// would restart localnet and name resolution, which can't fix agent-metrics.
+func getAgentMetrics(ctx context.Context, target string) error {
 	cli := &http.Client{
 		// Use a fresh transport so the check opens a new connection, and
 		// disable keep-alives so that connection is closed afterwards: since
@@ -268,7 +273,11 @@ func getAgentMetrics(target string) error {
 		},
 		Timeout: 10 * time.Second,
 	}
-	resp, err := cli.Get(target)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := cli.Do(req)
 	if err != nil {
 		return err
 	}
