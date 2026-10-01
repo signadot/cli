@@ -60,7 +60,7 @@ func (c *Root) AddFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVar(&c.Debug, "debug", false, "enable debug output")
 	cmd.PersistentFlags().StringVar(&c.ConfigFile, "config", "", "config file (default is $HOME/.signadot/config.yaml)")
 	cmd.PersistentFlags().VarP(&c.OutputFormat, "output", "o", "output format (json|yaml)")
-	cmd.PersistentFlags().StringArrayVar(&c.Headers, "header", nil, "add a header to every API request, \"Name: value\" (repeatable)")
+	cmd.PersistentFlags().StringArrayVar(&c.Headers, "header", nil, "add a header to the CLI's API requests, \"Name: value\" (repeatable); not sent by the local connect daemon or the MCP client")
 	// Hidden while the use of it is still being worked out: for now it is how
 	// integrations such as the sandbox GitHub Action identify themselves.
 	cmd.PersistentFlags().MarkHidden("header")

@@ -46,7 +46,14 @@ func TestParseHeadersRefuses(t *testing.T) {
 		"no-colon":                     `want "Name: value"`,
 		": value":                      "not a valid header name",
 		"Bad Name: v":                  "not a valid header name",
-		"X-A: one\r\nX-B: two":         "cannot span lines",
+		"X-A: one\r\nX-B: two":         "control character",
+		"X-A: nul\x00here":             "control character",
+		"X-A: del\x7fhere":             "control character",
+		"X-A: tab\there is fine?":      "",
+		"Accept: text/html":            "set by the CLI",
+		"accept-encoding: gzip":        "set by the CLI",
+		"Te: trailers":                 "set by the CLI",
+		"Upgrade: websocket":           "set by the CLI",
 		"authorization: Bearer x":      "set by the CLI",
 		"Signadot-Api-Key: k":          "set by the CLI",
 		"signadot-cluster-token: t":    "set by the CLI",
@@ -54,6 +61,12 @@ func TestParseHeadersRefuses(t *testing.T) {
 		"Host: evil.example":           "set by the CLI",
 	} {
 		_, err := parseHeaders([]string{flag})
+		if want == "" {
+			if err != nil {
+				t.Errorf("%q: got %v, want it accepted", flag, err)
+			}
+			continue
+		}
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%q: got %v, want an error containing %q", flag, err, want)
 		}

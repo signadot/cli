@@ -258,7 +258,9 @@ func (a *API) GetBaseTransport() *transport.APIConfig {
 	}
 
 	// --header: only then does the SDK get an http.Client of our own, so
-	// that without it every request is exactly as before.
+	// that without it every request is exactly as before. Only clients built
+	// from this config carry the headers; the local connect daemon and the
+	// remote MCP client build their own transports and do not.
 	if len(a.ExtraHeaders) > 0 {
 		cfg.HTTPClient = &http.Client{Transport: &headerTransport{
 			inner:     http.DefaultTransport,
