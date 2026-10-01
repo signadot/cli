@@ -25,7 +25,7 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
 	github.com/signadot/go-sdk v0.3.9-0.20260914170112-3941d772bdea
-	github.com/signadot/libconnect v0.1.1-0.20260914170020-1316775e4e7d
+	github.com/signadot/libconnect v0.1.1-0.20260930143820-c97511d17fd5
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12

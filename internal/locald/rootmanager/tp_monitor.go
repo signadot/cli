@@ -138,13 +138,7 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) (success bool,
 		// because it has built-in retries and may re-use a connection while
 		// we are unable to establish a new connection.  So, we also check
 		// the agent-metrics endpoint.
-		cli := &http.Client{
-			// don't cache connections, use fresh transport
-			Transport: &http.Transport{},
-			Timeout:   10 * time.Second,
-		}
-		resp, err := cli.Get("http://agent-metrics.signadot.svc:9090/metrics")
-		if err != nil {
+		if err := getAgentMetrics(ctx, "http://agent-metrics.signadot.svc:9090/metrics"); err != nil {
 			if mon.shouldRestartDueToUnhealthy() {
 				mon.log.Error("unable to reach agent-metrics, restarting services", "error", err)
 				restart = true
@@ -152,8 +146,6 @@ func (mon *tpMonitor) checkTunnelProxyAccess(ctx context.Context) (success bool,
 				mon.log.Debug("unable to reach agent-metrics, but still in startup grace period", "error", err)
 				return false, false
 			}
-		} else {
-			resp.Body.Close()
 		}
 	}
 	if !restart {
@@ -261,4 +253,34 @@ func (mon *tpMonitor) shouldRestartDueToUnhealthy() bool {
 		return time.Since(mon.beginStarting) > mon.connectTimeout
 	}
 	return true
+}
+
+// getAgentMetrics checks that the agent-metrics endpoint can be reached over a
+// new connection.
+//
+// The response status is deliberately ignored: the path through the tunnel
+// is TCP-level (SOCKS5), so any HTTP response, even a 5xx, comes from
+// agent-metrics itself and shows the tunnel works. Treating it as a failure
+// would restart localnet and name resolution, which can't fix agent-metrics.
+func getAgentMetrics(ctx context.Context, target string) error {
+	cli := &http.Client{
+		// Use a fresh transport so the check opens a new connection, and
+		// disable keep-alives so that connection is closed afterwards: since
+		// Go 1.27, closing an unread body drains it and pools the connection,
+		// and a pooled connection in a discarded transport is never closed.
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+		Timeout: 10 * time.Second,
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := cli.Do(req)
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	return nil
 }
