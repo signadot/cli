@@ -104,6 +104,9 @@ func TestDryRunOutputIsAFixedPoint(t *testing.T) {
 // Local validation is worth having only if it reports what the API would.
 func TestDryRunClientValidates(t *testing.T) {
 	for name, tc := range map[string]struct{ doc, want string }{
+		// A document with no spec at all decodes to a nil spec, which every
+		// check after it would dereference.
+		"no spec":       {"name: sb\n", "must specify a spec"},
 		"no cluster":    {"name: sb\nspec:\n  description: nothing\n", "cluster"},
 		"unknown field": {"name: sb\nspec:\n  cluster: c\n  forkz: []\n", "unknown field"},
 		"unset var":     {"name: sb-@{missing}\nspec:\n  cluster: c\n", "missing"},

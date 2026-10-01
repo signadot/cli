@@ -61,6 +61,9 @@ func apply(cfg *config.SandboxApply, out, log io.Writer, args []string) error {
 	if err != nil {
 		return err
 	}
+	if req.Spec == nil {
+		return fmt.Errorf("sandbox must specify a spec")
+	}
 	if req.Spec.Cluster == nil {
 		return fmt.Errorf("sandbox spec must specify cluster")
 	}
@@ -176,11 +179,14 @@ func writeRenderedSpec(cfg *config.SandboxApply, out io.Writer, req *models.Sand
 	}
 }
 
-// renderedDoc is the sandbox as the API model holds it, which is exactly what
-// an apply would send: printing the decoded request rather than the document
-// that was read means the output does not depend on how the file happened to
-// spell things (a quoted port, a float the YAML reader made of an integer), and
-// that anything the decoder would drop or refuse cannot appear in it.
+// renderedDoc is the sandbox as the API model holds it, which is what an apply
+// would send apart from the fields apply fills in itself — a sandbox with local
+// workloads or forwards also carries the spec.connection.devboxID that apply
+// takes from the sandbox manager. Printing the decoded request rather than the
+// document that was read means the output does not depend on how the file
+// happened to spell things (a quoted port, a float the YAML reader made of an
+// integer), and that anything the decoder would drop or refuse cannot appear in
+// it.
 //
 // The model is taken back through JSON to plain values so it can be printed as
 // YAML. Numbers are decoded as json.Number and restored to integers where they
