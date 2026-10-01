@@ -26,7 +26,7 @@ func NewEmptyScreenComponent(title, description string, width, height int) *Empt
 		Title:       title,
 		Description: description,
 		Style:       lipgloss.NewStyle().Align(lipgloss.Center).Padding(2),
-		width:       width,
+		width:       width - 6,
 		height:      height,
 	}
 }
