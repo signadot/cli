@@ -197,7 +197,9 @@ func (s *sbmServer) portForwardStatus() *commonapi.PortForwardStatus {
 	pfst := s.portForward.Status()
 	grpcPFStatus.Health = commonapi.ToGRPCServiceHealth(&pfst.ServiceHealth)
 	if pfst.LocalPort != nil && pfst.Healthy {
-		grpcPFStatus.LocalAddress = fmt.Sprintf(":%d", *pfst.LocalPort)
+		// client-go's port-forward listens on "localhost": loopback, in
+		// whichever address families it could bind
+		grpcPFStatus.LocalAddress = fmt.Sprintf("localhost:%d", *pfst.LocalPort)
 	}
 	return grpcPFStatus
 }
@@ -210,7 +212,8 @@ func (s *sbmServer) controlPlaneProxyStatus() *commonapi.ControlPlaneProxyStatus
 	st := s.ctlPlaneProxy.Status()
 	grpcCPPStatus.Health = commonapi.ToGRPCServiceHealth(&st.ServiceHealth)
 	if st.LocalPort != nil && st.Healthy {
-		grpcCPPStatus.LocalAddress = fmt.Sprintf(":%d", *st.LocalPort)
+		// the proxy listens on 127.0.0.1 only (sandbox_manager.go)
+		grpcCPPStatus.LocalAddress = fmt.Sprintf("127.0.0.1:%d", *st.LocalPort)
 	}
 	return grpcCPPStatus
 }
