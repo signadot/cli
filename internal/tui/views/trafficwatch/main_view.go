@@ -340,22 +340,20 @@ func (m *MainView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Update focused pane
-	var cmd tea.Cmd
 	if m.state == StateWithData {
 		m.rightPane.SetFocused(m.focus == "right")
 
-		switch m.focus {
-		case "left":
-			_, cmd = m.leftPane.Update(msg)
-		case "right":
-			_, cmd = m.rightPane.Update(msg)
-		}
+		_, cmd := m.leftPane.Update(msg)
+		cmds = append(cmds, cmd)
+
+		_, cmd = m.rightPane.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	if m.state == StateLogs {
-		_, cmd = m.logsView.Update(msg)
+		_, cmd := m.logsView.Update(msg)
+		cmds = append(cmds, cmd)
 	}
-	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
