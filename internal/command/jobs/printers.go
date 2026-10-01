@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 	"sort"
-	"sync"
+	"sync/atomic"
 	"text/tabwriter"
 	"time"
 
@@ -146,9 +146,8 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 		WithDelay(delayTime).
 		WithTimeout(cfg.Timeout)
 
-	ls := &jobLogStreamer{cfg: cfg.API, outW: outW, errW: errW, jobName: jobName}
+	ls := newJobLogStreamer(cfg.API, outW, errW, jobName)
 	queuedLine := false // whether the last line printed is the "Queued" one
-	sawRunning := false
 	canceled := false
 
 	// finish handles a terminal phase, returning true if phase is terminal.
@@ -160,9 +159,13 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 			return false
 		}
 		// print any logs not yet shown: the job may have gone from queued
-		// to terminal between polls, and streams may have stopped early.
-		if phase != "canceled" || sawRunning {
-			ls.stream(ctx)
+		// to terminal between polls, and a stream may have been let go before
+		// the server ended it. A stream the server ended is not asked again:
+		// for a finished job the server ignores the cursor and replays the
+		// whole log. A canceled attempt's logs are refused, so there is
+		// nothing to drain.
+		if phase != "canceled" {
+			ls.stream(ctx, true)
 		}
 		switch phase {
 		case "failed":
@@ -208,8 +211,7 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 				clearLastLine(outW)
 				queuedLine = false
 			}
-			sawRunning = true
-			ls.stream(ctx)
+			ls.stream(ctx, false)
 
 			if j, err = getJob(cfg.Job, jobName); err == nil {
 				return finish(ctx, j)
@@ -220,54 +222,162 @@ func waitForJob(ctx context.Context, cfg *config.JobSubmit, outW, errW io.Writer
 	if err == nil && canceled {
 		err = fmt.Errorf("job %q canceled", jobName)
 	}
+	if err == nil && ctx.Err() != nil {
+		// the --timeout ran out while the last logs were being read
+		err = fmt.Errorf("timed out waiting for the logs of job %q; output may be incomplete", jobName)
+	}
 
 	return err
+}
+
+// logIdleGrace is how long a log stream may stay silent once nothing more is
+// expected of it — the other stream has ended, or the job is over — before it
+// is let go. The server does not end a stream that never had any output, so
+// without it, attaching to a job that writes only to stdout waits on stderr
+// until a gateway times the request out.
+var logIdleGrace = 3 * time.Second
+
+// logStream is one of a job's two log streams, and how far it has been read.
+type logStream struct {
+	w       io.Writer
+	logType string
+	cursor  string
+	// ended is whether the server ended the stream, so that everything it
+	// held has been shown.
+	ended bool
 }
 
 // jobLogStreamer streams a job's stdout and stderr, resuming each from where
 // it last stopped.
 type jobLogStreamer struct {
-	cfg        *config.API
-	outW, errW io.Writer
-	jobName    string
-	outCursor  string
-	errCursor  string
+	cfg      *config.API
+	jobName  string
+	idle     time.Duration // logIdleGrace, as it was when the streamer was made
+	out, err logStream
 }
 
-// stream streams stdout and stderr concurrently until both end (the server
-// ends each independently once the job has finished) or ctx is done. Errors
-// are reported to errW.
-func (ls *jobLogStreamer) stream(ctx context.Context) {
-	var wg sync.WaitGroup
-	var outErr, errErr error
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		outErr = ls.streamOne(ctx, ls.outW, utils.LogTypeStdout, &ls.outCursor)
-	}()
-	go func() {
-		defer wg.Done()
-		errErr = ls.streamOne(ctx, ls.errW, utils.LogTypeStderr, &ls.errCursor)
-	}()
-	wg.Wait()
-	if err := errors.Join(outErr, errErr); err != nil {
-		fmt.Fprintf(ls.errW, "Error getting logs: %s\n", err.Error())
+func newJobLogStreamer(cfg *config.API, outW, errW io.Writer, jobName string) *jobLogStreamer {
+	return &jobLogStreamer{
+		cfg:     cfg,
+		jobName: jobName,
+		idle:    logIdleGrace,
+		out:     logStream{w: outW, logType: utils.LogTypeStdout},
+		err:     logStream{w: errW, logType: utils.LogTypeStderr},
 	}
 }
 
-func (ls *jobLogStreamer) streamOne(ctx context.Context, w io.Writer, logType string, cursor *string) error {
+// stream streams stdout and stderr concurrently until the server ends both, or
+// ctx is done. Errors are reported to the stderr writer.
+//
+// Once one stream ends, the other is let go after the idle grace without
+// output. With drain, the job is over: only the streams the server has not
+// ended are read, each let go after the idle grace without output from the
+// start.
+func (ls *jobLogStreamer) stream(ctx context.Context, drain bool) {
+	var runs []*logRun
+	for _, s := range []*logStream{&ls.out, &ls.err} {
+		if drain && s.ended {
+			continue
+		}
+		s.ended = false
+		runs = append(runs, newLogRun(ctx, s, ls.idle))
+	}
+	if len(runs) == 0 {
+		return
+	}
+	done := make(chan *logRun, len(runs))
+	for _, r := range runs {
+		if drain {
+			go r.watch()
+		}
+		go func(r *logRun) {
+			r.err = ls.streamOne(r)
+			done <- r
+		}(r)
+	}
+	var errs []error
+	for i := range runs {
+		r := <-done
+		errs = append(errs, r.err)
+		if i == 0 && !drain {
+			// the first has ended: the other gets the grace from here
+			for _, o := range runs {
+				if o != r {
+					go o.watch()
+				}
+			}
+		}
+	}
+	for _, r := range runs {
+		r.cancel()
+	}
+	if err := errors.Join(errs...); err != nil {
+		fmt.Fprintf(ls.err.w, "Error getting logs: %s\n", err.Error())
+	}
+}
+
+func (ls *jobLogStreamer) streamOne(r *logRun) error {
 	// ShowLogs (re)initializes the API config it is given, so give each
 	// concurrent stream its own copy.
 	apiCfg := *ls.cfg
-	c, err := logs.ShowLogs(ctx, &apiCfg, w, ls.jobName, logType, *cursor, 0)
+	c, err := logs.ShowLogs(r.ctx, &apiCfg, r, ls.jobName, r.s.logType, r.s.cursor, 0)
 	if c != "" {
 		// keep progress even on error, so a retry doesn't repeat lines
-		*cursor = c
+		r.s.cursor = c
 	}
-	if ctx.Err() != nil {
-		return nil // canceled or timed out; reported by the caller
+	if r.ctx.Err() != nil {
+		// let go after the grace, or canceled or timed out (reported by
+		// the caller): not ended, and not an error
+		return nil
+	}
+	if err == nil {
+		r.s.ended = true
 	}
 	return err
+}
+
+// logRun is one read of a logStream: it writes through to the stream's writer,
+// noting when it last did, so that a watch can let it go once it has been
+// silent for the idle grace.
+type logRun struct {
+	s      *logStream
+	ctx    context.Context
+	cancel context.CancelFunc
+	idle   time.Duration
+	last   atomic.Int64 // UnixNano of the last write, or of the watch starting
+	err    error
+}
+
+func newLogRun(ctx context.Context, s *logStream, idle time.Duration) *logRun {
+	r := &logRun{s: s, idle: idle}
+	r.ctx, r.cancel = context.WithCancel(ctx)
+	r.last.Store(time.Now().UnixNano())
+	return r
+}
+
+func (r *logRun) Write(p []byte) (int, error) {
+	r.last.Store(time.Now().UnixNano())
+	return r.s.w.Write(p)
+}
+
+// watch cancels the run once it has written nothing for the idle grace,
+// counted from when the watch starts or the last write after it, and returns
+// when the run's context is done.
+func (r *logRun) watch() {
+	r.last.Store(time.Now().UnixNano())
+	tick := time.NewTicker(r.idle / 10)
+	defer tick.Stop()
+	for {
+		select {
+		case <-r.ctx.Done():
+			return
+		case <-tick.C:
+			if time.Since(time.Unix(0, r.last.Load())) >= r.idle {
+				r.cancel()
+				return
+			}
+		}
+	}
 }
 
 func clearLastLine(w io.Writer) {
