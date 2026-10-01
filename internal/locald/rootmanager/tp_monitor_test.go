@@ -1,6 +1,14 @@
 package rootmanager
 
-import "testing"
+import (
+	"context"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+	"time"
+)
 
 // TestEvalRootServerHealth is the mode matrix behind checkRootServer: health
 // must gate on the name-resolution service that is actually active for the mode
@@ -113,5 +121,63 @@ func TestEvalRootServerHealth(t *testing.T) {
 					tt.in, ok, restart, tt.wantOK, tt.wantRestart)
 			}
 		})
+	}
+}
+
+// TestGetAgentMetricsClosesConn checks that the agent-metrics check does not
+// leave its connection (and so the tunnel connection under it) open after
+// returning, even though it closes the response body without reading it.
+func TestGetAgentMetricsClosesConn(t *testing.T) {
+	var open atomic.Int32
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("# HELP some_metric\nsome_metric 1\n"))
+	}))
+	srv.Config.ConnState = func(_ net.Conn, st http.ConnState) {
+		switch st {
+		case http.StateNew:
+			open.Add(1)
+		case http.StateClosed, http.StateHijacked:
+			open.Add(-1)
+		}
+	}
+	srv.Start()
+	defer srv.Close()
+
+	const n = 10
+	for i := 0; i < n; i++ {
+		if err := getAgentMetrics(context.Background(), srv.URL+"/metrics"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for open.Load() != 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := open.Load(); got != 0 {
+		t.Fatalf("%d of %d check connections still open", got, n)
+	}
+}
+
+// Cancelling the monitor's context stops a check without waiting for the
+// client timeout.
+func TestGetAgentMetricsHonorsContext(t *testing.T) {
+	block := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-block:
+		case <-r.Context().Done():
+		}
+	}))
+	defer srv.Close()
+	defer close(block)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	if err := getAgentMetrics(ctx, srv.URL+"/metrics"); err == nil {
+		t.Fatal("expected error")
+	}
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("check took %s after cancellation", d)
 	}
 }
