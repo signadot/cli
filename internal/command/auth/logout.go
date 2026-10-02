@@ -39,13 +39,9 @@ or environment variable. To log out, you must manually unset the environment var
 or remove the API key from the configuration file.`)
 	}
 
-	var storage auth.Storage
-	if authInfo.Source == auth.PlainTextAuthSource {
-		storage = auth.NewPlainTextStorage()
-	} else {
-		storage = auth.NewKeyringStorage()
-	}
-	if err := storage.Delete(); err != nil {
+	// delete from all storages: credentials left in the other storage would
+	// otherwise become active
+	if err := auth.DeleteAll(); err != nil {
 		return fmt.Errorf("failed to delete auth info: %w", err)
 	}
 

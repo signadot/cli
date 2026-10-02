@@ -75,7 +75,7 @@ func apiKeyLogin(cfg *config.AuthLogin, out io.Writer) error {
 	} else {
 		storage = auth.NewKeyringStorage()
 	}
-	if err := storage.Store(authInfo); err != nil {
+	if err := auth.StoreExclusive(storage, authInfo); err != nil {
 		spin.StopFail()
 		return fmt.Errorf("failed to store auth info: %w", err)
 	}
@@ -125,7 +125,7 @@ func bearerTokenLogin(cfg *config.AuthLogin, out io.Writer) error {
 	} else {
 		storage = auth.NewKeyringStorage()
 	}
-	if err := storage.Store(authInfo); err != nil {
+	if err := auth.StoreExclusive(storage, authInfo); err != nil {
 		return fmt.Errorf("failed to store auth info: %w", err)
 	}
 	return nil
