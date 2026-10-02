@@ -74,22 +74,16 @@ func (s *Server) Run(ctx context.Context) error {
 	s.tools.Setup()
 
 	// Start remote metadata monitoring in the background
-	initCh := make(chan struct{})
-	s.remoteManager.SetCallback(func(ctx context.Context, meta *remote.Meta) {
-		s.OnMetaChange(ctx, meta)
-		select {
-		case <-initCh:
-		default:
-			close(initCh)
-		}
-	})
+	s.remoteManager.SetCallback(s.OnMetaChange)
 	go s.remoteManager.Run(ctx, 30*time.Second)
 
-	// Wait until the remote metadata is initialized to run the mcp server
-	// (avoid sending tools/list_changed notifications before the remote
-	// metadata is available)
+	// Wait for the first remote metadata fetch attempt before running the
+	// mcp server (avoid sending tools/list_changed notifications right after
+	// startup). If it failed (offline, hosted MCP unavailable), run anyway
+	// with the local tools: remote tools are added once a later fetch
+	// succeeds.
 	select {
-	case <-initCh:
+	case <-s.remoteManager.FirstFetchDone():
 	case <-ctx.Done():
 		return ctx.Err()
 	}
