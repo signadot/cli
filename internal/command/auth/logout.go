@@ -27,6 +27,16 @@ func newLogout(cfg *config.Auth) *cobra.Command {
 
 func runLogout(cfg *config.AuthLogout, out io.Writer) error {
 	authInfo, err := auth.ResolveAuth()
+	if errors.Is(err, auth.ErrInvalidCredentialsFile) {
+		// Logging out is forgetting the credentials, so an unreadable file
+		// is removed rather than left to block the one command that clears it.
+		if err := auth.NewPlainTextStorage().Delete(); err != nil {
+			return fmt.Errorf("failed to remove the invalid credentials file: %w", err)
+		}
+		green := color.New(color.FgGreen).SprintFunc()
+		fmt.Fprintf(out, "%s Removed an invalid credentials file; logged out\n", green("✓"))
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("could not resolve auth: %w", err)
 	}

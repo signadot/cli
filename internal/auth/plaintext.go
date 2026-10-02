@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,11 +43,22 @@ func storeAuthInPlainText(auth *Auth) error {
 		tmp.Close()
 		return err
 	}
+	// on disk before it is renamed into place, so a crash cannot leave an
+	// empty credentials file behind the rename
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return err
+	}
 	if err := tmp.Close(); err != nil {
 		return err
 	}
 	return os.Rename(tmp.Name(), credentialsPath)
 }
+
+// ErrInvalidCredentialsFile is a plain-text credentials file that cannot be
+// read as credentials. It is kept, since it may be valid credentials this CLI
+// failed to read; logging out removes it.
+var ErrInvalidCredentialsFile = errors.New("invalid credentials file")
 
 func getAuthFromPlainText() (*Auth, error) {
 	signadotDir, err := system.GetSignadotDir()
@@ -69,8 +81,8 @@ func getAuthFromPlainText() (*Auth, error) {
 	if err := json.Unmarshal(authJson, &auth); err != nil {
 		// Don't delete the file: it may be valid credentials we failed to
 		// read (e.g. an older CLI writing it non-atomically).
-		return nil, fmt.Errorf("invalid credentials file %s (run 'signadot auth login' to replace it): %w",
-			credentialsPath, err)
+		return nil, fmt.Errorf("%w %s (run 'signadot auth login' to replace it): %w",
+			ErrInvalidCredentialsFile, credentialsPath, err)
 	}
 
 	return &auth, nil
