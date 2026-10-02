@@ -64,17 +64,13 @@ func runConnect(cmd *cobra.Command, out io.Writer, cfg *config.LocalConnect, arg
 		return err
 	}
 
-	// Check if the corresponding manager is already running this gives fail
-	// fast response and is safe to return an error here, but the check is _not_
-	// used to assume that we have the lock later on when starting.
+	// Check if either manager is already running: there can be at most one
+	// connect per machine, privileged or not. This gives fail fast response
+	// and is safe to return an error here, but the check is _not_ used to
+	// assume that we have the lock later on when starting.
 	withRootManager := !cfg.Unprivileged
-	pidFile := config.GetLocaldPIDfile(signadotDir, withRootManager)
-	isRunning, err := processes.IsDaemonRunning(pidFile)
-	if err != nil {
+	if err := checkNotConnected(signadotDir); err != nil {
 		return err
-	}
-	if isRunning {
-		return fmt.Errorf("signadot is already connected")
 	}
 
 	// We will pass the connConfig to rootmanager and sandboxmanager
@@ -449,4 +445,19 @@ func getLogger(ciConfig *config.ConnectInvocationConfig) (*slog.Logger, error) {
 		Level: logLevel,
 	}))
 	return log, nil
+}
+
+// checkNotConnected returns an error if either local daemon (root manager or
+// sandbox manager) is running.
+func checkNotConnected(signadotDir string) error {
+	for _, isRoot := range []bool{true, false} {
+		isRunning, err := processes.IsDaemonRunning(config.GetLocaldPIDfile(signadotDir, isRoot))
+		if err != nil {
+			return err
+		}
+		if isRunning {
+			return fmt.Errorf("signadot is already connected")
+		}
+	}
+	return nil
 }

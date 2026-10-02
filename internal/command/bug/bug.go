@@ -34,21 +34,24 @@ var (
 	pause     = 5 * time.Second
 )
 
+// BugConfig is the information printed for a bug report. The API config is
+// a named field: embedded, its MarshalJSON would be promoted and drop the
+// other fields.
 type BugConfig struct {
-	*config.API
-	BuildInfo string
-	Error     error `json:"error,omitempty"`
+	Config    *config.API `json:"config"`
+	BuildInfo string      `json:"buildInfo"`
+	Error     string      `json:"error,omitempty"`
 }
 
 func bug(cfg *config.API, out, log io.Writer, args []string) error {
 	// report error on api config init instead of bailing out
 	bugCfg := &BugConfig{
-		API:       cfg,
+		Config:    cfg,
 		BuildInfo: buildinfo.String(),
 	}
 	err := cfg.InitAPIConfig()
 	if err != nil {
-		bugCfg.Error = err
+		bugCfg.Error = err.Error()
 	}
 	d, e := json.MarshalIndent(bugCfg, "", "  ")
 	if e != nil {

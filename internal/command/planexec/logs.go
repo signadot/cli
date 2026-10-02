@@ -87,7 +87,7 @@ func runLogs(cfg *config.PlanExecLogs, out, log io.Writer, args []string) error 
 	case cfg.Follow:
 		// Live streaming requires an active runner; warn if the execution
 		// already terminated (the runner is gone, logs are captured instead).
-		if terminal, phase, err := execTerminalPhase(cfg, execID); err != nil {
+		if terminal, phase, err := execTerminalPhase(context.Background(), cfg.API, execID); err != nil {
 			return err
 		} else if terminal {
 			return fmt.Errorf("execution is %s; live logs are unavailable. Omit -f to read captured logs", phase)
@@ -95,7 +95,13 @@ func runLogs(cfg *config.PlanExecLogs, out, log io.Writer, args []string) error 
 		ctx, cancel := signal.NotifyContext(context.Background(),
 			os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 		defer cancel()
-		return showPlanLogs(ctx, cfg.API, out, execID, stepID, cfg.Stream, int(cfg.TailLines))
+		return FollowLiveLogs(ctx, cfg.API, execID, LiveLogOptions{
+			StepID:    stepID,
+			Stream:    cfg.Stream,
+			TailLines: int(cfg.TailLines),
+		}, func(r io.Reader) (string, error) {
+			return print.ParseSSEStream(r, out)
+		})
 	case cfg.All:
 		return bulkExportLogs(cfg, log, execID)
 	case stepID != "":
@@ -294,67 +300,6 @@ func bulkExportLogs(cfg *config.PlanExecLogs, log io.Writer, execID string) erro
 		})
 }
 
-// --- Live streaming (follow) ---
-
-func showPlanLogs(ctx context.Context, cfg *config.API, out io.Writer, execID, stepID, stream string, tailLines int) error {
-	transportCfg := cfg.GetBaseTransport()
-	transportCfg.Consumers = map[string]runtime.Consumer{
-		"text/event-stream": runtime.ByteStreamConsumer(),
-	}
-
-	return cfg.APIClientWithCustomTransport(transportCfg,
-		func(c *client.SignadotAPI) error {
-			reader, writer := io.Pipe()
-
-			errch := make(chan error, 2)
-
-			go func() {
-				_, err := print.ParseSSEStream(reader, out)
-				if errors.Is(err, io.ErrClosedPipe) {
-					err = nil
-				}
-				reader.Close()
-				errch <- err
-			}()
-
-			go func() {
-				var err error
-				if stepID != "" {
-					params := planlogs.NewStreamPlanExecutionStepLogsParams().
-						WithContext(ctx).
-						WithTimeout(0).
-						WithOrgName(cfg.Org).
-						WithExecutionID(execID).
-						WithStepID(stepID).
-						WithStream(stream)
-					if tailLines > 0 {
-						tl := int64(tailLines)
-						params.WithTailLines(&tl)
-					}
-					_, err = c.PlanExecutionLogs.StreamPlanExecutionStepLogs(params, nil, writer)
-				} else {
-					params := planlogs.NewStreamPlanExecutionLogsParams().
-						WithContext(ctx).
-						WithTimeout(0).
-						WithOrgName(cfg.Org).
-						WithExecutionID(execID)
-					if tailLines > 0 {
-						tl := int64(tailLines)
-						params.WithTailLines(&tl)
-					}
-					_, err = c.PlanExecutionLogs.StreamPlanExecutionLogs(params, nil, writer)
-				}
-				if errors.Is(err, io.ErrClosedPipe) {
-					err = nil
-				}
-				writer.Close()
-				errch <- err
-			}()
-
-			return errors.Join(<-errch, <-errch)
-		})
-}
-
 // --- Captured log listing ---
 
 type logEntry struct {
@@ -443,8 +388,9 @@ func validatePathComponent(name string) error {
 
 // execTerminalPhase fetches the execution and reports whether it has reached
 // a terminal phase (completed, failed, cancelled).
-func execTerminalPhase(cfg *config.PlanExecLogs, execID string) (bool, models.PlansExecutionPhase, error) {
+func execTerminalPhase(ctx context.Context, cfg *config.API, execID string) (bool, models.PlansExecutionPhase, error) {
 	params := planexecs.NewGetPlanExecutionParams().
+		WithContext(ctx).
 		WithOrgName(cfg.Org).
 		WithExecutionID(execID)
 	resp, err := cfg.Client.PlanExecutions.GetPlanExecution(params, nil)

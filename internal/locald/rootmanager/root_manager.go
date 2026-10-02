@@ -132,7 +132,7 @@ func (m *rootManager) cleanup() error {
 }
 
 func (m *rootManager) runAPIServer(ctx context.Context) error {
-	addr := fmt.Sprintf(":%d", m.ciConfig.LocalNetPort)
+	addr := fmt.Sprintf("127.0.0.1:%d", m.ciConfig.LocalNetPort)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("error running api server: could not listen on %s: %w", addr, err)

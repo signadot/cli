@@ -69,7 +69,7 @@ The request (and response) contains the wire format
 }
 
 func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string,
-	w, wErr io.Writer, args []string) error {
+	w, wErr io.Writer, args []string) (retErr error) {
 	ctx, _ := signal.NotifyContext(rootCtx,
 		os.Interrupt, syscall.SIGTERM, syscall.SIGTERM, syscall.SIGHUP)
 	// set a timeout of 1h
@@ -121,8 +121,8 @@ func record(rootCtx context.Context, cfg *config.TrafficWatch, defaultDir string
 		return err
 	}
 
-	// NOTE we should keep the single 'retErr' from here down
-	var retErr error
+	// NOTE we should keep the single (named return) 'retErr' from here down,
+	// so that errors from undo are reported
 	defer func() {
 		retErr = errors.Join(retErr, undo(rootCtx, w))
 	}()

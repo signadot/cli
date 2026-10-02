@@ -33,6 +33,7 @@ func recompile(cfg *config.PlanRecompile, out, log io.Writer, planID string) err
 	}
 
 	params := sdkplans.NewRecompilePlanParams().
+		WithTimeout(compileTimeout).
 		WithOrgName(cfg.Org).
 		WithPlanID(planID)
 	resp, err := cfg.Client.Plans.RecompilePlan(params, nil)

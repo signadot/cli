@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/signadot/cli/internal/command/plantag"
 	"github.com/signadot/cli/internal/config"
@@ -52,6 +53,7 @@ func compile(cfg *config.PlanCompile, out, log io.Writer) error {
 	}
 
 	params := sdkplans.NewCompilePlanParams().
+		WithTimeout(compileTimeout).
 		WithOrgName(cfg.Org).
 		WithData(&models.PlanCompileInput{
 			Prompt:        prompt,
@@ -83,3 +85,8 @@ func compile(cfg *config.PlanCompile, out, log io.Writer) error {
 		return fmt.Errorf("unsupported output format: %q", cfg.OutputFormat)
 	}
 }
+
+// compileTimeout bounds compile/recompile requests. The server compiles
+// synchronously with an LLM, which often takes longer than the default 30s
+// request timeout (on which the server cancels the compile).
+const compileTimeout = 5 * time.Minute

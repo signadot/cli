@@ -85,8 +85,10 @@ func collectAllOutputs(ex *models.PlanExecution) []allOutput {
 		return nil
 	}
 
-	// Track plan-level output names to avoid duplicating them in step section.
-	planOutputNames := map[string]bool{}
+	// Track the step outputs that plan-level outputs refer to, to avoid
+	// duplicating them in the step section. A plan output may have a
+	// different name than the step output it refers to.
+	planOutputRefs := map[string]bool{}
 	var all []allOutput
 
 	// Plan-level outputs.
@@ -94,8 +96,8 @@ func collectAllOutputs(ex *models.PlanExecution) []allOutput {
 		step := ""
 		if o.StepRef != nil {
 			step = o.StepRef.StepID
+			planOutputRefs[step+"/"+o.StepRef.OutputName] = true
 		}
-		planOutputNames[step+"/"+o.Name] = true
 		all = append(all, allOutput{
 			Name:  o.Name,
 			Step:  step,
@@ -110,7 +112,7 @@ func collectAllOutputs(ex *models.PlanExecution) []allOutput {
 	for _, s := range ex.Status.Steps {
 		for _, o := range s.Outputs {
 			key := s.ID + "/" + o.Name
-			if planOutputNames[key] {
+			if planOutputRefs[key] {
 				continue
 			}
 			all = append(all, allOutput{

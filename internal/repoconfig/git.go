@@ -20,6 +20,10 @@ func FindGitRepo(startPath string) (*GitRepo, error) {
 	// Open the repository with dot git detection
 	repo, err := git.PlainOpenWithOptions(startPath, &git.PlainOpenOptions{
 		DetectDotGit: true,
+		// needed to resolve HEAD and refs in linked worktrees
+		// (git worktree add), whose .git is a file pointing at the
+		// common dir
+		EnableDotGitCommonDir: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("not a git repository (or any parent up to mount point %s): %w",
@@ -45,15 +49,12 @@ func FindGitRepo(startPath string) (*GitRepo, error) {
 	}
 
 	var remoteURL string
-	if len(remotes) > 0 {
-		// Use the first remote's URL
-		remoteURL = remotes[0].Config().URLs[0]
-
+	if u := pickRemoteURL(remotes); u != "" {
 		// Normalize the URL
 		// E.g.:
 		// git@github.com:signadot/cli.git -> github.com/signadot/cli
 		// https://github.com/signadot/cli -> github.com/signadot/cli
-		remoteURL, err = normalizeGitRepo(remoteURL)
+		remoteURL, err = normalizeGitRepo(u)
 		if err != nil {
 			return nil, fmt.Errorf("could not normalize git remote URL: %w", err)
 		}
@@ -65,6 +66,30 @@ func FindGitRepo(startPath string) (*GitRepo, error) {
 		Branch:    head.Name().Short(),
 		CommitSHA: head.Hash().String(),
 	}, nil
+}
+
+// pickRemoteURL deterministically picks the URL identifying the repo:
+// "origin" if it exists, otherwise the first remote by name. Remotes without
+// a URL are ignored. go-git returns remotes in map order, so remotes[0] is
+// not stable.
+func pickRemoteURL(remotes []*git.Remote) string {
+	var (
+		name string
+		url  string
+	)
+	for _, r := range remotes {
+		cfg := r.Config()
+		if len(cfg.URLs) == 0 {
+			continue
+		}
+		if cfg.Name == git.DefaultRemoteName {
+			return cfg.URLs[0]
+		}
+		if url == "" || cfg.Name < name {
+			name, url = cfg.Name, cfg.URLs[0]
+		}
+	}
+	return url
 }
 
 // GetRelativePathFromGitRoot returns the relative path of a directory within

@@ -81,7 +81,8 @@ func (a *API) init() error {
 	if authInfo == nil || (authInfo.APIKey == "" && authInfo.BearerToken == "") {
 		return ErrAuthNoFound
 	}
-	if authInfo.ExpiresAt != nil && authInfo.ExpiresAt.Before(time.Now()) && authInfo.Source != auth.KeyringAuthSource {
+	storedAuth := auth.StorageFor(authInfo.Source) != nil
+	if authInfo.ExpiresAt != nil && authInfo.ExpiresAt.Before(time.Now()) && !storedAuth {
 		return ErrAuthExpired
 	}
 	if authInfo.OrgName == "" {
@@ -93,8 +94,8 @@ func (a *API) init() error {
 		return err
 	}
 
-	if authInfo.Source == auth.KeyringAuthSource {
-		if err := a.checkKeyringAuth(authInfo); err != nil {
+	if storedAuth {
+		if err := a.checkStoredAuth(authInfo); err != nil {
 			return err
 		}
 	}
@@ -105,7 +106,7 @@ func (a *API) init() error {
 	return nil
 }
 
-func (a *API) checkKeyringAuth(authInfo *auth.ResolvedAuth) error {
+func (a *API) checkStoredAuth(authInfo *auth.ResolvedAuth) error {
 
 	// If the auth is expired, we need to refresh the token
 	if authInfo.ExpiresAt != nil && time.Now().After(*authInfo.ExpiresAt) {
@@ -113,7 +114,7 @@ func (a *API) checkKeyringAuth(authInfo *auth.ResolvedAuth) error {
 			return ErrAuthExpired
 		}
 
-		newAuthInfo, err := a.refreshKeyringAuth(authInfo)
+		newAuthInfo, err := a.refreshStoredAuth(authInfo)
 		if err != nil {
 			return err
 		}
@@ -142,7 +143,7 @@ func (a *API) GetBearerToken() (string, error) {
 	return a.BearerToken, nil
 }
 
-func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error) {
+func (a *API) refreshStoredAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAuth, error) {
 	if err := a.InitUnauthAPIConfig(); err != nil {
 		return nil, err
 	}
@@ -158,7 +159,11 @@ func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAut
 
 	expiresAt := time.Now().Add(time.Duration(resp.Payload.ExpiresIn) * time.Second)
 	authInfo.BearerToken = resp.Payload.AccessToken
-	authInfo.RefreshToken = resp.Payload.RefreshToken
+	if resp.Payload.RefreshToken != "" {
+		// without rotation, the server may not return a refresh token; keep
+		// the current one then
+		authInfo.RefreshToken = resp.Payload.RefreshToken
+	}
 	authInfo.ExpiresAt = &expiresAt
 
 	newAuthInfo := auth.Auth{
@@ -170,13 +175,7 @@ func (a *API) refreshKeyringAuth(authInfo *auth.ResolvedAuth) (*auth.ResolvedAut
 	}
 
 	// Store updated auth in the same location as the original
-	var storage auth.Storage
-	if authInfo.Source == auth.PlainTextAuthSource {
-		storage = auth.NewPlainTextStorage()
-	} else {
-		storage = auth.NewKeyringStorage()
-	}
-	if err := storage.Store(&newAuthInfo); err != nil {
+	if err := auth.StorageFor(authInfo.Source).Store(&newAuthInfo); err != nil {
 		return nil, fmt.Errorf("failed to store refreshed auth: %w", err)
 	}
 
