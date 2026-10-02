@@ -59,10 +59,12 @@ func NewOverrideLogArg(logListenerPort int) (*MiddlewareOverrideArg, error) {
 	}
 
 	applyInternal := func(sb *SandboxBuilder, overrideName string) *models.SandboxesArgument {
+		// to 127.0.0.1, where the log server listens (override/log_server.go):
+		// "localhost" may resolve to ::1 only
 		routing := &models.SandboxesForward{
 			Name:    getLogForwardName(overrideName),
 			Port:    7777,
-			ToLocal: "localhost:" + strconv.FormatInt(int64(logListenerPort), 10),
+			ToLocal: "127.0.0.1:" + strconv.FormatInt(int64(logListenerPort), 10),
 		}
 
 		sb.internal.Spec.Routing.Forwards = append(sb.internal.Spec.Routing.Forwards, routing)
