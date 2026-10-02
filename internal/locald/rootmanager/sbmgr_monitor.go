@@ -80,6 +80,9 @@ func (mon *sbmgrMonitor) run() {
 		procPID  int
 	)
 	defer ticker.Stop()
+	// stop() waits for this on every exit path, including fatal errors:
+	// otherwise shutdown blocks forever and networking is never restored.
+	defer close(mon.doneAck)
 	for {
 		mon.log.Debug("sbmgr monitor: starting sandbox-manager cmd")
 		cmd, err = mon.getRunSandboxCmd(mon.ciConfig)
@@ -117,12 +120,10 @@ func (mon *sbmgrMonitor) run() {
 			// and ticker race
 			select {
 			case <-mon.done:
-				close(mon.doneAck)
 				return
 			default:
 			}
 		case <-mon.done:
-			close(mon.doneAck)
 			return
 		}
 	}

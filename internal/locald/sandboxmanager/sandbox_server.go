@@ -101,7 +101,10 @@ func (s *sbmServer) Shutdown(ctx context.Context, req *sbapi.ShutdownRequest) (*
 }
 
 func (s *sbmServer) GetResourceOutputs(ctx context.Context, req *sbapi.GetResourceOutputsRequest) (*sbapi.GetResourceOutputsResponse, error) {
-	tac := s.sbmWatcher.tunAPIClient
+	tac := s.sbmWatcher.getTunAPIClient()
+	if tac == nil {
+		return nil, status.Error(codes.Unavailable, "not connected to the cluster yet")
+	}
 	tunReq := &apiv1.GetResourceOutputsRequest{
 		SandboxRoutingKey: req.SandboxRoutingKey,
 	}
