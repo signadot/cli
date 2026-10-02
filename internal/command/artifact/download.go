@@ -6,9 +6,7 @@ import (
 	"io"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -50,16 +48,17 @@ func download(ctx context.Context, cfg *config.ArtifactDownload, out io.Writer, 
 		artifactPath = strings.TrimPrefix(artifactPath, "@")
 	}
 
-	// Bound the time until the download starts, but not the download itself
-	// (large artifacts can take longer than any fixed timeout).
+	// Bound how long the download may go without data — before it starts,
+	// and between writes once it has — but not the download itself: large
+	// artifacts can take longer than any fixed timeout.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var startTimedOut atomic.Bool
-	startTimer := time.AfterFunc(downloadStartTimeout, func() {
-		startTimedOut.Store(true)
+	var idleTimedOut atomic.Bool
+	idleTimer := time.AfterFunc(downloadIdleTimeout, func() {
+		idleTimedOut.Store(true)
 		cancel()
 	})
-	defer startTimer.Stop()
+	defer idleTimer.Stop()
 
 	params := artifacts.
 		NewDownloadJobAttemptArtifactParams().
@@ -80,15 +79,19 @@ func download(ctx context.Context, cfg *config.ArtifactDownload, out io.Writer, 
 
 	return cfg.APIClientWithCustomTransport(transportCfg,
 		func(c *client.SignadotAPI) error {
-			err := writeFileAtomic(outputFilename, func(w io.Writer) error {
-				w = &firstWriteWriter{Writer: w, onFirst: func() { startTimer.Stop() }}
-				_, _, err := c.Artifacts.DownloadJobAttemptArtifact(params, nil, w)
-				return err
-			})
+			f := &outputFile{name: outputFilename, onWrite: func() { idleTimer.Reset(downloadIdleTimeout) }}
+			_, _, err := c.Artifacts.DownloadJobAttemptArtifact(params, nil, f)
 			if err != nil {
-				if startTimedOut.Load() {
-					return fmt.Errorf("download did not start within %s: %w", downloadStartTimeout, err)
+				f.abandon()
+				switch {
+				case idleTimedOut.Load() && f.f != nil:
+					return fmt.Errorf("download stalled: no data for %s: %w", downloadIdleTimeout, err)
+				case idleTimedOut.Load():
+					return fmt.Errorf("download did not start within %s: %w", downloadIdleTimeout, err)
 				}
+				return err
+			}
+			if err := f.finish(); err != nil {
 				return err
 			}
 
@@ -97,45 +100,49 @@ func download(ctx context.Context, cfg *config.ArtifactDownload, out io.Writer, 
 		})
 }
 
-const downloadStartTimeout = 4 * time.Minute
+// downloadIdleTimeout is how long a download may go without data.
+var downloadIdleTimeout = 4 * time.Minute
 
-// writeFileAtomic writes filename with the content produced by write, via a
-// temporary file in the same directory, so that on failure an existing file
-// is left untouched and no partial file is left behind.
-func writeFileAtomic(filename string, write func(w io.Writer) error) error {
-	mode := os.FileMode(0644)
-	if fi, err := os.Stat(filename); err == nil {
-		mode = fi.Mode().Perm()
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(filename), "."+filepath.Base(filename)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp.Name()) // no-op after a successful rename
-	if err := write(tmp); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Chmod(mode); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(tmp.Name(), filename)
+// outputFile is the output file, opened the way -o says — os.Create on the
+// name, through whatever it is (a symlink, a device, a pipe) — when the first
+// byte arrives. So a request that fails before any data leaves an existing
+// file as it was, and one that fails partway leaves what arrived.
+type outputFile struct {
+	name    string
+	onWrite func()
+	f       *os.File
 }
 
-// firstWriteWriter calls onFirst before the first write.
-type firstWriteWriter struct {
-	io.Writer
-	onFirst func()
-	once    sync.Once
+func (o *outputFile) Write(p []byte) (int, error) {
+	o.onWrite()
+	if o.f == nil {
+		f, err := os.Create(o.name)
+		if err != nil {
+			return 0, err
+		}
+		o.f = f
+	}
+	return o.f.Write(p)
 }
 
-func (w *firstWriteWriter) Write(p []byte) (int, error) {
-	w.once.Do(w.onFirst)
-	return w.Writer.Write(p)
+// finish closes the file after a download that succeeded, creating it first
+// when the artifact was empty.
+func (o *outputFile) finish() error {
+	if o.f == nil {
+		f, err := os.Create(o.name)
+		if err != nil {
+			return err
+		}
+		o.f = f
+	}
+	return o.f.Close()
+}
+
+// abandon closes the file after a download that failed, keeping what arrived.
+func (o *outputFile) abandon() {
+	if o.f != nil {
+		o.f.Close()
+	}
 }
 
 func getOutputFilename(cfg *config.ArtifactDownload, artifactPath string) string {
