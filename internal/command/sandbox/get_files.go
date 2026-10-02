@@ -82,16 +82,8 @@ func getFiles(cfg *config.SandboxGetFiles, out, errOut io.Writer, name string) e
 		if err != nil {
 			return err
 		}
-		_, err = os.Stat(baseDir)
-		if err == nil {
-			err := os.RemoveAll(baseDir)
-			if err != nil {
-				return err
-			}
-		} else {
-			if !os.IsNotExist(err) {
-				return err
-			}
+		if err := resetDefaultOutputDir(baseDir, cfg.NoClobber); err != nil {
+			return err
 		}
 		cfg.OutputDir = baseDir
 	}
@@ -260,6 +252,20 @@ func overrideFileValueFrom(ctx context.Context, kubeClient client.Client, child 
 	default:
 		return fmt.Errorf("no definition for path %s: %#v", fileOp.Path, vf)
 	}
+}
+
+// resetDefaultOutputDir removes the previous contents of the default output
+// directory, unless noClobber is set: then existing files are kept (and
+// skipped when exporting).
+func resetDefaultOutputDir(baseDir string, noClobber bool) error {
+	if noClobber {
+		return nil
+	}
+	err := os.RemoveAll(baseDir)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func noClobber(errOut io.Writer, files *k8senv.Files, base string) (bool, error) {

@@ -43,7 +43,7 @@ func (c *SecretUpdate) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&c.Value, "value", "", "new secret value as a literal string (leaks into shell history)")
 	cmd.Flags().StringVar(&c.ValueFile, "value-file", "", "path to a file whose contents become the new secret value")
 	cmd.Flags().BoolVar(&c.ValueStdin, "value-stdin", false, "read the new secret value from stdin")
-	cmd.Flags().StringVar(&c.Description, "description", "", "new human-readable description")
+	cmd.Flags().StringVar(&c.Description, "description", "", "new human-readable description (default: keep the current one)")
 	cmd.Flags().StringVarP(&c.Filename, "filename", "f", "", "YAML or JSON file containing the secret (fields: name, value, description)")
 	cmd.Flags().Var(&c.TemplateVals, "set", "--set var=val (used with -f)")
 }

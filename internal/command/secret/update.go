@@ -18,7 +18,7 @@ func newUpdate(secret *config.Secret) *cobra.Command {
 		Short: "Update an existing secret (value is required)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return update(cfg, cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
+			return update(cfg, cmd.Flags().Changed("description"), cmd.OutOrStdout(), cmd.ErrOrStderr(), args)
 		},
 	}
 
@@ -26,7 +26,8 @@ func newUpdate(secret *config.Secret) *cobra.Command {
 	return cmd
 }
 
-func update(cfg *config.SecretUpdate, out, log io.Writer, args []string) error {
+// descriptionSet reports whether --description was given (possibly empty).
+func update(cfg *config.SecretUpdate, descriptionSet bool, out, log io.Writer, args []string) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
@@ -49,6 +50,19 @@ func update(cfg *config.SecretUpdate, out, log io.Writer, args []string) error {
 	}
 	if s.Value == "" {
 		return errors.New("value is required; supply one of --value / --value-file / --value-stdin, or a file with -f")
+	}
+
+	// The update replaces the description, so keep the current one unless
+	// a new one was given (with -f, the file is the whole secret).
+	if cfg.Filename == "" && !descriptionSet {
+		getParams := sdksecrets.NewGetSecretParams().
+			WithOrgName(cfg.Org).
+			WithSecretName(s.Name)
+		cur, err := cfg.Client.Secrets.GetSecret(getParams, nil)
+		if err != nil {
+			return err
+		}
+		s.Description = cur.Payload.Description
 	}
 
 	params := sdksecrets.NewUpdateSecretParams().

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/signadot/cli/internal/config"
@@ -57,6 +58,12 @@ func register(cfg *config.DevboxRegister, out, log io.Writer) error {
 			existingID = string(data)
 			fmt.Fprintf(log, "Warning: devbox ID file already exists (ID: %s). It will be overwritten.\n", existingID)
 		}
+	}
+
+	// Make sure the ID can be saved before registering (the signadot dir
+	// doesn't exist yet when auth only comes from the environment).
+	if err := os.MkdirAll(filepath.Dir(idFile), 0755); err != nil {
+		return fmt.Errorf("failed to create directory for devbox ID: %w", err)
 	}
 
 	// Register the devbox

@@ -34,6 +34,7 @@ type readiness struct {
 	ready  bool
 
 	done, doneAck chan struct{}
+	doneOnce      sync.Once
 
 	interval time.Duration
 	fn       func() (ready bool, warn, fatal error)
@@ -47,12 +48,7 @@ func (r *readiness) run(ctx context.Context) {
 		ready, warn, fatal := r.fn()
 		if fatal != nil {
 			r.fatalC <- fatal
-			select {
-			case <-r.done:
-				return
-			default:
-				close(r.done)
-			}
+			r.closeDone()
 			return
 		}
 		r.add(ready, warn)
@@ -103,12 +99,14 @@ func (r *readiness) Ready() bool {
 }
 
 func (r *readiness) Stop() {
-	select {
-	case <-r.done:
-	default:
-		close(r.done)
-	}
+	r.closeDone()
 	<-r.doneAck
+}
+
+// closeDone closes done once: run (on a fatal error) and Stop may race to
+// close it.
+func (r *readiness) closeDone() {
+	r.doneOnce.Do(func() { close(r.done) })
 }
 
 func (r *readiness) Stopped() <-chan struct{} {
