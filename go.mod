@@ -25,14 +25,14 @@ require (
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
 	github.com/signadot/go-sdk v0.3.9-0.20260914170112-3941d772bdea
-	github.com/signadot/libconnect v0.1.1-0.20260930143820-c97511d17fd5
+	github.com/signadot/libconnect v0.1.1-0.20261029130001-02439954480c
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
 	github.com/theckman/yacspin v0.13.12
 	github.com/xeonx/timeago v1.0.0-rc5
 	github.com/zalando/go-keyring v0.2.6
-	golang.org/x/net v0.59.0
-	golang.org/x/term v0.46.0
+	golang.org/x/net v0.62.0
+	golang.org/x/term v0.47.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -159,14 +159,14 @@ require (
 	go.opentelemetry.io/otel/metric v1.44.0 // indirect
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.23.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
-	golang.org/x/tools v0.50.0 // indirect
+	golang.org/x/tools v0.51.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260911204522-f61a6ca850bd // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
