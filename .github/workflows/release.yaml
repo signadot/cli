@@ -4,8 +4,6 @@ on:
     tags:
     - 'v[0-9]+.[0-9]+.[0-9]'
     - 'v[0-9]+.[0-9]+.[0-9]+-xrc.[0-9]+'
-env:
-  GO_VERSION: "1.27"
 
 jobs:
   release-cli:
@@ -22,11 +20,22 @@ jobs:
         # tags, needed to choose a version number to embed.
         fetch-depth: 0
 
+    - name: Read the Go version
+      id: go-version
+      run: |
+        version=$(sed -nE 's/^FROM golang:([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' .github/go/Dockerfile)
+        # An empty go-version makes setup-go fall back to whatever Go the runner
+        # has preinstalled, so fail rather than release with an unknown toolchain.
+        if [ -z "$version" ]; then
+          echo "::error::could not read an exact Go version from .github/go/Dockerfile"
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
     - name: Set up Go
       uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
       with:
-        go-version: ${{ env.GO_VERSION }}
-        check-latest: true
+        go-version: ${{ steps.go-version.outputs.version }}
 
     - name: Prepare for GOPRIVATE
       run: |
