@@ -1,4 +1,4 @@
-package usage
+package subscription
 
 import (
 	"io"
@@ -22,7 +22,7 @@ func printUsageTable(out io.Writer, resp *models.UsageResponse) error {
 	t.AddHeader()
 	for _, it := range resp.Items {
 		t.AddRow(usageRow{
-			Name:    name(it),
+			Name:    usageName(it),
 			Kind:    string(it.Kind),
 			Used:    strconv.FormatInt(it.Used, 10),
 			Cap:     capCell(it),
@@ -33,9 +33,9 @@ func printUsageTable(out io.Writer, resp *models.UsageResponse) error {
 	return t.Flush()
 }
 
-// name prefers the human display name, falling back to the stable id so a row
-// is never blank.
-func name(it *models.UsageItem) string {
+// usageName prefers the human display name, falling back to the stable id so a
+// row is never blank.
+func usageName(it *models.UsageItem) string {
 	if it.DisplayName != "" {
 		return it.DisplayName
 	}

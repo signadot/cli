@@ -1,4 +1,4 @@
-package usage
+package subscription
 
 import (
 	"fmt"
@@ -10,12 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func New(api *config.API) *cobra.Command {
-	cfg := &config.Usage{API: api}
+func newUsage(sub *config.Subscription) *cobra.Command {
+	cfg := &config.SubscriptionUsage{Subscription: sub}
 
 	cmd := &cobra.Command{
 		Use:   "usage",
-		Short: "Show plan quota and limit usage for the org",
+		Short: "Show plan quota and limit usage",
 		Long: `Show how much of each plan quota and limit the org has used, the same
 numbers the Billing page and enforcement see.
 
@@ -24,7 +24,7 @@ the current UTC calendar month and reset at the window end; limits (numClusters,
 numResourcePlugins, concurrentDevboxes) count what exists right now.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return run(cfg, cmd.OutOrStdout())
+			return runUsage(cfg, cmd.OutOrStdout())
 		},
 	}
 
@@ -33,7 +33,7 @@ numResourcePlugins, concurrentDevboxes) count what exists right now.`,
 	return cmd
 }
 
-func run(cfg *config.Usage, out io.Writer) error {
+func runUsage(cfg *config.SubscriptionUsage, out io.Writer) error {
 	if err := cfg.InitAPIConfig(); err != nil {
 		return err
 	}
