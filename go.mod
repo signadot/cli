@@ -24,7 +24,7 @@ require (
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
 	github.com/oklog/run v1.1.0
 	github.com/panta/machineid v1.0.2
-	github.com/signadot/go-sdk v0.3.9-0.20260914170112-3941d772bdea
+	github.com/signadot/go-sdk v0.3.9-0.20261125222346-c94f27158810
 	github.com/signadot/libconnect v0.1.1-0.20261029130001-02439954480c
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.11.0
@@ -186,9 +186,3 @@ require (
 
 // Used for local dev
 // replace github.com/signadot/libconnect => ../libconnect/
-
-// ENG-1342: the /usage client is not yet in a published go-sdk. Until #7668
-// (and the ?month= param from #7704/ENG-1340) land on master and push-swagger
-// regenerates go-sdk, build against a locally-regenerated copy. Remove this and
-// bump the go-sdk version once the real client is published.
-replace github.com/signadot/go-sdk => ../go-sdk

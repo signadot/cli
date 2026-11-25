@@ -360,8 +360,7 @@ func getTestExecutionsForRunID(ctx context.Context, cfg *config.SmartTest,
 		}
 
 		// add current page results to the collection
-		for _, item := range result.Payload {
-			tx := item.Execution
+		for _, tx := range result.Payload.Items {
 			if tx.Spec == nil || tx.Spec.External == nil {
 				// this should never happen
 				continue
@@ -370,11 +369,12 @@ func getTestExecutionsForRunID(ctx context.Context, cfg *config.SmartTest,
 		}
 
 		// check if there are more pages
-		if int64(len(result.Payload)) < pageSize {
+		if !result.Payload.HasMore || result.Payload.NextCursor == "" {
 			return res, nil
 		}
 
 		// define the next cursor
-		cursor = &result.Payload[len(result.Payload)-1].Cursor
+		next := result.Payload.NextCursor
+		cursor = &next
 	}
 }
