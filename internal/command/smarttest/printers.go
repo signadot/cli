@@ -125,11 +125,10 @@ type testExecRow struct {
 	Status      string `sdtab:"STATUS"`
 }
 
-func printTestExecutionsTable(w io.Writer, txs []*models.TestexecutionsQueryResult) error {
+func printTestExecutionsTable(w io.Writer, txs []*models.TestExecution) error {
 	tab := sdtab.New[testExecRow](w)
 	tab.AddHeader()
-	for _, item := range txs {
-		tx := item.Execution
+	for _, tx := range txs {
 		source := "hosted"
 		if tx.Spec != nil && tx.Spec.External != nil {
 			source = "external"

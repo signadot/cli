@@ -8,6 +8,7 @@ import (
 	"github.com/signadot/cli/internal/config"
 	"github.com/signadot/cli/internal/print"
 	"github.com/signadot/go-sdk/client/test_executions"
+	"github.com/signadot/go-sdk/models"
 	"github.com/spf13/cobra"
 )
 
@@ -61,14 +62,29 @@ func xList(cfg *config.SmartTestExecList, wOut, wErr io.Writer, args []string) e
 	if len(cfg.Labels) > 0 {
 		params.WithLabel(cfg.Labels.ToQueryFilter())
 	}
-	result, err := cfg.Client.TestExecutions.QueryTestExecutions(params, nil)
-	if err != nil {
-		return err
+	// The query endpoint returns a paginated {items,nextCursor,hasMore}
+	// envelope (the go-sdk defaults the opt-in to "pagination"). Walk every
+	// page so the list isn't capped at the first page.
+	var txs []*models.TestExecution
+	var cursor *string
+	for {
+		if cursor != nil {
+			params = params.WithCursor(cursor)
+		}
+		result, err := cfg.Client.TestExecutions.QueryTestExecutions(params, nil)
+		if err != nil {
+			return err
+		}
+		if !result.IsSuccess() {
+			return errors.New(result.Error())
+		}
+		txs = append(txs, result.Payload.Items...)
+		if !result.Payload.HasMore || result.Payload.NextCursor == "" {
+			break
+		}
+		next := result.Payload.NextCursor
+		cursor = &next
 	}
-	if !result.IsSuccess() {
-		return errors.New(result.Error())
-	}
-	txs := result.Payload
 	switch cfg.OutputFormat {
 	case config.OutputFormatDefault:
 		return printTestExecutionsTable(wOut, txs)

@@ -65,14 +65,29 @@ func runList(out io.Writer, cfg *config.LocalOverrideList) error {
 }
 
 func getSandboxes(cfg *config.LocalOverrideList) ([]*models.Sandbox, error) {
-	resp, err := cfg.Client.Sandboxes.
-		ListSandboxes(sandboxes.NewListSandboxesParams().
-			WithOrgName(cfg.Org), nil)
-	if err != nil {
-		return nil, err
+	// The v2 list endpoint returns a paginated {items,nextCursor,hasMore}
+	// envelope (the go-sdk defaults the opt-in to "pagination"). Walk every
+	// page so overrides are computed over all sandboxes, not just the first page.
+	var items []*models.Sandbox
+	var cursor *string
+	for {
+		params := sandboxes.NewListSandboxesParams().WithOrgName(cfg.Org)
+		if cursor != nil {
+			params = params.WithCursor(cursor)
+		}
+		resp, err := cfg.Client.Sandboxes.ListSandboxes(params, nil)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, resp.Payload.Items...)
+		if !resp.Payload.HasMore || resp.Payload.NextCursor == "" {
+			break
+		}
+		next := resp.Payload.NextCursor
+		cursor = &next
 	}
 
-	return resp.Payload, nil
+	return items, nil
 }
 
 func getOverridesFromSandboxes(sandboxes []*models.Sandbox) ([]*sandboxWithForward, error) {
